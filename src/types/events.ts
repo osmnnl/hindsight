@@ -1,0 +1,395 @@
+// Unified event model — canonical implementation of PRD §6.1.2.
+//
+// Every capture flowing through Hindsight is a CapturedEvent. The
+// discriminated union on `type` keeps storage homogeneous, lets the
+// timeline render with a single switch, and gives exporters a stable
+// shape to derive HAR / Markdown / replay bundles from.
+//
+// This file is the source of truth. Capture sites (service worker,
+// content scripts, side panel) should import from here rather than
+// redefine local shapes. The .js → .ts port committed alongside this
+// file still uses LegacyCapture in places; the M1-week-2 sprint
+// rewires it to CapturedEvent end-to-end.
+
+// ---------------------------------------------------------------------------
+// Discriminator
+// ---------------------------------------------------------------------------
+
+export type EventType =
+  // Tier 1 — essential (PRD §6.1.1)
+  | 'network.fetch'
+  | 'network.xhr'
+  | 'console.error'
+  | 'console.unhandled'
+  | 'navigation'
+  // Tier 2 — important
+  | 'network.websocket'
+  | 'console.warn'
+  | 'console.info'
+  | 'action.click'
+  | 'action.input'
+  // Tier 3 — conditional
+  | 'network.sse'
+  | 'screenshot'
+  | 'performance.longtask'
+  | 'performance.cls'
+  // Tier 4 — recording-mode only
+  | 'recording.start'
+  | 'recording.stop'
+  | 'action.scroll'
+  | 'action.focus'
+  | 'mutation'
+  | 'cursor';
+
+// ---------------------------------------------------------------------------
+// Cross-cutting metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * A single capture-time redaction. PRD §11.2: PII is masked before it is
+ * ever written to storage; the metadata here records *that* something was
+ * masked, *where*, and *which rule* matched — never the original value.
+ */
+export interface Redaction {
+  /** Where the redaction happened. */
+  scope: 'request.headers' | 'request.body' | 'response.headers' | 'response.body' | 'form.value';
+  /** Header name, JSON path, or form field name where the redaction landed. */
+  path: string;
+  /** Identifier of the rule that fired (e.g. 'header.authorization', 'pattern.tckn'). */
+  rule: string;
+}
+
+export interface EventMeta {
+  /** Redactions applied at capture time, if any. */
+  redactions?: Redaction[];
+  /** Parent event id if this event is part of a detected cascade (PRD §6.2.3). */
+  cascadeOf?: string;
+  /** Flags surfaced by the detection rule engine (PRD §6.2.1). */
+  flags?: EventFlag[];
+}
+
+export type EventFlag = 'slow' | 'failed' | 'anomaly' | 'cascade-head' | 'cascade-member';
+
+// ---------------------------------------------------------------------------
+// Per-type payloads
+// ---------------------------------------------------------------------------
+
+export interface NetworkRequest {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  /** Serialized request body. May be `null` (no body) or a faithful string repr. */
+  body: string | null;
+}
+
+export interface NetworkResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  /** Serialized response body. May be `null` if the request errored before headers. */
+  body: string | null;
+}
+
+export interface NetworkTiming {
+  /** Unix ms when the request was initiated. */
+  startedAt: number;
+  /** Total duration in ms (response end - request start). */
+  durationMs: number;
+}
+
+export interface NetworkFetchData {
+  request: NetworkRequest;
+  response: NetworkResponse;
+  timing: NetworkTiming;
+  /** Stringified network error if the fetch threw (CORS, abort, DNS, etc.). */
+  error: string | null;
+}
+
+export type NetworkXhrData = NetworkFetchData;
+
+export interface NetworkWebSocketData {
+  /** Phase of the connection lifecycle. */
+  phase: 'connect' | 'open' | 'message' | 'close' | 'error';
+  url: string;
+  direction?: 'send' | 'recv';
+  /** Frame size in bytes. Frame content is metadata-only by default (PRD §6.1.1 Tier 2). */
+  byteSize?: number;
+  code?: number;
+  reason?: string;
+}
+
+export interface NetworkSseData {
+  phase: 'connect' | 'message' | 'error' | 'close';
+  url: string;
+  /** Event name (`message` is default). */
+  event?: string;
+  /** Last event id for resumption. */
+  lastEventId?: string;
+}
+
+export type ConsoleLevel = 'info' | 'warn' | 'error' | 'unhandled';
+
+export interface ConsoleData {
+  level: ConsoleLevel;
+  message: string;
+  stack?: string;
+  /** Source location for the call site when available. */
+  source?: { file: string; line: number; column?: number };
+}
+
+/**
+ * A descriptor for a click/input/focus target. Captures accessible identity
+ * over brittle CSS selectors.
+ */
+export interface TargetDescriptor {
+  /** e.g. 'BUTTON', 'A', 'INPUT'. */
+  tag: string;
+  /** Accessible name: aria-label, then visible text, then placeholder. */
+  accessibleName?: string;
+  id?: string;
+  name?: string;
+  /** Sparse classlist (PRD §6.1.1 Tier 2 — limited to avoid noise). */
+  classes?: string[];
+  /** Bounding rect at capture time, viewport-relative. */
+  rect?: { x: number; y: number; width: number; height: number };
+}
+
+export interface ActionClickData {
+  target: TargetDescriptor;
+  /** Mouse button: 0 = primary, 1 = middle, 2 = secondary. */
+  button: 0 | 1 | 2;
+  modifiers: { alt: boolean; ctrl: boolean; meta: boolean; shift: boolean };
+}
+
+export interface ActionInputData {
+  target: TargetDescriptor;
+  /** Input value after the change. May be `***MASKED***` per PRD §11.2. */
+  value: string;
+  /** Type of the input element (`password`, `email`, ...). */
+  inputType?: string;
+}
+
+export interface ActionScrollData {
+  scrollX: number;
+  scrollY: number;
+}
+
+export interface ActionFocusData {
+  target: TargetDescriptor;
+  /** Whether the event was a `focus` (true) or `blur` (false). */
+  focused: boolean;
+}
+
+export interface NavigationData {
+  fromUrl: string | null;
+  toUrl: string;
+  /** chrome.webNavigation transition type, when available. */
+  transitionType?: string;
+}
+
+export interface ScreenshotData {
+  /** Storage ref (e.g. `screenshots/<sessionId>/<eventId>.jpg`). Embedded
+   *  data URIs land later in the replay-bundle generator (PRD §5). */
+  storageRef: string;
+  /** What surfaced this screenshot (PRD §6.1.1 Tier 3 — error trigger,
+   *  recording cadence, etc.). */
+  trigger: 'error' | 'recording-tick' | 'mutation' | 'manual';
+  /** Encoded dimensions. */
+  width: number;
+  height: number;
+}
+
+export interface PerformanceLongTaskData {
+  /** Duration in ms (>50ms per PRD §6.1.1 Tier 3, surfaced at >100ms per §6.2.1). */
+  durationMs: number;
+  /** Origin attribution if available. */
+  attribution?: string;
+}
+
+export interface PerformanceClsData {
+  /** Cumulative layout shift score for this entry. */
+  value: number;
+  hadRecentInput: boolean;
+}
+
+export interface RecordingStartData {
+  /** User-provided title; empty until labelled in the export dialog. */
+  title?: string;
+}
+
+export interface RecordingStopData {
+  /** Total recording duration in ms. */
+  durationMs: number;
+}
+
+export interface MutationData {
+  /** Number of nodes added/removed/changed in this batch. */
+  added: number;
+  removed: number;
+  changed: number;
+  /** Reference to a diff-encoded payload in storage (kept out of the event
+   *  body to avoid bloating the timeline). */
+  diffRef?: string;
+}
+
+export interface CursorData {
+  x: number;
+  y: number;
+}
+
+// ---------------------------------------------------------------------------
+// CapturedEvent — the discriminated union
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared envelope. The PRD section that defines this lives at §6.1.2.
+ */
+interface BaseEvent<T extends EventType, D> {
+  /** Unique within a session. UUID v4 is fine. */
+  id: string;
+  type: T;
+  /** Unix ms. Monotonic per session within a tab. */
+  timestamp: number;
+  /** Per-tab session UUID (PRD §6.1.3). */
+  sessionId: string;
+  /** Ordering within the session — fills gaps when timestamps tie. */
+  sequenceNumber: number;
+  tabId: number;
+  /** Page URL at the time of the event (not the request URL — that lives in `data`). */
+  url: string;
+  data: D;
+  meta?: EventMeta;
+}
+
+export type NetworkFetchEvent = BaseEvent<'network.fetch', NetworkFetchData>;
+export type NetworkXhrEvent = BaseEvent<'network.xhr', NetworkXhrData>;
+export type NetworkWebSocketEvent = BaseEvent<'network.websocket', NetworkWebSocketData>;
+export type NetworkSseEvent = BaseEvent<'network.sse', NetworkSseData>;
+export type ConsoleErrorEvent = BaseEvent<'console.error', ConsoleData>;
+export type ConsoleWarnEvent = BaseEvent<'console.warn', ConsoleData>;
+export type ConsoleInfoEvent = BaseEvent<'console.info', ConsoleData>;
+export type ConsoleUnhandledEvent = BaseEvent<'console.unhandled', ConsoleData>;
+export type ActionClickEvent = BaseEvent<'action.click', ActionClickData>;
+export type ActionInputEvent = BaseEvent<'action.input', ActionInputData>;
+export type ActionScrollEvent = BaseEvent<'action.scroll', ActionScrollData>;
+export type ActionFocusEvent = BaseEvent<'action.focus', ActionFocusData>;
+export type NavigationEvent = BaseEvent<'navigation', NavigationData>;
+export type ScreenshotEvent = BaseEvent<'screenshot', ScreenshotData>;
+export type PerformanceLongTaskEvent = BaseEvent<'performance.longtask', PerformanceLongTaskData>;
+export type PerformanceClsEvent = BaseEvent<'performance.cls', PerformanceClsData>;
+export type RecordingStartEvent = BaseEvent<'recording.start', RecordingStartData>;
+export type RecordingStopEvent = BaseEvent<'recording.stop', RecordingStopData>;
+export type MutationEvent = BaseEvent<'mutation', MutationData>;
+export type CursorEvent = BaseEvent<'cursor', CursorData>;
+
+export type CapturedEvent =
+  | NetworkFetchEvent
+  | NetworkXhrEvent
+  | NetworkWebSocketEvent
+  | NetworkSseEvent
+  | ConsoleErrorEvent
+  | ConsoleWarnEvent
+  | ConsoleInfoEvent
+  | ConsoleUnhandledEvent
+  | ActionClickEvent
+  | ActionInputEvent
+  | ActionScrollEvent
+  | ActionFocusEvent
+  | NavigationEvent
+  | ScreenshotEvent
+  | PerformanceLongTaskEvent
+  | PerformanceClsEvent
+  | RecordingStartEvent
+  | RecordingStopEvent
+  | MutationEvent
+  | CursorEvent;
+
+// ---------------------------------------------------------------------------
+// Type-narrowing guards
+// ---------------------------------------------------------------------------
+
+/** All network-family events (fetch, xhr, websocket, sse). */
+export type NetworkEvent =
+  | NetworkFetchEvent
+  | NetworkXhrEvent
+  | NetworkWebSocketEvent
+  | NetworkSseEvent;
+
+/** All console-family events. */
+export type ConsoleEvent =
+  | ConsoleErrorEvent
+  | ConsoleWarnEvent
+  | ConsoleInfoEvent
+  | ConsoleUnhandledEvent;
+
+/** All action-family events. */
+export type ActionEvent =
+  | ActionClickEvent
+  | ActionInputEvent
+  | ActionScrollEvent
+  | ActionFocusEvent;
+
+const NETWORK_TYPES = new Set<EventType>([
+  'network.fetch',
+  'network.xhr',
+  'network.websocket',
+  'network.sse',
+]);
+
+const CONSOLE_TYPES = new Set<EventType>([
+  'console.error',
+  'console.warn',
+  'console.info',
+  'console.unhandled',
+]);
+
+const ACTION_TYPES = new Set<EventType>([
+  'action.click',
+  'action.input',
+  'action.scroll',
+  'action.focus',
+]);
+
+export function isNetworkEvent(e: CapturedEvent): e is NetworkEvent {
+  return NETWORK_TYPES.has(e.type);
+}
+
+export function isConsoleEvent(e: CapturedEvent): e is ConsoleEvent {
+  return CONSOLE_TYPES.has(e.type);
+}
+
+export function isActionEvent(e: CapturedEvent): e is ActionEvent {
+  return ACTION_TYPES.has(e.type);
+}
+
+export function isFailedNetwork(e: CapturedEvent): e is NetworkFetchEvent | NetworkXhrEvent {
+  if (e.type !== 'network.fetch' && e.type !== 'network.xhr') return false;
+  const status = e.data.response.status;
+  return status === 0 || status >= 400 || e.data.error != null;
+}
+
+export function isErrorEvent(e: CapturedEvent): boolean {
+  if (e.type === 'console.error' || e.type === 'console.unhandled') return true;
+  return isFailedNetwork(e);
+}
+
+// ---------------------------------------------------------------------------
+// Session envelope
+// ---------------------------------------------------------------------------
+
+/**
+ * Session-level metadata kept alongside the event buffer (PRD §6.1.3 key
+ * `sessions/{tabId}`).
+ */
+export interface SessionMetadata {
+  sessionId: string;
+  tabId: number;
+  origin: string;
+  userAgent: string;
+  startedAt: number;
+  /** Bumped on every schema migration (PRD §10.3). */
+  schemaVersion: number;
+}
+
+/** Storage schema version this codebase emits. Bump on breaking change. */
+export const EVENTS_SCHEMA_VERSION = 1;
