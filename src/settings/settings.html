@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hindsight · Settings</title>
+    <link rel="stylesheet" href="./settings.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>Hindsight Settings</h1>
+        <p class="subtitle">Privacy-first defaults — captures stay on your machine.</p>
+      </header>
+
+      <nav class="sections" aria-label="Settings sections">
+        <button class="section-link active" data-section="general">General</button>
+        <button class="section-link disabled" data-section="capture" disabled>
+          Capture <span class="badge">M1·W3</span>
+        </button>
+        <button class="section-link disabled" data-section="detection" disabled>
+          Detection <span class="badge">M3</span>
+        </button>
+        <button class="section-link disabled" data-section="sharing" disabled>
+          Sharing <span class="badge">M4</span>
+        </button>
+        <button class="section-link disabled" data-section="privacy" disabled>
+          Privacy <span class="badge">M1·W3</span>
+        </button>
+        <button class="section-link disabled" data-section="advanced" disabled>
+          Advanced <span class="badge">M2+</span>
+        </button>
+      </nav>
+
+      <main>
+        <section id="section-general" class="section">
+          <h2>General</h2>
+
+          <div class="field">
+            <label for="theme">Theme</label>
+            <select id="theme" name="theme">
+              <option value="system">Match system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <p class="hint">Affects the popup, side panel, and settings page.</p>
+          </div>
+
+          <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./settings.ts"></script>
+  </body>
+</html>
