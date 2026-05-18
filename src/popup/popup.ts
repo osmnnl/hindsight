@@ -5,13 +5,14 @@
 // offers per-event + bulk copy / download / share actions. UI copy is
 // generic — do not introduce vendor-specific strings (CLAUDE.md §5.1).
 
-import type { CapturedEvent, NetworkFetchEvent, NetworkXhrEvent } from '@/types/events';
+import type { CapturedEvent, NetworkFetchEvent, NetworkXhrEvent, Redaction } from '@/types/events';
 import { isFailedNetwork } from '@/types/events';
 import {
   type ClearEventsRuntimeMessage,
   type GetEventsRuntimeMessage,
 } from '@/lib/runtime-messages';
 import { toHar } from '@/lib/har';
+import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
 
 declare const __APP_VERSION__: string;
 
@@ -523,6 +524,8 @@ function showDetail(c: NetworkRequestEvent): void {
         : ''
     }
 
+    ${renderRedactionsPanel(c.meta?.redactions)}
+
     <div class="section">
       <h3>Request headers</h3>
       <pre>${escapeHtml(JSON.stringify(maskHeaders(c.data.request.headers), null, 2))}</pre>
@@ -762,6 +765,76 @@ function downloadAsFile(c: NetworkRequestEvent): void {
 /** Returns a copy of the event with sensitive request headers masked.
  *  Stored data is unchanged — this is an export-side projection only.
  *  Capture-time masking (PRD §11.2) lands with the regex engine. */
+/**
+ * Renders the optional Privacy panel above the request/response detail.
+ * Surfaces what the capture-time masker (PRD §11.2) did to the data
+ * before it was stored — fulfills the PRD §11.4 "Pre-share preview"
+ * transparency commitment at the per-event level.
+ */
+function renderRedactionsPanel(redactions: Redaction[] | undefined): string {
+  if (!redactions || redactions.length === 0) return '';
+
+  type Group = { ruleId: string; label: string; count: number; scopes: Set<string> };
+  const groups = new Map<string, Group>();
+  for (const r of redactions) {
+    const existing = groups.get(r.rule);
+    if (existing) {
+      existing.count++;
+      existing.scopes.add(r.scope);
+    } else {
+      groups.set(r.rule, {
+        ruleId: r.rule,
+        label: lookupRuleLabel(r.rule),
+        count: 1,
+        scopes: new Set([r.scope]),
+      });
+    }
+  }
+
+  const groupArr = Array.from(groups.values());
+  const summary = groupArr.map((g) => `${g.count} × ${g.label}`).join(' · ');
+  const total = redactions.length;
+  const noun = `field${total === 1 ? '' : 's'}`;
+
+  const rows = groupArr
+    .map(
+      (g) =>
+        `<li><strong>${escapeHtml(g.label)}</strong> <span class="muted">(${escapeHtml(
+          [...g.scopes].join(', ')
+        )})</span> — ${g.count}×</li>`
+    )
+    .join('');
+
+  return `
+    <details class="redactions">
+      <summary>
+        <span class="redactions-icon" aria-hidden="true">🛡️</span>
+        <strong>${total} ${noun} masked at capture time</strong>
+        <span class="muted"> — ${escapeHtml(summary)}</span>
+      </summary>
+      <ul class="redactions-list">${rows}</ul>
+      <p class="hint">
+        Capture-time masking is irreversible — the original values were never written to storage
+        (PRD §11.2).
+      </p>
+    </details>
+  `;
+}
+
+const RULE_LABELS: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const r of [...DEFAULT_HEADER_RULES, ...DEFAULT_BODY_RULES, ...DEFAULT_FORM_RULES]) {
+    map[r.id] = r.label;
+  }
+  return map;
+})();
+
+function lookupRuleLabel(ruleId: string): string {
+  if (RULE_LABELS[ruleId]) return RULE_LABELS[ruleId];
+  if (ruleId.startsWith('user.')) return 'Custom pattern';
+  return ruleId;
+}
+
 function maskedEventForExport(c: NetworkRequestEvent): NetworkRequestEvent {
   return {
     ...c,

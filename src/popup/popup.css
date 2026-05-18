@@ -354,6 +354,67 @@ button:hover {
   color: var(--warn);
 }
 
+/* Redactions panel — PRD §11.4 transparency surface */
+.redactions {
+  margin: 8px 14px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.06);
+  padding: 0;
+  font-size: 12px;
+}
+
+.redactions > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.redactions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.redactions > summary::before {
+  content: '▸';
+  color: var(--muted);
+  font-size: 9px;
+  transition: transform 120ms ease;
+}
+
+.redactions[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.redactions .redactions-icon {
+  font-size: 12px;
+}
+
+.redactions .muted {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.redactions-list {
+  margin: 0;
+  padding: 4px 12px 8px 32px;
+  line-height: 1.7;
+}
+
+.redactions-list li {
+  list-style: disc;
+}
+
+.redactions .hint {
+  margin: 0 12px 8px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .section {
   padding: 8px 14px 4px;
 }
