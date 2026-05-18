@@ -1,34 +1,26 @@
-export {};
-
 // Content-script interceptor — MAIN world (page context).
 //
 // Patches window.fetch and XMLHttpRequest so we can observe requests
-// including response bodies. Posts each capture to the ISOLATED-world
-// bridge via window.postMessage. Has no access to chrome.* APIs by design.
-//
-// TODO(m1-w2): re-emit captures as CapturedEvent (PRD §6.1.2) once the
-// canonical model is wired through src/types/events.ts. This file is a
-// like-for-like .js → .ts port; logic is unchanged.
+// including response bodies. Emits RawCapture envelopes shaped per
+// PRD §6.1.2 (NetworkFetchData / NetworkXhrData) to the ISOLATED-world
+// bridge via window.postMessage. Has no access to chrome.* APIs by
+// design — the service worker is the central authority that wraps each
+// RawCapture into a full CapturedEvent (id, sessionId, sequenceNumber).
 
-interface LegacyCapturePayload {
-  id: string;
-  type: 'fetch' | 'xhr';
-  url: string;
-  method: string;
-  status: number;
-  statusText: string;
-  startedAt: number;
-  duration: number;
-  requestHeaders: Record<string, string>;
-  requestBody: string | null;
-  responseHeaders: Record<string, string>;
-  responseBody: string | null;
-  error: string | null;
-}
+import type {
+  NetworkFetchData,
+  NetworkRequest,
+  NetworkResponse,
+  NetworkTiming,
+  NetworkXhrData,
+} from '@/types/events';
+import {
+  CAPTURE_BRIDGE_TAG,
+  type PageBridgeMessage,
+  type RawCapture,
+} from '@/lib/runtime-messages';
 
 (() => {
-  const CAPTURE_EVENT = '__nc_capture__';
-
   // ---------- fetch patch ----------
   const originalFetch = window.fetch;
   window.fetch = async function patchedFetch(
@@ -37,8 +29,6 @@ interface LegacyCapturePayload {
   ): Promise<Response> {
     const [input, init] = args;
     const startedAt = Date.now();
-    const requestId =
-      (crypto.randomUUID && crypto.randomUUID()) || String(startedAt + Math.random());
 
     let url: string;
     let method: string;
@@ -87,21 +77,18 @@ interface LegacyCapturePayload {
       }
     }
 
-    post({
-      id: requestId,
-      type: 'fetch',
-      url,
-      method,
-      status,
-      statusText,
-      startedAt,
-      duration: Date.now() - startedAt,
-      requestHeaders,
-      requestBody,
-      responseHeaders,
-      responseBody,
+    const data: NetworkFetchData = {
+      request: { method, url, headers: requestHeaders, body: requestBody },
+      response: {
+        status,
+        statusText,
+        headers: responseHeaders,
+        body: responseBody,
+      } satisfies NetworkResponse,
+      timing: { startedAt, durationMs: Date.now() - startedAt } satisfies NetworkTiming,
       error: networkError,
-    });
+    };
+    post({ type: 'network.fetch', data });
 
     if (networkError) throw new Error(networkError);
     return response as Response;
@@ -112,7 +99,6 @@ interface LegacyCapturePayload {
   function PatchedXHR(this: XMLHttpRequest): XMLHttpRequest {
     const xhr = new OriginalXHR();
     const state = {
-      id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now() + Math.random()),
       method: '' as string,
       url: '' as string,
       requestHeaders: {} as Record<string, string>,
@@ -163,21 +149,23 @@ interface LegacyCapturePayload {
             responseBody = `[error reading body: ${(e as Error).message}]`;
           }
 
-          post({
-            id: state.id,
-            type: 'xhr',
-            url: state.url,
-            method: state.method,
-            status: xhr.status,
-            statusText: xhr.statusText,
-            startedAt: state.startedAt,
-            duration: Date.now() - state.startedAt,
-            requestHeaders: state.requestHeaders,
-            requestBody: state.requestBody,
-            responseHeaders,
-            responseBody,
+          const data: NetworkXhrData = {
+            request: {
+              method: state.method,
+              url: state.url,
+              headers: state.requestHeaders,
+              body: state.requestBody,
+            } satisfies NetworkRequest,
+            response: {
+              status: xhr.status,
+              statusText: xhr.statusText,
+              headers: responseHeaders,
+              body: responseBody,
+            },
+            timing: { startedAt: state.startedAt, durationMs: Date.now() - state.startedAt },
             error: xhr.status === 0 ? 'Network error / aborted' : null,
-          });
+          };
+          post({ type: 'network.xhr', data });
         } catch {
           /* never break the page */
         }
@@ -201,9 +189,10 @@ interface LegacyCapturePayload {
   window.XMLHttpRequest = PatchedXHR as unknown as typeof XMLHttpRequest;
 
   // ---------- helpers ----------
-  function post(payload: LegacyCapturePayload): void {
+  function post(capture: RawCapture): void {
+    const message: PageBridgeMessage = { source: CAPTURE_BRIDGE_TAG, capture };
     try {
-      window.postMessage({ source: CAPTURE_EVENT, payload }, '*');
+      window.postMessage(message, '*');
     } catch {
       /* silent */
     }

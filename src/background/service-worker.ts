@@ -1,79 +1,132 @@
-export {};
-
-// Background service worker.
+// Background service worker — central authority for the capture pipeline.
 //
-// Holds a per-tab circular buffer of captures in chrome.storage.session,
-// updates the action badge with the count of failed requests, and responds
-// to popup queries.
-//
-// TODO(m1-w2): replace LegacyCapture with the canonical CapturedEvent
-// discriminated union from src/types/events.ts (PRD §6.1.2). This file is
-// a like-for-like .js → .ts port; logic is unchanged.
+// Receives RawCapture envelopes from the ISOLATED-world bridge, wraps
+// each into a full CapturedEvent (PRD §6.1.2) with id, sessionId,
+// sequenceNumber, timestamp, tabId, page url, and persists to
+// chrome.storage.local under the per-tab keys from PRD §6.1.3. Also
+// runs the action-badge state machine.
 
-const MAX_PER_TAB = 200;
-const STORAGE_PREFIX = 'tab:';
+import {
+  appendEvent,
+  clearSession,
+  DEFAULT_MAX_EVENTS_PER_TAB,
+  getOrCreateSession,
+  readEvents,
+} from '@/lib/storage';
+import {
+  isCaptureMessage,
+  isClearEventsMessage,
+  isGetEventsMessage,
+  type CaptureRuntimeMessage,
+  type RuntimeMessage,
+} from '@/lib/runtime-messages';
+import { isFailedNetwork, type CapturedEvent } from '@/types/events';
 
-interface LegacyCapture {
-  id: string;
-  type: 'fetch' | 'xhr';
-  url: string;
-  method: string;
-  status: number;
-  statusText?: string;
-  startedAt: number;
-  duration: number;
-  requestHeaders?: Record<string, string>;
-  requestBody?: string | null;
-  responseHeaders?: Record<string, string>;
-  responseBody?: string | null;
-  error?: string | null;
-  pageUrl?: string;
-  pageTitle?: string;
-  capturedAt?: number;
-}
-
-type IncomingMessage =
-  | { type: 'CAPTURE'; payload: LegacyCapture; pageUrl?: string; pageTitle?: string }
-  | { type: 'GET_CAPTURES'; tabId: number }
-  | { type: 'CLEAR_CAPTURES'; tabId: number };
+// In-memory monotonic sequence counter per session. Hydrated lazily on
+// first capture after a service-worker wake-up; loss across wake-ups is
+// acceptable because PRD §6.1.3 calls out "On browser restart: live
+// session resets". Same applies to SW evictions in practice.
+const sequenceCursor = new Map<string, number>();
 
 chrome.runtime.onMessage.addListener(
-  (msg: IncomingMessage, sender, sendResponse): boolean | void => {
-    if (msg.type === 'CAPTURE') {
+  (msg: RuntimeMessage, sender, sendResponse): boolean | void => {
+    if (isCaptureMessage(msg)) {
       const tabId = sender.tab?.id;
       if (tabId == null) return;
-      void handleCapture(tabId, msg.payload, msg.pageUrl, msg.pageTitle);
+      void handleCapture(tabId, msg);
       return;
     }
 
-    if (msg.type === 'GET_CAPTURES') {
-      void getCaptures(msg.tabId).then(sendResponse);
+    if (isGetEventsMessage(msg)) {
+      void readEvents(msg.tabId).then(sendResponse);
       return true;
     }
 
-    if (msg.type === 'CLEAR_CAPTURES') {
-      void clearCaptures(msg.tabId).then(() => sendResponse(true));
+    if (isClearEventsMessage(msg)) {
+      void clearSession(msg.tabId)
+        .then(() => clearBadge(msg.tabId))
+        .then(() => sendResponse(true));
       return true;
     }
   }
 );
 
-async function handleCapture(
-  tabId: number,
-  capture: LegacyCapture,
-  pageUrl?: string,
-  pageTitle?: string
-): Promise<void> {
-  const key = STORAGE_PREFIX + tabId;
-  const stored = await chrome.storage.session.get(key);
-  const existing = (stored[key] as LegacyCapture[] | undefined) ?? [];
+async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise<void> {
+  const origin = safeOrigin(msg.pageUrl);
+  const session = await getOrCreateSession(tabId, origin);
+  const sequenceNumber = nextSequence(session.sessionId);
 
-  const enriched: LegacyCapture = { ...capture, pageUrl, pageTitle, capturedAt: Date.now() };
-  const next = existing.concat(enriched).slice(-MAX_PER_TAB);
+  // The discriminator from RawCapture is identical to the CapturedEvent
+  // EventType literal, so the construction below is type-safe by
+  // narrowing on `msg.capture.type`.
+  const baseEnvelope = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    sessionId: session.sessionId,
+    sequenceNumber,
+    tabId,
+    url: msg.pageUrl,
+  };
 
-  await chrome.storage.session.set({ [key]: next });
+  // CapturedEvent is a discriminated union over `type`. Building each
+  // variant explicitly preserves TS's narrowing — the alternative (a
+  // single `{ ...base, ...msg.capture }` spread) widens `data` to
+  // `unknown`.
+  let event: CapturedEvent;
+  switch (msg.capture.type) {
+    case 'network.fetch':
+      event = { ...baseEnvelope, type: 'network.fetch', data: msg.capture.data };
+      break;
+    case 'network.xhr':
+      event = { ...baseEnvelope, type: 'network.xhr', data: msg.capture.data };
+      break;
+    case 'network.websocket':
+      event = { ...baseEnvelope, type: 'network.websocket', data: msg.capture.data };
+      break;
+    case 'network.sse':
+      event = { ...baseEnvelope, type: 'network.sse', data: msg.capture.data };
+      break;
+    case 'console.error':
+      event = { ...baseEnvelope, type: 'console.error', data: msg.capture.data };
+      break;
+    case 'console.warn':
+      event = { ...baseEnvelope, type: 'console.warn', data: msg.capture.data };
+      break;
+    case 'console.info':
+      event = { ...baseEnvelope, type: 'console.info', data: msg.capture.data };
+      break;
+    case 'console.unhandled':
+      event = { ...baseEnvelope, type: 'console.unhandled', data: msg.capture.data };
+      break;
+    case 'action.click':
+      event = { ...baseEnvelope, type: 'action.click', data: msg.capture.data };
+      break;
+    case 'action.input':
+      event = { ...baseEnvelope, type: 'action.input', data: msg.capture.data };
+      break;
+    case 'navigation':
+      event = { ...baseEnvelope, type: 'navigation', data: msg.capture.data };
+      break;
+    default: {
+      const _exhaustive: never = msg.capture;
+      void _exhaustive;
+      return;
+    }
+  }
 
-  const failedCount = next.reduce((n, c) => n + (isFailed(c) ? 1 : 0), 0);
+  const buffer = await appendEvent(tabId, event, DEFAULT_MAX_EVENTS_PER_TAB);
+  await renderBadge(tabId, buffer);
+}
+
+function nextSequence(sessionId: string): number {
+  const current = sequenceCursor.get(sessionId) ?? 0;
+  const next = current + 1;
+  sequenceCursor.set(sessionId, next);
+  return next;
+}
+
+async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void> {
+  const failedCount = buffer.reduce((n, e) => n + (isFailedNetwork(e) ? 1 : 0), 0);
   try {
     await chrome.action.setBadgeText({
       tabId,
@@ -85,15 +138,7 @@ async function handleCapture(
   }
 }
 
-async function getCaptures(tabId: number): Promise<LegacyCapture[]> {
-  const key = STORAGE_PREFIX + tabId;
-  const stored = await chrome.storage.session.get(key);
-  return (stored[key] as LegacyCapture[] | undefined) ?? [];
-}
-
-async function clearCaptures(tabId: number): Promise<void> {
-  const key = STORAGE_PREFIX + tabId;
-  await chrome.storage.session.remove(key);
+async function clearBadge(tabId: number): Promise<void> {
   try {
     await chrome.action.setBadgeText({ tabId, text: '' });
   } catch {
@@ -101,17 +146,26 @@ async function clearCaptures(tabId: number): Promise<void> {
   }
 }
 
-function isFailed(c: LegacyCapture): boolean {
-  return c.status >= 400 || c.status === 0 || !!c.error;
+function safeOrigin(pageUrl: string): string {
+  try {
+    return new URL(pageUrl).origin;
+  } catch {
+    return pageUrl;
+  }
 }
 
+// ---------------------------------------------------------------------------
+// Tab lifecycle — drop session + buffer on close, also on full reload
+// (PRD §6.1.3: live session resets on full reload).
+// ---------------------------------------------------------------------------
+
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void chrome.storage.session.remove(STORAGE_PREFIX + tabId).catch(() => {});
+  void clearSession(tabId).catch(() => {});
 });
 
 chrome.webNavigation?.onCommitted?.addListener?.((details) => {
   if (details.frameId === 0 && details.transitionType === 'reload') {
-    void chrome.storage.session.remove(STORAGE_PREFIX + details.tabId).catch(() => {});
-    void chrome.action.setBadgeText({ tabId: details.tabId, text: '' }).catch(() => {});
+    void clearSession(details.tabId).catch(() => {});
+    void clearBadge(details.tabId).catch(() => {});
   }
 });

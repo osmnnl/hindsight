@@ -1,35 +1,32 @@
-export {};
-
 // Content-script bridge — ISOLATED world.
 //
-// Listens for postMessage from the page-world interceptor and forwards each
-// capture to the service worker.
-//
-// TODO(m1-w2): align CAPTURE_EVENT tag with src/types/events.ts envelope.
+// Receives RawCapture envelopes posted by the page-world interceptor
+// and forwards them to the service worker. Both halves agree on the
+// shape via src/lib/runtime-messages.ts.
 
-const CAPTURE_EVENT = '__nc_capture__';
+import {
+  CAPTURE_BRIDGE_TAG,
+  type CaptureRuntimeMessage,
+  type PageBridgeMessage,
+} from '@/lib/runtime-messages';
 
-interface CaptureMessage {
-  source: typeof CAPTURE_EVENT;
-  payload: unknown;
-}
-
-window.addEventListener('message', (event: MessageEvent<CaptureMessage>) => {
+window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
   if (event.source !== window) return;
   const data = event.data;
-  if (!data || data.source !== CAPTURE_EVENT) return;
+  if (!data || data.source !== CAPTURE_BRIDGE_TAG) return;
+  if (!data.capture) return;
+
+  const message: CaptureRuntimeMessage = {
+    kind: 'CAPTURE',
+    capture: data.capture,
+    pageUrl: window.location.href,
+    pageTitle: document.title,
+  };
 
   try {
-    void chrome.runtime
-      .sendMessage({
-        type: 'CAPTURE',
-        payload: data.payload,
-        pageUrl: window.location.href,
-        pageTitle: document.title,
-      })
-      .catch(() => {
-        /* service worker may be inactive — drop silently */
-      });
+    void chrome.runtime.sendMessage(message).catch(() => {
+      /* service worker may be inactive — drop silently */
+    });
   } catch {
     /* extension context invalidated during reload — ignore */
   }

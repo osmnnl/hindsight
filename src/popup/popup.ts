@@ -1,11 +1,20 @@
-export {};
-
 // Popup UI for the toolbar action.
 //
-// TODO(m1-w2): rebuild against the canonical CapturedEvent model
-// (PRD §6.1.2). This file is a like-for-like .js → .ts port; logic is
-// unchanged. UI copy is generic — do not introduce vendor-specific
-// strings (see CLAUDE.md §5.1).
+// Reads CapturedEvent[] (PRD §6.1.2) from the service worker, renders
+// network failures with status / method / URL / time / duration, and
+// offers per-event + bulk copy / download / share actions. UI copy is
+// generic — do not introduce vendor-specific strings (CLAUDE.md §5.1).
+
+import type { CapturedEvent, NetworkFetchEvent, NetworkXhrEvent } from '@/types/events';
+import { isFailedNetwork } from '@/types/events';
+import {
+  type ClearEventsRuntimeMessage,
+  type GetEventsRuntimeMessage,
+} from '@/lib/runtime-messages';
+
+// A "request-like" event — what the popup renders today. Side panel
+// will broaden to console + actions in M3.
+type NetworkRequestEvent = NetworkFetchEvent | NetworkXhrEvent;
 
 const SENSITIVE_HEADERS = new Set([
   'authorization',
@@ -21,33 +30,17 @@ const SENSITIVE_HEADERS = new Set([
 // and trigger a JSON download so the receiver gets both pieces.
 const SLACK_SAFE_THRESHOLD = 3000;
 
-interface LegacyCapture {
-  id?: string;
-  type?: 'fetch' | 'xhr';
-  url: string;
-  method?: string;
-  status?: number;
-  statusText?: string;
-  startedAt?: number;
-  duration?: number;
-  requestHeaders?: Record<string, string>;
-  requestBody?: string | null;
-  responseHeaders?: Record<string, string>;
-  responseBody?: string | null;
-  error?: string | null;
-  pageUrl?: string;
-  pageTitle?: string;
-  capturedAt?: number;
-}
-
 type FilterMode = 'failed' | 'all';
+
+function isRequestLike(e: CapturedEvent): e is NetworkRequestEvent {
+  return e.type === 'network.fetch' || e.type === 'network.xhr';
+}
 
 function fmtSize(n: number): string {
   if (n < 1000) return `${n} chars`;
   return `${(n / 1000).toFixed(1)}k chars`;
 }
 
-// HH:MM:SS.mmm — local time with millisecond precision.
 function fmtTime(ts: number | undefined): string {
   if (!ts) return '';
   const d = new Date(ts);
@@ -56,8 +49,7 @@ function fmtTime(ts: number | undefined): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${pad3(d.getMilliseconds())}`;
 }
 
-// Render the captured failures as a self-contained PNG image.
-async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | null> {
+async function renderFailureListImage(items: NetworkRequestEvent[]): Promise<Blob | null> {
   if (!items || items.length === 0) return null;
 
   const DPR = 2;
@@ -87,14 +79,14 @@ async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | nu
   ctx.fillStyle = '#e7ecf5';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  const failedCount = items.filter((c) => isFailed(c)).length;
+  const failedCount = items.filter((c) => isFailedNetwork(c)).length;
   ctx.fillText(`Hindsight · ${failedCount} failed`, PAD + 18, PAD + 12);
 
   ctx.font = '12px ui-sans-serif, system-ui, -apple-system, sans-serif';
   ctx.fillStyle = '#8b94b3';
   const host = (() => {
     try {
-      return new URL(items[0]?.pageUrl ?? '').host;
+      return new URL(items[0]?.url ?? '').host;
     } catch {
       return '';
     }
@@ -125,7 +117,7 @@ async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | nu
   items.forEach((c, i) => {
     const y = HEADER_H + i * ROW_H;
     const mid = y + ROW_H / 2;
-    const failed = isFailed(c);
+    const failed = isFailedNetwork(c);
 
     if (i > 0) {
       ctx.fillStyle = '#1a2340';
@@ -142,20 +134,20 @@ async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | nu
     ctx.font = '600 12px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = failed ? '#ef4444' : '#22c55e';
     ctx.textAlign = 'center';
-    ctx.fillText(String(c.status ?? 'ERR'), PAD + STATUS_W / 2, mid);
+    ctx.fillText(String(c.data.response.status || 'ERR'), PAD + STATUS_W / 2, mid);
 
     ctx.font = '11px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#8b94b3';
     ctx.textAlign = 'left';
-    ctx.fillText((c.method ?? '?').toUpperCase(), PAD + STATUS_W + COL_GAP, mid);
+    ctx.fillText(c.data.request.method.toUpperCase(), PAD + STATUS_W + COL_GAP, mid);
 
     ctx.font = '12px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#e7ecf5';
     const urlPath = (() => {
       try {
-        return new URL(c.url).pathname;
+        return new URL(c.data.request.url).pathname;
       } catch {
-        return c.url;
+        return c.data.request.url;
       }
     })();
     ctx.fillText(fitText(ctx, urlPath, urlMaxW), urlX, mid);
@@ -163,9 +155,9 @@ async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | nu
     ctx.font = '11px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#8b94b3';
     ctx.textAlign = 'right';
-    ctx.fillText(fmtTime(c.startedAt), timeX, mid);
+    ctx.fillText(fmtTime(c.data.timing.startedAt), timeX, mid);
 
-    ctx.fillText(`${c.duration ?? 0}ms`, W - PAD, mid);
+    ctx.fillText(`${c.data.timing.durationMs}ms`, W - PAD, mid);
   });
 
   const footerY = HEADER_H + items.length * ROW_H;
@@ -194,7 +186,7 @@ interface WriteResult {
 
 async function writeTextAndImage(
   text: string,
-  itemsForImage: LegacyCapture[],
+  itemsForImage: NetworkRequestEvent[],
   opts: { maxText?: number } = {}
 ): Promise<WriteResult> {
   const maxText = opts.maxText ?? Infinity;
@@ -233,7 +225,7 @@ async function writeTextAndImage(
 }
 
 let tabId: number | undefined;
-let captures: LegacyCapture[] = [];
+let events: NetworkRequestEvent[] = [];
 let filterMode: FilterMode = 'failed';
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -258,8 +250,10 @@ async function init(): Promise<void> {
 async function refresh(): Promise<void> {
   if (tabId == null) return;
   try {
-    const result = await chrome.runtime.sendMessage({ type: 'GET_CAPTURES', tabId });
-    captures = Array.isArray(result) ? (result as LegacyCapture[]) : [];
+    const message: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
+    const result = await chrome.runtime.sendMessage(message);
+    const all = Array.isArray(result) ? (result as CapturedEvent[]) : [];
+    events = all.filter(isRequestLike);
     render();
   } catch {
     /* service worker briefly inactive */
@@ -275,19 +269,17 @@ function setFilter(mode: FilterMode): void {
 }
 
 async function clearAll(): Promise<void> {
-  await chrome.runtime.sendMessage({ type: 'CLEAR_CAPTURES', tabId });
+  if (tabId == null) return;
+  const message: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId };
+  await chrome.runtime.sendMessage(message);
   await refresh();
-}
-
-function isFailed(c: LegacyCapture): boolean {
-  return (c.status ?? 0) >= 400 || c.status === 0 || !!c.error;
 }
 
 function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
-  const data = filterMode === 'failed' ? captures.filter(isFailed) : captures;
+  const data = filterMode === 'failed' ? events.filter(isFailedNetwork) : events;
 
   if (data.length === 0) {
     list.innerHTML = `
@@ -303,25 +295,25 @@ function render(): void {
   data
     .slice()
     .reverse()
-    .forEach((c) => {
+    .forEach((e) => {
       const div = document.createElement('div');
-      const failed = isFailed(c);
+      const failed = isFailedNetwork(e);
       div.className = `item ${failed ? 'failed' : 'success'}`;
       div.innerHTML = `
-      <div class="status">${c.status ?? 'ERR'}</div>
-      <div class="method">${escapeHtml(c.method ?? '?')}</div>
-      <div class="url" title="${escapeHtml(c.url)}">${escapeHtml(shortUrl(c.url))}</div>
-      <div class="time">${fmtTime(c.startedAt)}</div>
-      <div class="duration">${c.duration ?? 0}ms</div>
+      <div class="status">${e.data.response.status || 'ERR'}</div>
+      <div class="method">${escapeHtml(e.data.request.method)}</div>
+      <div class="url" title="${escapeHtml(e.data.request.url)}">${escapeHtml(shortUrl(e.data.request.url))}</div>
+      <div class="time">${fmtTime(e.data.timing.startedAt)}</div>
+      <div class="duration">${e.data.timing.durationMs}ms</div>
     `;
-      div.addEventListener('click', () => showDetail(c));
+      div.addEventListener('click', () => showDetail(e));
       list.appendChild(div);
     });
 
   renderBulkBar(data);
 }
 
-function renderBulkBar(data: LegacyCapture[]): void {
+function renderBulkBar(data: NetworkRequestEvent[]): void {
   const bulkBar = document.getElementById('bulk-bar');
   if (!bulkBar) return;
   const combinedReport = buildBulkReport(data);
@@ -337,8 +329,8 @@ function renderBulkBar(data: LegacyCapture[]): void {
     </div>
   `;
 
-  document.getElementById('copy-all')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget as HTMLButtonElement;
+  document.getElementById('copy-all')?.addEventListener('click', async (clickEvent) => {
+    const btn = clickEvent.currentTarget as HTMLButtonElement;
     btn.textContent = '… rendering';
     const r = await writeTextAndImage(combinedReport, data, { maxText: SLACK_SAFE_THRESHOLD });
 
@@ -356,24 +348,24 @@ function renderBulkBar(data: LegacyCapture[]): void {
     }
     btn.classList.add('copied');
     setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures),
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
       2200
     );
   });
 
-  document.getElementById('download-all')?.addEventListener('click', (e) => {
-    const btn = e.currentTarget as HTMLButtonElement;
+  document.getElementById('download-all')?.addEventListener('click', (clickEvent) => {
+    const btn = clickEvent.currentTarget as HTMLButtonElement;
     downloadAllAsFile(data);
     btn.textContent = '✓ Downloaded';
     btn.classList.add('copied');
     setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures),
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
       1800
     );
   });
 }
 
-function buildBulkReport(items: LegacyCapture[]): string {
+function buildBulkReport(items: NetworkRequestEvent[]): string {
   if (items.length === 0) return '';
   if (items.length === 1 && items[0]) return toBugReport(items[0]);
 
@@ -382,18 +374,18 @@ function buildBulkReport(items: LegacyCapture[]): string {
     `## ${items.length} API errors`,
     '',
     `Captured: ${new Date().toISOString()}`,
-    `Page: ${first?.pageUrl ?? '-'}`,
+    `Page: ${first?.url ?? '-'}`,
     '',
     '### Summary',
     ...items.map((c, i) => {
       const path = (() => {
         try {
-          return new URL(c.url).pathname;
+          return new URL(c.data.request.url).pathname;
         } catch {
-          return c.url;
+          return c.data.request.url;
         }
       })();
-      return `${i + 1}. \`${c.status ?? 'ERR'}\` ${c.method} ${path} · ${fmtTime(c.startedAt)} · ${c.duration}ms`;
+      return `${i + 1}. \`${c.data.response.status || 'ERR'}\` ${c.data.request.method} ${path} · ${fmtTime(c.data.timing.startedAt)} · ${c.data.timing.durationMs}ms`;
     }),
     '',
     '---',
@@ -410,8 +402,8 @@ function buildBulkReport(items: LegacyCapture[]): string {
   return lines.join('\n');
 }
 
-function downloadAllAsFile(items: LegacyCapture[]): void {
-  const payload = items.map((c) => ({ ...c, requestHeaders: maskHeaders(c.requestHeaders) }));
+function downloadAllAsFile(items: NetworkRequestEvent[]): void {
+  const payload = items.map((c) => maskedEventForExport(c));
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -428,14 +420,14 @@ function downloadAllAsFile(items: LegacyCapture[]): void {
   }, 1000);
 }
 
-function showDetail(c: LegacyCapture): void {
+function showDetail(c: NetworkRequestEvent): void {
   const detail = document.getElementById('detail');
   if (!detail) return;
-  const failed = isFailed(c);
+  const failed = isFailedNetwork(c);
 
   const bugReportText = toBugReport(c);
   const curlText = toCurl(c);
-  const respText = c.responseBody ?? '';
+  const respText = c.data.response.body ?? '';
   const isOversize = bugReportText.length > SLACK_SAFE_THRESHOLD;
 
   detail.classList.remove('hidden');
@@ -443,14 +435,14 @@ function showDetail(c: LegacyCapture): void {
     <div class="detail-top">
       <div class="detail-back">
         <button id="back" class="secondary">← Back</button>
-        <span class="time">${c.startedAt ? new Date(c.startedAt).toLocaleTimeString() : ''}</span>
+        <span class="time">${new Date(c.data.timing.startedAt).toLocaleTimeString()}</span>
       </div>
       <div class="detail-heading ${failed ? 'failed' : 'success'}">
-        <span class="pill">${c.status ?? 'ERR'}</span>
-        <strong>${escapeHtml(c.method ?? '?')}</strong>
-        ${c.statusText ? `<span style="color:var(--muted)">${escapeHtml(c.statusText)}</span>` : ''}
+        <span class="pill">${c.data.response.status || 'ERR'}</span>
+        <strong>${escapeHtml(c.data.request.method)}</strong>
+        ${c.data.response.statusText ? `<span style="color:var(--muted)">${escapeHtml(c.data.response.statusText)}</span>` : ''}
       </div>
-      <div class="detail-url">${escapeHtml(c.url)}</div>
+      <div class="detail-url">${escapeHtml(c.data.request.url)}</div>
     </div>
 
     <div class="copy-row">
@@ -474,34 +466,34 @@ function showDetail(c: LegacyCapture): void {
 
     <div class="section">
       <h3>Request headers</h3>
-      <pre>${escapeHtml(JSON.stringify(maskHeaders(c.requestHeaders), null, 2))}</pre>
+      <pre>${escapeHtml(JSON.stringify(maskHeaders(c.data.request.headers), null, 2))}</pre>
     </div>
 
     ${
-      c.requestBody
+      c.data.request.body
         ? `
     <div class="section">
       <h3>Request body</h3>
-      <pre>${escapeHtml(formatJson(c.requestBody))}</pre>
+      <pre>${escapeHtml(formatJson(c.data.request.body))}</pre>
     </div>`
         : ''
     }
 
     <div class="section">
       <h3>Response headers</h3>
-      <pre>${escapeHtml(JSON.stringify(c.responseHeaders ?? {}, null, 2))}</pre>
+      <pre>${escapeHtml(JSON.stringify(c.data.response.headers, null, 2))}</pre>
     </div>
 
     <div class="section" style="padding-bottom: 16px;">
       <h3>Response body</h3>
-      <pre>${escapeHtml(formatJson(c.responseBody ?? ''))}</pre>
+      <pre>${escapeHtml(formatJson(c.data.response.body ?? ''))}</pre>
     </div>
   `;
 
   document.getElementById('back')?.addEventListener('click', () => {
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    const data = filterMode === 'failed' ? captures.filter(isFailed) : captures;
+    const data = filterMode === 'failed' ? events.filter(isFailedNetwork) : events;
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
 
@@ -559,35 +551,35 @@ function showDetail(c: LegacyCapture): void {
 
 // ---------- formatters ----------
 
-function formatForCopy(c: LegacyCapture, format: 'report' | 'curl' | 'response'): string {
+function formatForCopy(c: NetworkRequestEvent, format: 'report' | 'curl' | 'response'): string {
   if (format === 'curl') return toCurl(c);
-  if (format === 'response') return c.responseBody ?? '';
+  if (format === 'response') return c.data.response.body ?? '';
   return toBugReport(c);
 }
 
-function toCurl(c: LegacyCapture): string {
-  const lines = [`curl -X ${c.method} '${c.url}'`];
-  for (const [k, v] of Object.entries(maskHeaders(c.requestHeaders) ?? {})) {
+function toCurl(c: NetworkRequestEvent): string {
+  const lines = [`curl -X ${c.data.request.method} '${c.data.request.url}'`];
+  for (const [k, v] of Object.entries(maskHeaders(c.data.request.headers))) {
     lines.push(`  -H '${k}: ${String(v).replace(/'/g, "'\\''")}'`);
   }
-  if (c.requestBody) {
-    const body = String(c.requestBody).replace(/'/g, "'\\''");
+  if (c.data.request.body) {
+    const body = String(c.data.request.body).replace(/'/g, "'\\''");
     lines.push(`  --data '${body}'`);
   }
   return lines.join(' \\\n');
 }
 
-function toBugReport(c: LegacyCapture): string {
-  const errorSignals = extractErrorSignal(c.responseBody ?? null);
+function toBugReport(c: NetworkRequestEvent): string {
+  const errorSignals = extractErrorSignal(c.data.response.body);
 
-  return `## API Error — ${c.method} ${c.url.split('?')[0]}
+  return `## API Error — ${c.data.request.method} ${c.data.request.url.split('?')[0]}
 
-**Page:** ${c.pageUrl ?? '-'}
-**Endpoint:** \`${c.method} ${c.url}\`
-**Status:** ${c.status ?? 'ERR'} ${c.statusText ?? ''}
-**Duration:** ${c.duration ?? 0}ms
-**Captured at:** ${c.startedAt ? new Date(c.startedAt).toISOString() : '-'}
-${c.error ? `**Network error:** ${c.error}\n` : ''}${
+**Page:** ${c.url}
+**Endpoint:** \`${c.data.request.method} ${c.data.request.url}\`
+**Status:** ${c.data.response.status || 'ERR'} ${c.data.response.statusText}
+**Duration:** ${c.data.timing.durationMs}ms
+**Captured at:** ${new Date(c.data.timing.startedAt).toISOString()}
+${c.data.error ? `**Network error:** ${c.data.error}\n` : ''}${
     errorSignals
       ? `
 ### Server error signals (summary — full body is below)
@@ -597,26 +589,26 @@ ${errorSignals.map((e) => `- ${e}`).join('\n')}
   }
 ### Request headers
 \`\`\`json
-${JSON.stringify(maskHeaders(c.requestHeaders) ?? {}, null, 2)}
+${JSON.stringify(maskHeaders(c.data.request.headers), null, 2)}
 \`\`\`
 ${
-  c.requestBody
+  c.data.request.body
     ? `
 ### Request body
 \`\`\`json
-${formatJson(c.requestBody)}
+${formatJson(c.data.request.body)}
 \`\`\``
     : ''
 }
 
 ### Response headers
 \`\`\`json
-${JSON.stringify(c.responseHeaders ?? {}, null, 2)}
+${JSON.stringify(c.data.response.headers, null, 2)}
 \`\`\`
 
 ### Response body
 \`\`\`json
-${formatJson(c.responseBody ?? '')}
+${formatJson(c.data.response.body ?? '')}
 \`\`\`
 
 ### cURL
@@ -683,22 +675,20 @@ function extractErrorSignal(jsonStr: string | null): string[] | null {
   return out.length ? out : null;
 }
 
-function downloadAsFile(c: LegacyCapture): void {
-  const payload = { ...c, requestHeaders: maskHeaders(c.requestHeaders) };
+function downloadAsFile(c: NetworkRequestEvent): void {
+  const payload = maskedEventForExport(c);
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const ts = c.startedAt
-    ? new Date(c.startedAt).toISOString().replace(/[:.]/g, '-')
-    : new Date().toISOString().replace(/[:.]/g, '-');
+  const ts = new Date(c.data.timing.startedAt).toISOString().replace(/[:.]/g, '-');
   const path = (() => {
     try {
-      return new URL(c.url).pathname.replace(/\//g, '_');
+      return new URL(c.data.request.url).pathname.replace(/\//g, '_');
     } catch {
       return 'request';
     }
   })();
-  const filename = `bug-${c.status ?? 'ERR'}-${c.method}${path}-${ts}.json`;
+  const filename = `bug-${c.data.response.status || 'ERR'}-${c.data.request.method}${path}-${ts}.json`;
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -710,10 +700,20 @@ function downloadAsFile(c: LegacyCapture): void {
   }, 1000);
 }
 
-function maskHeaders(
-  headers: Record<string, string> | undefined
-): Record<string, string> | undefined {
-  if (!headers) return undefined;
+/** Returns a copy of the event with sensitive request headers masked.
+ *  Stored data is unchanged — this is an export-side projection only.
+ *  Capture-time masking (PRD §11.2) lands with the regex engine. */
+function maskedEventForExport(c: NetworkRequestEvent): NetworkRequestEvent {
+  return {
+    ...c,
+    data: {
+      ...c.data,
+      request: { ...c.data.request, headers: maskHeaders(c.data.request.headers) },
+    },
+  } as NetworkRequestEvent;
+}
+
+function maskHeaders(headers: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
     out[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? '***MASKED***' : v;
