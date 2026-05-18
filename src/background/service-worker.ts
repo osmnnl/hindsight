@@ -1,3 +1,5 @@
+export {};
+
 // Background service worker.
 //
 // Holds a per-tab circular buffer of captures in chrome.storage.session,

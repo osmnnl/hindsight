@@ -31,6 +31,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "network-capture-extension"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "exclude": ["node_modules", "dist", "network-capture-extension"]
 }

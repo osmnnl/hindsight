@@ -1,3 +1,5 @@
+export {};
+
 // Popup UI for the toolbar action.
 //
 // TODO(m1-w2): rebuild against the canonical CapturedEvent model

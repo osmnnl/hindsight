@@ -1,3 +1,5 @@
+export {};
+
 // Content-script bridge — ISOLATED world.
 //
 // Listens for postMessage from the page-world interceptor and forwards each

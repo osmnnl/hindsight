@@ -1,3 +1,5 @@
+export {};
+
 // Content-script interceptor — MAIN world (page context).
 //
 // Patches window.fetch and XMLHttpRequest so we can observe requests
@@ -31,9 +33,9 @@ interface LegacyCapturePayload {
   const originalFetch = window.fetch;
   window.fetch = async function patchedFetch(
     this: typeof window,
-    input: RequestInfo | URL,
-    init?: RequestInit
+    ...args: Parameters<typeof fetch>
   ): Promise<Response> {
+    const [input, init] = args;
     const startedAt = Date.now();
     const requestId =
       (crypto.randomUUID && crypto.randomUUID()) || String(startedAt + Math.random());
@@ -64,8 +66,7 @@ interface LegacyCapturePayload {
     let response: Response | undefined;
     let networkError: string | null = null;
     try {
-      // eslint-disable-next-line prefer-rest-params
-      response = await originalFetch.apply(this, arguments as unknown as Parameters<typeof fetch>);
+      response = await originalFetch.apply(this, args);
     } catch (err) {
       networkError = String((err as Error)?.stack ?? (err as Error)?.message ?? err);
     }
@@ -120,25 +121,32 @@ interface LegacyCapturePayload {
     };
 
     const originalOpen = xhr.open;
-    xhr.open = function (this: XMLHttpRequest, method: string, url: string | URL): void {
+    xhr.open = function (
+      this: XMLHttpRequest,
+      ...openArgs: Parameters<XMLHttpRequest['open']>
+    ): void {
+      const [method, url] = openArgs;
       state.method = String(method).toUpperCase();
       state.url = String(url);
-      // eslint-disable-next-line prefer-rest-params
-      return originalOpen.apply(xhr, arguments as unknown as Parameters<XMLHttpRequest['open']>);
+      return originalOpen.apply(xhr, openArgs);
     } as XMLHttpRequest['open'];
 
     const originalSetRequestHeader = xhr.setRequestHeader;
-    xhr.setRequestHeader = function (this: XMLHttpRequest, name: string, value: string): void {
+    xhr.setRequestHeader = function (
+      this: XMLHttpRequest,
+      ...headerArgs: Parameters<XMLHttpRequest['setRequestHeader']>
+    ): void {
+      const [name, value] = headerArgs;
       state.requestHeaders[name] = value;
-      // eslint-disable-next-line prefer-rest-params
-      return originalSetRequestHeader.apply(
-        xhr,
-        arguments as unknown as Parameters<XMLHttpRequest['setRequestHeader']>
-      );
+      return originalSetRequestHeader.apply(xhr, headerArgs);
     };
 
     const originalSend = xhr.send;
-    xhr.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+    xhr.send = function (
+      this: XMLHttpRequest,
+      ...sendArgs: Parameters<XMLHttpRequest['send']>
+    ): void {
+      const [body] = sendArgs;
       state.startedAt = Date.now();
       state.requestBody = serializeBody(body ?? null);
 
@@ -175,8 +183,7 @@ interface LegacyCapturePayload {
         }
       });
 
-      // eslint-disable-next-line prefer-rest-params
-      return originalSend.apply(xhr, arguments as unknown as Parameters<XMLHttpRequest['send']>);
+      return originalSend.apply(xhr, sendArgs);
     };
 
     return xhr;
