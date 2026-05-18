@@ -71,15 +71,15 @@ defend these:
 
 When in doubt, open these:
 
-| Topic | Anchor |
-|---|---|
-| Unified event model (`CapturedEvent`, `EventType`) | PRD **§6.1.2** |
-| MV3 manifest baseline (permissions, optional perms, CSP, commands) | PRD **§9.2** |
-| Capture tiers (what's default-on vs opt-in vs recording-only) | PRD §6.1.1 |
-| Per-tab storage model (keys, eviction, batching) | PRD §6.1.3 |
-| Privacy & PII redaction (capture-time, not export-time) | PRD §11.2 |
-| Performance budget (must pass in CI) | PRD §13.1 |
-| Roadmap (M1–M5) | PRD §18 |
+| Topic                                                              | Anchor         |
+| ------------------------------------------------------------------ | -------------- |
+| Unified event model (`CapturedEvent`, `EventType`)                 | PRD **§6.1.2** |
+| MV3 manifest baseline (permissions, optional perms, CSP, commands) | PRD **§9.2**   |
+| Capture tiers (what's default-on vs opt-in vs recording-only)      | PRD §6.1.1     |
+| Per-tab storage model (keys, eviction, batching)                   | PRD §6.1.3     |
+| Privacy & PII redaction (capture-time, not export-time)            | PRD §11.2      |
+| Performance budget (must pass in CI)                               | PRD §13.1      |
+| Roadmap (M1–M5)                                                    | PRD §18        |
 
 `src/types/events.ts` is the canonical implementation of §6.1.2.
 `manifest.json` is the canonical implementation of §9.2. Both files
@@ -112,7 +112,7 @@ domain-specific sense and find a hit, it's a bug.
 
 ### 5.3 No information loss in storage
 
-Truncation may happen at *export time* for hard destination limits
+Truncation may happen at _export time_ for hard destination limits
 (Slack paste), but the local capture is always faithful and
 recoverable. Don't "clean up" payloads on the way in.
 
@@ -149,7 +149,7 @@ block merge once the benchmark suite lands.
 - Imports: relative within a feature folder, alias-rooted across
   features once the path alias is set up (`@/types/events`).
 - Don't add comments that restate the code. Do add a one-line
-  *why* when a non-obvious constraint, workaround, or PRD anchor
+  _why_ when a non-obvious constraint, workaround, or PRD anchor
   is involved. Reference sections like `// PRD §6.1.2`.
 - Error handling: at system boundaries only. Trust internal
   invariants; don't defensively wrap your own code.

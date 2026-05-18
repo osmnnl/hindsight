@@ -5,3 +5,6 @@ network-capture-extension
 *.lock
 pnpm-lock.yaml
 package-lock.json
+
+# Source PRD — never reformatted by tooling.
+Hindsight-PRD-v0.1.md
