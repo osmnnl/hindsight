@@ -14,8 +14,9 @@
 
       <nav class="sections" aria-label="Settings sections">
         <button class="section-link active" data-section="general">General</button>
+        <button class="section-link" data-section="privacy">Privacy</button>
         <button class="section-link disabled" data-section="capture" disabled>
-          Capture <span class="badge">M1·W3</span>
+          Capture <span class="badge">M1·W4</span>
         </button>
         <button class="section-link disabled" data-section="detection" disabled>
           Detection <span class="badge">M3</span>
@@ -23,16 +24,13 @@
         <button class="section-link disabled" data-section="sharing" disabled>
           Sharing <span class="badge">M4</span>
         </button>
-        <button class="section-link disabled" data-section="privacy" disabled>
-          Privacy <span class="badge">M1·W3</span>
-        </button>
         <button class="section-link disabled" data-section="advanced" disabled>
           Advanced <span class="badge">M2+</span>
         </button>
       </nav>
 
       <main>
-        <section id="section-general" class="section">
+        <section id="section-general" class="section active">
           <h2>General</h2>
 
           <div class="field">
@@ -46,6 +44,86 @@
           </div>
 
           <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="section-privacy" class="section">
+          <h2>Privacy</h2>
+          <p class="lead">
+            Masking happens at capture time — the original value is never written to storage (<code
+              >PRD §11.2</code
+            >).
+          </p>
+
+          <div class="subsection">
+            <h3>Default rules</h3>
+            <p class="hint">Always on. These cover the common cases.</p>
+            <div class="chip-group" id="default-headers"></div>
+            <div class="chip-group" id="default-bodies"></div>
+            <div class="chip-group" id="default-forms"></div>
+          </div>
+
+          <div class="subsection">
+            <h3>Custom body patterns</h3>
+            <p class="hint">
+              Regex applied to request and response bodies. Empty by default — add only what your
+              own captures need.
+            </p>
+            <div id="custom-patterns" class="pattern-list"></div>
+            <button id="add-pattern" class="btn-add" type="button">+ Add pattern</button>
+          </div>
+
+          <div class="subsection">
+            <h3>Never capture on these origins</h3>
+            <p class="hint">
+              Exact origin match (scheme + host + port). Events from these origins are dropped
+              before they hit storage.
+            </p>
+            <div class="origin-input">
+              <input
+                type="url"
+                id="origin-input"
+                placeholder="https://internal.example.com"
+                spellcheck="false"
+              />
+              <button id="origin-add" type="button" class="btn-add">+ Add</button>
+            </div>
+            <div id="origin-list" class="chip-group removable" aria-live="polite"></div>
+          </div>
+
+          <div class="subsection">
+            <h3>Test sandbox</h3>
+            <p class="hint">
+              Paste a sample body, pick a rule, see what would be masked. Nothing here is saved.
+            </p>
+            <div class="sandbox">
+              <div class="field">
+                <label for="sandbox-rule">Rule</label>
+                <select id="sandbox-rule"></select>
+              </div>
+              <div class="field">
+                <label for="sandbox-scope">Scope</label>
+                <select id="sandbox-scope">
+                  <option value="request.body">request.body</option>
+                  <option value="response.body">response.body</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sandbox-input">Sample input</label>
+                <textarea
+                  id="sandbox-input"
+                  rows="4"
+                  placeholder="Paste a JSON body, header value, or any string..."
+                ></textarea>
+              </div>
+              <div class="field">
+                <label for="sandbox-output">Masked output</label>
+                <pre id="sandbox-output" class="sandbox-output">—</pre>
+                <p class="hint" id="sandbox-meta"></p>
+              </div>
+            </div>
+          </div>
+
+          <div id="privacy-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
     </div>

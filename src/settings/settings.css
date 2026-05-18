@@ -115,15 +115,51 @@ body {
 }
 
 .section {
+  display: none;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px;
 }
 
+.section.active {
+  display: block;
+}
+
 .section h2 {
   margin: 0 0 16px;
   font-size: 16px;
+}
+
+.section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.lead {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.lead code,
+.hint code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.subsection {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+
+.subsection:first-of-type {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .field {
@@ -163,4 +199,244 @@ body {
   font-size: 13px;
   color: var(--success);
   min-height: 18px;
+}
+
+/* ---------- Privacy: chips ---------- */
+
+.chip-group {
+  margin: 10px 0 4px;
+}
+
+.chip-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+.chip-group.removable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip.removable button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 0 0 2px;
+}
+
+.chip.removable button:hover {
+  color: var(--text);
+}
+
+.empty-row {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Privacy: custom pattern editor ---------- */
+
+.pattern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pattern-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.pattern-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pattern-row:last-child {
+  margin-bottom: 0;
+}
+
+.pattern-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 180px;
+  font-size: 13px;
+}
+
+.pattern-row label span {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pattern-row input[type='text'] {
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font: inherit;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+}
+
+.pattern-row input[type='text']:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.pattern-row.scopes {
+  align-items: center;
+  gap: 16px;
+}
+
+.scope-check {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+}
+
+.regex-error {
+  display: inline-block;
+  margin-top: 4px;
+  color: #f59e0b;
+  font-size: 11.5px;
+}
+
+.btn-add {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-remove {
+  margin-left: auto;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.btn-remove:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* ---------- Privacy: origin input ---------- */
+
+.origin-input {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.origin-input input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+}
+
+.origin-input input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Privacy: sandbox ---------- */
+
+.sandbox {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.sandbox .field {
+  margin-bottom: 12px;
+}
+
+.sandbox textarea {
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.sandbox textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sandbox-output {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 10px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  min-height: 40px;
 }
