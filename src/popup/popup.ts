@@ -11,6 +11,9 @@ import {
   type ClearEventsRuntimeMessage,
   type GetEventsRuntimeMessage,
 } from '@/lib/runtime-messages';
+import { toHar } from '@/lib/har';
+
+declare const __APP_VERSION__: string;
 
 // A "request-like" event — what the popup renders today. Side panel
 // will broaden to console + actions in M3.
@@ -325,7 +328,8 @@ function renderBulkBar(data: NetworkRequestEvent[]): void {
     <div class="bulk-count"><strong>${data.length}</strong> ${label} · ${fmtSize(combinedReport.length)}${isOversize ? ' · JSON auto-downloads' : ''}</div>
     <div class="bulk-actions">
       <button id="copy-all" class="${isOversize ? 'warning' : 'primary'}">📋 Copy all + screenshot</button>
-      <button id="download-all">⤓ Download all</button>
+      <button id="download-all">⤓ JSON</button>
+      <button id="download-har">⤓ HAR</button>
     </div>
   `;
 
@@ -363,6 +367,61 @@ function renderBulkBar(data: NetworkRequestEvent[]): void {
       1800
     );
   });
+
+  document.getElementById('download-har')?.addEventListener('click', (clickEvent) => {
+    const btn = clickEvent.currentTarget as HTMLButtonElement;
+    try {
+      downloadAsHar(data);
+      btn.textContent = '✓ HAR ⤓';
+      btn.classList.add('copied');
+    } catch {
+      btn.textContent = 'No requests';
+    }
+    setTimeout(
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
+      1800
+    );
+  });
+}
+
+/** Triggers a HAR 1.2 file download for the given events. Mapper lives
+ *  in src/lib/har.ts; this function just handles the Blob + anchor dance. */
+function downloadAsHar(items: NetworkRequestEvent[]): void {
+  const maskedItems = items.map(maskedEventForExport);
+  const har = toHar(maskedItems, {
+    creatorVersion: __APP_VERSION__,
+    browser: parseBrowser(navigator.userAgent),
+    pageTitle: items[0]?.url ?? 'Hindsight Session',
+  });
+  const json = JSON.stringify({ log: har }, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const host = (() => {
+    try {
+      return new URL(items[0]?.url ?? '').host || 'session';
+    } catch {
+      return 'session';
+    }
+  })();
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `hindsight-${host}-${ts}.har`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
+}
+
+function parseBrowser(ua: string): { name: string; version: string } | undefined {
+  // Lightweight UA sniff — sufficient for the optional HAR `browser` block.
+  const m = /(Edg|Chrome|Firefox|Safari)\/([\d.]+)/.exec(ua);
+  if (!m || !m[1] || !m[2]) return undefined;
+  const name = m[1] === 'Edg' ? 'Edge' : m[1];
+  return { name, version: m[2] };
 }
 
 function buildBulkReport(items: NetworkRequestEvent[]): string {

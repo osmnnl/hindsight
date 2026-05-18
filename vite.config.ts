@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { crx } from '@crxjs/vite-plugin';
 import { fileURLToPath } from 'node:url';
 import manifest from './manifest.json' with { type: 'json' };
+import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig({
   plugins: [crx({ manifest })],
@@ -9,6 +10,11 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  define: {
+    // Surfaced in TS via `declare const __APP_VERSION__: string;`
+    // Single source of truth: package.json version field.
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     target: 'es2022',
