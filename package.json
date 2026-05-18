@@ -17,7 +17,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "echo \"no tests yet — see PRD §13.3 for upcoming perf suite\" && exit 0",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -34,7 +35,8 @@
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "vitest": "^2.1.9"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
