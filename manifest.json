@@ -1,36 +1,58 @@
 {
   "manifest_version": 3,
-  "name": "QA Network Capture",
-  "version": "0.1.0",
-  "description": "Captures fetch/XHR traffic in the background so testers can share API errors without keeping DevTools open.",
-  "permissions": ["storage", "tabs", "activeTab"],
-  "host_permissions": ["<all_urls>"],
+  "name": "Hindsight",
+  "version": "0.0.1",
+  "description": "DevTools you didn't open. Privacy-first passive capture for bug reports.",
+  "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting", "sidePanel"],
+  "optional_permissions": ["notifications", "downloads", "tabs", "webNavigation"],
+  "host_permissions": [],
+  "optional_host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "src/background/service-worker.js"
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/bridge.js"],
-      "run_at": "document_start",
+      "js": ["src/content/bridge.ts"],
       "world": "ISOLATED",
+      "run_at": "document_start",
       "all_frames": false
     },
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/interceptor.js"],
-      "run_at": "document_start",
+      "js": ["src/content/interceptor.ts"],
       "world": "MAIN",
+      "run_at": "document_start",
       "all_frames": false
     }
   ],
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "QA Network Capture"
+    "default_title": "Hindsight"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "commands": {
+    "open-side-panel": {
+      "suggested_key": { "default": "Ctrl+Shift+H", "mac": "Command+Shift+H" },
+      "description": "Open Hindsight side panel"
+    },
+    "capture-last-moment": {
+      "suggested_key": { "default": "Ctrl+Shift+B", "mac": "Command+Shift+B" },
+      "description": "Quick capture last 30 seconds"
+    },
+    "toggle-recording": {
+      "description": "Start/stop recording mode"
+    }
   },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
 }
