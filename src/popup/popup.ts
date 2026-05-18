@@ -1,6 +1,17 @@
-// src/popup/popup.js
+// Popup UI for the toolbar action.
+//
+// TODO(m1-w2): rebuild against the canonical CapturedEvent model
+// (PRD §6.1.2). This file is a like-for-like .js → .ts port; logic is
+// unchanged. UI copy is generic — do not introduce vendor-specific
+// strings (see CLAUDE.md §5.1).
 
-const SENSITIVE_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token']);
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'x-auth-token',
+]);
 
 // Practical paste limit observed in Slack's rich-text editor. Slack docs
 // quote 40k for messages, but the in-editor paste warning fires far below
@@ -8,30 +19,43 @@ const SENSITIVE_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-a
 // and trigger a JSON download so the receiver gets both pieces.
 const SLACK_SAFE_THRESHOLD = 3000;
 
-function fmtSize(n) {
+interface LegacyCapture {
+  id?: string;
+  type?: 'fetch' | 'xhr';
+  url: string;
+  method?: string;
+  status?: number;
+  statusText?: string;
+  startedAt?: number;
+  duration?: number;
+  requestHeaders?: Record<string, string>;
+  requestBody?: string | null;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string | null;
+  error?: string | null;
+  pageUrl?: string;
+  pageTitle?: string;
+  capturedAt?: number;
+}
+
+type FilterMode = 'failed' | 'all';
+
+function fmtSize(n: number): string {
   if (n < 1000) return `${n} chars`;
   return `${(n / 1000).toFixed(1)}k chars`;
 }
 
 // HH:MM:SS.mmm — local time with millisecond precision.
-// Testers correlate this with server logs / their own actions.
-function fmtTime(ts) {
+function fmtTime(ts: number | undefined): string {
   if (!ts) return '';
   const d = new Date(ts);
-  const pad2 = (n) => String(n).padStart(2, '0');
-  const pad3 = (n) => String(n).padStart(3, '0');
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const pad3 = (n: number) => String(n).padStart(3, '0');
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${pad3(d.getMilliseconds())}`;
 }
 
-// Render the captured failures as a self-contained PNG image. This is what
-// "screenshot" means to a tester reporting bugs — a visual "look, these
-// requests failed" they can paste into Slack. We draw it ourselves instead
-// of using chrome.tabs.captureVisibleTab because:
-//   1. Popups aren't tabs, so captureVisibleTab can't see the popup UI.
-//   2. We have the structured data — rendering it ourselves is sharper and
-//      can be wider than the 580px popup constraint.
-// Returns a PNG Blob or null on failure.
-async function renderFailureListImage(items) {
+// Render the captured failures as a self-contained PNG image.
+async function renderFailureListImage(items: LegacyCapture[]): Promise<Blob | null> {
   if (!items || items.length === 0) return null;
 
   const DPR = 2;
@@ -40,51 +64,53 @@ async function renderFailureListImage(items) {
   const HEADER_H = 78;
   const ROW_H = 38;
   const FOOTER_H = 32;
-  const H = HEADER_H + (items.length * ROW_H) + FOOTER_H;
+  const H = HEADER_H + items.length * ROW_H + FOOTER_H;
 
   const canvas = document.createElement('canvas');
   canvas.width = W * DPR;
   canvas.height = H * DPR;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
   ctx.scale(DPR, DPR);
 
-  // Background — matches popup theme
   ctx.fillStyle = '#0b1020';
   ctx.fillRect(0, 0, W, H);
 
-  // --- Header ---
-  // Amber dot
   ctx.beginPath();
   ctx.arc(PAD + 5, PAD + 12, 5, 0, Math.PI * 2);
   ctx.fillStyle = '#f59e0b';
   ctx.fill();
 
-  // Title
   ctx.font = '600 15px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
   ctx.fillStyle = '#e7ecf5';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   const failedCount = items.filter((c) => isFailed(c)).length;
-  ctx.fillText(`Network Capture · ${failedCount} failed`, PAD + 18, PAD + 12);
+  ctx.fillText(`Hindsight · ${failedCount} failed`, PAD + 18, PAD + 12);
 
-  // Subtitle (host + capture time)
   ctx.font = '12px ui-sans-serif, system-ui, -apple-system, sans-serif';
   ctx.fillStyle = '#8b94b3';
-  const host = (() => { try { return new URL(items[0].pageUrl || '').host; } catch { return ''; } })();
+  const host = (() => {
+    try {
+      return new URL(items[0]?.pageUrl ?? '').host;
+    } catch {
+      return '';
+    }
+  })();
   const captureTs = new Date().toLocaleString('en-GB', {
-    day: '2-digit', month: 'short',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
   });
   const subtitle = host ? `${host} · ${captureTs}` : captureTs;
   ctx.fillText(subtitle, PAD + 18, PAD + 34);
 
-  // Header bottom divider
   ctx.fillStyle = '#2a335a';
   ctx.fillRect(0, HEADER_H, W, 1);
 
-  // --- Rows ---
-  // Right-edge fixed columns
   const DURATION_W = 56;
   const TIME_W = 90;
   const STATUS_W = 50;
@@ -99,13 +125,11 @@ async function renderFailureListImage(items) {
     const mid = y + ROW_H / 2;
     const failed = isFailed(c);
 
-    // Row divider (between rows, skip first)
     if (i > 0) {
       ctx.fillStyle = '#1a2340';
       ctx.fillRect(PAD, y, W - PAD * 2, 1);
     }
 
-    // Status badge
     const badgeH = 22;
     const badgeY = mid - badgeH / 2;
     ctx.beginPath();
@@ -116,67 +140,72 @@ async function renderFailureListImage(items) {
     ctx.font = '600 12px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = failed ? '#ef4444' : '#22c55e';
     ctx.textAlign = 'center';
-    ctx.fillText(String(c.status || 'ERR'), PAD + STATUS_W / 2, mid);
+    ctx.fillText(String(c.status ?? 'ERR'), PAD + STATUS_W / 2, mid);
 
-    // Method
     ctx.font = '11px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#8b94b3';
     ctx.textAlign = 'left';
-    ctx.fillText((c.method || '?').toUpperCase(), PAD + STATUS_W + COL_GAP, mid);
+    ctx.fillText((c.method ?? '?').toUpperCase(), PAD + STATUS_W + COL_GAP, mid);
 
-    // URL (truncate to available width)
     ctx.font = '12px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#e7ecf5';
-    const urlPath = (() => { try { return new URL(c.url).pathname; } catch { return c.url; } })();
+    const urlPath = (() => {
+      try {
+        return new URL(c.url).pathname;
+      } catch {
+        return c.url;
+      }
+    })();
     ctx.fillText(fitText(ctx, urlPath, urlMaxW), urlX, mid);
 
-    // Time (right-aligned to its column)
     ctx.font = '11px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.fillStyle = '#8b94b3';
     ctx.textAlign = 'right';
     ctx.fillText(fmtTime(c.startedAt), timeX, mid);
 
-    // Duration (right-aligned to right edge)
     ctx.fillText(`${c.duration ?? 0}ms`, W - PAD, mid);
   });
 
-  // --- Footer ---
   const footerY = HEADER_H + items.length * ROW_H;
   ctx.fillStyle = '#2a335a';
   ctx.fillRect(0, footerY, W, 1);
   ctx.font = '10.5px ui-sans-serif, system-ui, -apple-system, sans-serif';
   ctx.fillStyle = '#8b94b3';
   ctx.textAlign = 'left';
-  ctx.fillText('QA Network Capture · datasoftcloud HR', PAD, footerY + 16);
+  ctx.fillText('Hindsight · privacy-first bug capture', PAD, footerY + 16);
 
-  return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
-// Trim text with an ellipsis until it fits within maxWidth in the current font.
-function fitText(ctx, text, maxWidth) {
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let t = text;
   while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
   return t + '…';
 }
 
-// Put a bug report on the clipboard. If the text is over `maxText`, we
-// SKIP the text entirely — Slack rejects oversized pastes even when an
-// image is also present (it picks the text). With image-only on clipboard
-// the paste works; the caller can pair this with a JSON download so the
-// receiver still gets full payload data via drag-drop.
-async function writeTextAndImage(text, itemsForImage, opts = {}) {
+interface WriteResult {
+  hasText: boolean;
+  hasImage: boolean;
+  textSkipped: boolean;
+}
+
+async function writeTextAndImage(
+  text: string,
+  itemsForImage: LegacyCapture[],
+  opts: { maxText?: number } = {}
+): Promise<WriteResult> {
   const maxText = opts.maxText ?? Infinity;
   const skipText = text.length > maxText;
 
-  let imageBlob = null;
+  let imageBlob: Blob | null = null;
   try {
     imageBlob = await renderFailureListImage(itemsForImage);
   } catch (e) {
     console.warn('Image render failed:', e);
   }
 
-  const formats = {};
+  const formats: Record<string, Blob> = {};
   if (imageBlob) formats['image/png'] = imageBlob;
   if (!skipText) formats['text/plain'] = new Blob([text], { type: 'text/plain' });
 
@@ -193,60 +222,69 @@ async function writeTextAndImage(text, itemsForImage, opts = {}) {
       try {
         await navigator.clipboard.writeText(text);
         return { hasText: true, hasImage: false, textSkipped: false };
-      } catch (_) {}
+      } catch {
+        /* fall through */
+      }
     }
     return { hasText: false, hasImage: false, textSkipped: skipText };
   }
 }
 
-let tabId = null;
-let captures = [];
-let filterMode = 'failed'; // 'failed' | 'all'
-let pollTimer = null;
+let tabId: number | undefined;
+let captures: LegacyCapture[] = [];
+let filterMode: FilterMode = 'failed';
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-init();
+void init();
 
-async function init() {
+async function init(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
 
-  document.querySelectorAll('.filter').forEach((btn) => {
-    btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+  document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
+    btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
   });
-  document.getElementById('clear').addEventListener('click', clearAll);
+  document.getElementById('clear')?.addEventListener('click', () => void clearAll());
 
   await refresh();
-  pollTimer = setInterval(refresh, 1500);
-  window.addEventListener('unload', () => clearInterval(pollTimer));
+  pollTimer = setInterval(() => void refresh(), 1500);
+  window.addEventListener('unload', () => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
 }
 
-async function refresh() {
+async function refresh(): Promise<void> {
   if (tabId == null) return;
   try {
     const result = await chrome.runtime.sendMessage({ type: 'GET_CAPTURES', tabId });
-    captures = Array.isArray(result) ? result : [];
+    captures = Array.isArray(result) ? (result as LegacyCapture[]) : [];
     render();
-  } catch (e) { /* service worker briefly inactive */ }
+  } catch {
+    /* service worker briefly inactive */
+  }
 }
 
-function setFilter(mode) {
+function setFilter(mode: FilterMode): void {
   filterMode = mode;
-  document.querySelectorAll('.filter').forEach((b) => {
+  document.querySelectorAll<HTMLElement>('.filter').forEach((b) => {
     b.classList.toggle('active', b.dataset.filter === mode);
   });
   render();
 }
 
-async function clearAll() {
+async function clearAll(): Promise<void> {
   await chrome.runtime.sendMessage({ type: 'CLEAR_CAPTURES', tabId });
   await refresh();
 }
 
-function isFailed(c) { return c.status >= 400 || c.status === 0 || c.error; }
+function isFailed(c: LegacyCapture): boolean {
+  return (c.status ?? 0) >= 400 || c.status === 0 || !!c.error;
+}
 
-function render() {
+function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
+  if (!list || !bulkBar) return;
   const data = filterMode === 'failed' ? captures.filter(isFailed) : captures;
 
   if (data.length === 0) {
@@ -260,29 +298,30 @@ function render() {
   }
 
   list.innerHTML = '';
-  // Newest first
-  data.slice().reverse().forEach((c) => {
-    const div = document.createElement('div');
-    const failed = isFailed(c);
-    div.className = `item ${failed ? 'failed' : 'success'}`;
-    div.innerHTML = `
-      <div class="status">${c.status || 'ERR'}</div>
-      <div class="method">${escapeHtml(c.method || '?')}</div>
+  data
+    .slice()
+    .reverse()
+    .forEach((c) => {
+      const div = document.createElement('div');
+      const failed = isFailed(c);
+      div.className = `item ${failed ? 'failed' : 'success'}`;
+      div.innerHTML = `
+      <div class="status">${c.status ?? 'ERR'}</div>
+      <div class="method">${escapeHtml(c.method ?? '?')}</div>
       <div class="url" title="${escapeHtml(c.url)}">${escapeHtml(shortUrl(c.url))}</div>
       <div class="time">${fmtTime(c.startedAt)}</div>
       <div class="duration">${c.duration ?? 0}ms</div>
     `;
-    div.addEventListener('click', () => showDetail(c));
-    list.appendChild(div);
-  });
+      div.addEventListener('click', () => showDetail(c));
+      list.appendChild(div);
+    });
 
   renderBulkBar(data);
 }
 
-// Sticky bottom bar with bulk actions over the currently filtered set.
-function renderBulkBar(data) {
+function renderBulkBar(data: LegacyCapture[]): void {
   const bulkBar = document.getElementById('bulk-bar');
-  // Pre-compute combined report size so we can warn if it won't fit in Slack
+  if (!bulkBar) return;
   const combinedReport = buildBulkReport(data);
   const isOversize = combinedReport.length > SLACK_SAFE_THRESHOLD;
   const label = filterMode === 'failed' ? 'failed' : 'total';
@@ -296,14 +335,12 @@ function renderBulkBar(data) {
     </div>
   `;
 
-  document.getElementById('copy-all').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
+  document.getElementById('copy-all')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
     btn.textContent = '… rendering';
     const r = await writeTextAndImage(combinedReport, data, { maxText: SLACK_SAFE_THRESHOLD });
 
     if (r.textSkipped && r.hasImage) {
-      // Text too big for Slack — image is on clipboard for paste,
-      // auto-download JSON so the receiver gets full payload too.
       downloadAllAsFile(data);
       btn.textContent = `✓ Image · JSON ⤓ (text too long)`;
     } else if (r.hasImage && r.hasText) {
@@ -316,34 +353,45 @@ function renderBulkBar(data) {
       btn.textContent = 'Copy failed';
     }
     btn.classList.add('copied');
-    setTimeout(() => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures), 2200);
+    setTimeout(
+      () => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures),
+      2200
+    );
   });
 
-  document.getElementById('download-all').addEventListener('click', (e) => {
-    const btn = e.currentTarget;
+  document.getElementById('download-all')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
     downloadAllAsFile(data);
     btn.textContent = '✓ Downloaded';
     btn.classList.add('copied');
-    setTimeout(() => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures), 1800);
+    setTimeout(
+      () => renderBulkBar(filterMode === 'failed' ? captures.filter(isFailed) : captures),
+      1800
+    );
   });
 }
 
-// Combined markdown report for N captures — each section is the same
-// full-fidelity bug report shape as a single capture.
-function buildBulkReport(items) {
+function buildBulkReport(items: LegacyCapture[]): string {
   if (items.length === 0) return '';
-  if (items.length === 1) return toBugReport(items[0]);
+  if (items.length === 1 && items[0]) return toBugReport(items[0]);
 
+  const first = items[0];
   const lines = [
-    `## ${items.length} API hatası`,
+    `## ${items.length} API errors`,
     '',
     `Captured: ${new Date().toISOString()}`,
-    `Page: ${items[0].pageUrl || '-'}`,
+    `Page: ${first?.pageUrl ?? '-'}`,
     '',
     '### Summary',
     ...items.map((c, i) => {
-      const path = (() => { try { return new URL(c.url).pathname; } catch { return c.url; }})();
-      return `${i + 1}. \`${c.status || 'ERR'}\` ${c.method} ${path} · ${fmtTime(c.startedAt)} · ${c.duration}ms`;
+      const path = (() => {
+        try {
+          return new URL(c.url).pathname;
+        } catch {
+          return c.url;
+        }
+      })();
+      return `${i + 1}. \`${c.status ?? 'ERR'}\` ${c.method} ${path} · ${fmtTime(c.startedAt)} · ${c.duration}ms`;
     }),
     '',
     '---',
@@ -360,8 +408,8 @@ function buildBulkReport(items) {
   return lines.join('\n');
 }
 
-function downloadAllAsFile(items) {
-  const payload = items.map(c => ({ ...c, requestHeaders: maskHeaders(c.requestHeaders) }));
+function downloadAllAsFile(items: LegacyCapture[]): void {
+  const payload = items.map((c) => ({ ...c, requestHeaders: maskHeaders(c.requestHeaders) }));
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -372,18 +420,20 @@ function downloadAllAsFile(items) {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 }
 
-function showDetail(c) {
+function showDetail(c: LegacyCapture): void {
   const detail = document.getElementById('detail');
+  if (!detail) return;
   const failed = isFailed(c);
 
-  // Pre-compute everything so we can show byte counts on each button.
-  // No truncation, no denoise — full fidelity, every field as it was sent/received.
   const bugReportText = toBugReport(c);
   const curlText = toCurl(c);
-  const respText = c.responseBody || '';
+  const respText = c.responseBody ?? '';
   const isOversize = bugReportText.length > SLACK_SAFE_THRESHOLD;
 
   detail.classList.remove('hidden');
@@ -391,11 +441,11 @@ function showDetail(c) {
     <div class="detail-top">
       <div class="detail-back">
         <button id="back" class="secondary">← Back</button>
-        <span class="time">${new Date(c.startedAt).toLocaleTimeString()}</span>
+        <span class="time">${c.startedAt ? new Date(c.startedAt).toLocaleTimeString() : ''}</span>
       </div>
       <div class="detail-heading ${failed ? 'failed' : 'success'}">
-        <span class="pill">${c.status || 'ERR'}</span>
-        <strong>${escapeHtml(c.method || '?')}</strong>
+        <span class="pill">${c.status ?? 'ERR'}</span>
+        <strong>${escapeHtml(c.method ?? '?')}</strong>
         ${c.statusText ? `<span style="color:var(--muted)">${escapeHtml(c.statusText)}</span>` : ''}
       </div>
       <div class="detail-url">${escapeHtml(c.url)}</div>
@@ -410,53 +460,57 @@ function showDetail(c) {
       <button data-copy="response" class="secondary">Response · ${fmtSize(respText.length)}</button>
     </div>
 
-    ${isOversize ? `
+    ${
+      isOversize
+        ? `
     <div class="size-warning">
       Bug report is <strong>${bugReportText.length.toLocaleString()} chars</strong> — over Slack's paste limit (${SLACK_SAFE_THRESHOLD.toLocaleString()}).
       Clicking <strong>Copy bug report</strong> will put the image on your clipboard and auto-download the JSON file. Paste the image into Slack, then drag the JSON file in as a snippet.
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <div class="section">
       <h3>Request headers</h3>
       <pre>${escapeHtml(JSON.stringify(maskHeaders(c.requestHeaders), null, 2))}</pre>
     </div>
 
-    ${c.requestBody ? `
+    ${
+      c.requestBody
+        ? `
     <div class="section">
       <h3>Request body</h3>
       <pre>${escapeHtml(formatJson(c.requestBody))}</pre>
-    </div>` : ''}
+    </div>`
+        : ''
+    }
 
     <div class="section">
       <h3>Response headers</h3>
-      <pre>${escapeHtml(JSON.stringify(c.responseHeaders || {}, null, 2))}</pre>
+      <pre>${escapeHtml(JSON.stringify(c.responseHeaders ?? {}, null, 2))}</pre>
     </div>
 
     <div class="section" style="padding-bottom: 16px;">
       <h3>Response body</h3>
-      <pre>${escapeHtml(formatJson(c.responseBody || ''))}</pre>
+      <pre>${escapeHtml(formatJson(c.responseBody ?? ''))}</pre>
     </div>
   `;
 
-  document.getElementById('back').addEventListener('click', () => {
+  document.getElementById('back')?.addEventListener('click', () => {
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    // Re-show bulk bar when leaving detail
     const data = filterMode === 'failed' ? captures.filter(isFailed) : captures;
-    if (data.length > 0) document.getElementById('bulk-bar').classList.remove('hidden');
+    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
 
-  // Hide bulk bar while in detail view
-  document.getElementById('bulk-bar').classList.add('hidden');
+  document.getElementById('bulk-bar')?.classList.add('hidden');
 
-  detail.querySelectorAll('[data-copy]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      const format = btn.dataset.copy;
+  detail.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const format = btn.dataset.copy as 'report' | 'curl' | 'response';
       const text = formatForCopy(c, format);
-      const original = btn.textContent;
+      const original = btn.textContent ?? '';
       try {
-        // Only the main bug report carries a screenshot — cURL/response are
-        // for pasting into terminals/editors where the image is unhelpful.
         if (format === 'report') {
           btn.textContent = '… rendering';
           const r = await writeTextAndImage(text, [c], { maxText: SLACK_SAFE_THRESHOLD });
@@ -481,16 +535,16 @@ function showDetail(c) {
           btn.textContent = original;
           btn.classList.remove('copied');
         }, 1800);
-      } catch (err) {
+      } catch {
         btn.textContent = 'Copy failed';
       }
     });
   });
 
-  detail.querySelectorAll('[data-action="download"]').forEach((btn) => {
+  detail.querySelectorAll<HTMLButtonElement>('[data-action="download"]').forEach((btn) => {
     btn.addEventListener('click', () => {
       downloadAsFile(c);
-      const original = btn.textContent;
+      const original = btn.textContent ?? '';
       btn.textContent = '✓ Downloaded';
       btn.classList.add('copied');
       setTimeout(() => {
@@ -503,15 +557,15 @@ function showDetail(c) {
 
 // ---------- formatters ----------
 
-function formatForCopy(c, format) {
+function formatForCopy(c: LegacyCapture, format: 'report' | 'curl' | 'response'): string {
   if (format === 'curl') return toCurl(c);
-  if (format === 'response') return c.responseBody || '';
+  if (format === 'response') return c.responseBody ?? '';
   return toBugReport(c);
 }
 
-function toCurl(c) {
+function toCurl(c: LegacyCapture): string {
   const lines = [`curl -X ${c.method} '${c.url}'`];
-  for (const [k, v] of Object.entries(maskHeaders(c.requestHeaders || {}))) {
+  for (const [k, v] of Object.entries(maskHeaders(c.requestHeaders) ?? {})) {
     lines.push(`  -H '${k}: ${String(v).replace(/'/g, "'\\''")}'`);
   }
   if (c.requestBody) {
@@ -521,38 +575,46 @@ function toCurl(c) {
   return lines.join(' \\\n');
 }
 
-function toBugReport(c) {
-  const errorSignals = extractErrorSignal(c.responseBody);
+function toBugReport(c: LegacyCapture): string {
+  const errorSignals = extractErrorSignal(c.responseBody ?? null);
 
-  return `## API Hatası — ${c.method} ${c.url.split('?')[0]}
+  return `## API Error — ${c.method} ${c.url.split('?')[0]}
 
-**Page:** ${c.pageUrl || '-'}
+**Page:** ${c.pageUrl ?? '-'}
 **Endpoint:** \`${c.method} ${c.url}\`
-**Status:** ${c.status || 'ERR'} ${c.statusText || ''}
+**Status:** ${c.status ?? 'ERR'} ${c.statusText ?? ''}
 **Duration:** ${c.duration ?? 0}ms
-**Captured at:** ${new Date(c.startedAt).toISOString()}
-${c.error ? `**Network error:** ${c.error}\n` : ''}${errorSignals ? `
+**Captured at:** ${c.startedAt ? new Date(c.startedAt).toISOString() : '-'}
+${c.error ? `**Network error:** ${c.error}\n` : ''}${
+    errorSignals
+      ? `
 ### Server error signals (summary — full body is below)
-${errorSignals.map(e => `- ${e}`).join('\n')}
-` : ''}
+${errorSignals.map((e) => `- ${e}`).join('\n')}
+`
+      : ''
+  }
 ### Request headers
 \`\`\`json
-${JSON.stringify(maskHeaders(c.requestHeaders || {}), null, 2)}
+${JSON.stringify(maskHeaders(c.requestHeaders) ?? {}, null, 2)}
 \`\`\`
-${c.requestBody ? `
+${
+  c.requestBody
+    ? `
 ### Request body
 \`\`\`json
 ${formatJson(c.requestBody)}
-\`\`\`` : ''}
+\`\`\``
+    : ''
+}
 
 ### Response headers
 \`\`\`json
-${JSON.stringify(c.responseHeaders || {}, null, 2)}
+${JSON.stringify(c.responseHeaders ?? {}, null, 2)}
 \`\`\`
 
 ### Response body
 \`\`\`json
-${formatJson(c.responseBody || '')}
+${formatJson(c.responseBody ?? '')}
 \`\`\`
 
 ### cURL
@@ -562,63 +624,79 @@ ${toCurl(c)}
 `;
 }
 
-// Extract validation/error info from a JSON response body. Returns null if
-// the body isn't JSON or no error-shaped fields are found.
-// This is ADDITIVE — surfaces error info at the top of the report as a
-// summary; the full response body still appears verbatim below it.
-function extractErrorSignal(jsonStr) {
+function extractErrorSignal(jsonStr: string | null): string[] | null {
   if (!jsonStr) return null;
-  let obj;
-  try { obj = JSON.parse(jsonStr); } catch { return null; }
+  let obj: unknown;
+  try {
+    obj = JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
   if (!obj || typeof obj !== 'object') return null;
+  const o = obj as Record<string, unknown>;
 
-  const out = [];
+  const out: string[] = [];
 
-  // .NET ModelState style: { errors: { field: ["msg"] } }
-  if (obj.errors && typeof obj.errors === 'object' && !Array.isArray(obj.errors)) {
-    for (const [field, msgs] of Object.entries(obj.errors)) {
+  if (o.errors && typeof o.errors === 'object' && !Array.isArray(o.errors)) {
+    for (const [field, msgs] of Object.entries(o.errors as Record<string, unknown>)) {
       const list = Array.isArray(msgs) ? msgs : [msgs];
-      list.forEach(m => out.push(`${field}: ${typeof m === 'string' ? m : JSON.stringify(m)}`));
+      list.forEach((m: unknown) =>
+        out.push(`${field}: ${typeof m === 'string' ? m : JSON.stringify(m)}`)
+      );
     }
   }
-  // Array errors: { errors: [{ field, message }] }
-  if (Array.isArray(obj.errors)) {
-    obj.errors.forEach(e => {
+  if (Array.isArray(o.errors)) {
+    (o.errors as unknown[]).forEach((e) => {
       if (typeof e === 'string') out.push(e);
-      else if (e?.field && e?.message) out.push(`${e.field}: ${e.message}`);
-      else if (e?.message) out.push(e.message);
-      else out.push(JSON.stringify(e));
+      else if (
+        e &&
+        typeof e === 'object' &&
+        'field' in e &&
+        'message' in e &&
+        typeof (e as { field: unknown }).field === 'string'
+      ) {
+        out.push(`${(e as { field: string }).field}: ${(e as { message: string }).message}`);
+      } else if (e && typeof e === 'object' && 'message' in e) {
+        out.push((e as { message: string }).message);
+      } else {
+        out.push(JSON.stringify(e));
+      }
     });
   }
-  // Old ASP.NET: ModelState
-  if (obj.ModelState && typeof obj.ModelState === 'object') {
-    for (const [field, msgs] of Object.entries(obj.ModelState)) {
+  if (o.ModelState && typeof o.ModelState === 'object') {
+    for (const [field, msgs] of Object.entries(o.ModelState as Record<string, unknown>)) {
       const list = Array.isArray(msgs) ? msgs : [msgs];
-      list.forEach(m => out.push(`${field}: ${m}`));
+      list.forEach((m: unknown) => out.push(`${field}: ${m as string}`));
     }
   }
-  // Top-level signal fields
-  if (typeof obj.message === 'string') out.push(`message: ${obj.message}`);
-  if (typeof obj.error === 'string') out.push(`error: ${obj.error}`);
-  if (obj.error && typeof obj.error === 'object' && obj.error.message) out.push(`error: ${obj.error.message}`);
-  if (typeof obj.detail === 'string') out.push(`detail: ${obj.detail}`);
-  if (typeof obj.title === 'string' && obj.title !== obj.message) out.push(`title: ${obj.title}`);
-  if (typeof obj.traceId === 'string') out.push(`traceId: ${obj.traceId}`);
+  if (typeof o.message === 'string') out.push(`message: ${o.message}`);
+  if (typeof o.error === 'string') out.push(`error: ${o.error}`);
+  if (o.error && typeof o.error === 'object' && 'message' in o.error) {
+    out.push(`error: ${(o.error as { message: string }).message}`);
+  }
+  if (typeof o.detail === 'string') out.push(`detail: ${o.detail}`);
+  if (typeof o.title === 'string' && o.title !== o.message) out.push(`title: ${o.title}`);
+  if (typeof o.traceId === 'string') out.push(`traceId: ${o.traceId}`);
 
   return out.length ? out : null;
 }
 
-// Trigger a JSON file download with the full capture (no truncation).
-// Drag-drop the file into Slack and it'll attach as a snippet — bypasses
-// every text-length limit Slack imposes.
-function downloadAsFile(c) {
+function downloadAsFile(c: LegacyCapture): void {
   const payload = { ...c, requestHeaders: maskHeaders(c.requestHeaders) };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  const ts = new Date(c.startedAt).toISOString().replace(/[:.]/g, '-');
-  const path = (() => { try { return new URL(c.url).pathname.replace(/\//g, '_'); } catch { return 'request'; }})();
-  const filename = `bug-${c.status || 'ERR'}-${c.method}${path}-${ts}.json`;
+  const ts = c.startedAt
+    ? new Date(c.startedAt).toISOString().replace(/[:.]/g, '-')
+    : new Date().toISOString().replace(/[:.]/g, '-');
+  const path = (() => {
+    try {
+      return new URL(c.url).pathname.replace(/\//g, '_');
+    } catch {
+      return 'request';
+    }
+  })();
+  const filename = `bug-${c.status ?? 'ERR'}-${c.method}${path}-${ts}.json`;
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -630,28 +708,45 @@ function downloadAsFile(c) {
   }, 1000);
 }
 
-function maskHeaders(headers) {
-  const out = {};
-  for (const [k, v] of Object.entries(headers || {})) {
+function maskHeaders(
+  headers: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
     out[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? '***MASKED***' : v;
   }
   return out;
 }
 
-function formatJson(str) {
+function formatJson(str: string): string {
   if (!str) return '';
-  try { return JSON.stringify(JSON.parse(str), null, 2); } catch { return String(str); }
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2);
+  } catch {
+    return String(str);
+  }
 }
 
-function shortUrl(url) {
+function shortUrl(url: string): string {
   try {
     const u = new URL(url);
     return u.pathname + (u.search || '');
-  } catch { return url; }
+  } catch {
+    return url;
+  }
 }
 
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
+function escapeHtml(s: unknown): string {
+  return String(s ?? '').replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[c] ?? c
+  );
 }
