@@ -37,5 +37,15 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
   },
+  // Benchmark scripts — Node CLI tools, console.log is the output channel.
+  {
+    files: ['bench/**/*.ts'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
   prettier
 );

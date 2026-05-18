@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint · Type-check · Build · Test
+    name: Lint · Type-check · Build · Test · Bench
     runs-on: ubuntu-latest
 
     steps:
@@ -42,8 +42,12 @@ jobs:
         run: npm run build
 
       - name: Test
-        # Stub passes today (PRD §13.3 perf suite arrives later in M1).
         run: npm test
+
+      - name: Perf benchmark (fetch overhead, PRD §13.1)
+        # Hard gate: p95 patch overhead > 0.5ms exits non-zero and
+        # fails the job. XHR + memory benchmarks land in M2.
+        run: npm run bench
 
       - name: Upload built extension
         uses: actions/upload-artifact@v4

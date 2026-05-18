@@ -19,6 +19,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "bench": "tsx bench/fetch-overhead.bench.ts",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -33,6 +34,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
     "prettier": "^3.4.2",
+    "tsx": "^4.22.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
     "vite": "^6.0.5",
