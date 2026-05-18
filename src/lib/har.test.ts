@@ -144,6 +144,55 @@ describe('toHar', () => {
     });
   });
 
+  // -----------------------------------------------------------------------
+  // PRD §11.2 audit (W4-5 OQ-W4-C): make sure masking-engine output cannot
+  // leak the original cookie name=value pairs through HAR's
+  // request.cookies / response.cookies projection. The masking engine
+  // replaces the entire header value with '***MASKED***' (no '=' in it),
+  // so the cookie parser must produce an empty list — never split the
+  // placeholder into pseudo-cookies.
+  // -----------------------------------------------------------------------
+
+  it('audit: masked Cookie request header produces no request.cookies entries', () => {
+    const event = makeFetchEvent({
+      request: {
+        method: 'GET',
+        url: 'https://api.example.com/u',
+        headers: { Cookie: '***MASKED***' },
+        body: null,
+      },
+    });
+    const har = toHar([event], { creatorVersion: '0.0.1' });
+    expect(har.entries[0]?.request.cookies).toEqual([]);
+  });
+
+  it('audit: masked Set-Cookie response header produces no response.cookies entries', () => {
+    const event = makeFetchEvent({
+      response: {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'Set-Cookie': '***MASKED***', 'Content-Type': 'text/html' },
+        body: '<html/>',
+      },
+    });
+    const har = toHar([event], { creatorVersion: '0.0.1' });
+    expect(har.entries[0]?.response.cookies).toEqual([]);
+  });
+
+  it('audit: case-variant masked Cookie header still produces no leak', () => {
+    // Some servers send 'COOKIE' or 'cookie' — case-insensitivity matters.
+    const event = makeFetchEvent({
+      request: {
+        method: 'GET',
+        url: 'https://api.example.com/u',
+        headers: { cookie: '***MASKED***' },
+        body: null,
+      },
+    });
+    const har = toHar([event], { creatorVersion: '0.0.1' });
+    expect(har.entries[0]?.request.cookies).toEqual([]);
+  });
+
   it('null body emits no postData and content with size 0', () => {
     const event = makeFetchEvent({
       request: { method: 'GET', url: 'https://x/y', headers: {}, body: null },
