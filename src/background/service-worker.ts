@@ -8,6 +8,7 @@
 
 import {
   appendEvent,
+  bumpSessionSequence,
   clearSession,
   DEFAULT_MAX_EVENTS_PER_TAB,
   getOrCreateSession,
@@ -38,10 +39,10 @@ import {
   type Redaction,
 } from '@/types/events';
 
-// In-memory monotonic sequence counter per session. Hydrated lazily on
-// first capture after a service-worker wake-up; loss across wake-ups is
-// acceptable because PRD §6.1.3 calls out "On browser restart: live
-// session resets". Same applies to SW evictions in practice.
+// In-memory monotonic sequence counter per session. The value mirrors
+// SessionMetadata.lastSequence in chrome.storage.local — hydrated from
+// the persisted record on each handleCapture so a service-worker
+// eviction never restarts at 1 mid-session.
 const sequenceCursor = new Map<string, number>();
 
 // ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   const { capture, redactions } = applyMasking(msg.capture, privacy.bodyRules);
 
   const session = await getOrCreateSession(tabId, origin);
-  const sequenceNumber = nextSequence(session.sessionId);
+  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
 
   const baseEnvelope = {
     id: crypto.randomUUID(),
@@ -194,6 +195,7 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   }
 
   const buffer = await appendEvent(tabId, event, DEFAULT_MAX_EVENTS_PER_TAB);
+  await bumpSessionSequence(tabId, sequenceNumber);
   await renderBadge(tabId, buffer);
 }
 
@@ -252,8 +254,11 @@ function withMeta(meta: EventMeta | undefined): { meta?: EventMeta } {
 // Sequence + badge helpers
 // ---------------------------------------------------------------------------
 
-function nextSequence(sessionId: string): number {
-  const current = sequenceCursor.get(sessionId) ?? 0;
+function nextSequence(sessionId: string, persistedFloor: number): number {
+  // Take the higher of "what we have in memory" and "what storage says" so
+  // a fresh service-worker wake-up resumes the persisted counter, and
+  // back-to-back captures within the same wake-up keep advancing it.
+  const current = Math.max(sequenceCursor.get(sessionId) ?? 0, persistedFloor);
   const next = current + 1;
   sequenceCursor.set(sessionId, next);
   return next;

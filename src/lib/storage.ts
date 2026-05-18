@@ -45,10 +45,26 @@ export async function getOrCreateSession(tabId: number, origin: string): Promise
     origin,
     userAgent: navigator.userAgent,
     startedAt: Date.now(),
+    lastSequence: 0,
     schemaVersion: EVENTS_SCHEMA_VERSION,
   };
   await chrome.storage.local.set({ [key]: fresh });
   return fresh;
+}
+
+/**
+ * Persists an updated lastSequence value on the existing SessionMetadata
+ * record. Called by the service worker after every successful
+ * appendEvent so a future SW wake-up resumes the counter instead of
+ * restarting at 1 mid-session.
+ */
+export async function bumpSessionSequence(tabId: number, lastSequence: number): Promise<void> {
+  const key = StorageKeys.sessionMeta(tabId);
+  const stored = await chrome.storage.local.get(key);
+  const existing = stored[key] as SessionMetadata | undefined;
+  if (!existing) return;
+  if (existing.lastSequence === lastSequence) return;
+  await chrome.storage.local.set({ [key]: { ...existing, lastSequence } });
 }
 
 /**

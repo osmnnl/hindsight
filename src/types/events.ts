@@ -387,6 +387,10 @@ export interface SessionMetadata {
   origin: string;
   userAgent: string;
   startedAt: number;
+  /** Monotonic counter; the service worker bumps this with every event
+   *  and persists it so a service-worker eviction doesn't restart the
+   *  sequence at 1 mid-session. */
+  lastSequence: number;
   /** Bumped on every schema migration (PRD §10.3). */
   schemaVersion: number;
 }
