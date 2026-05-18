@@ -181,3 +181,45 @@ Per PRD §8 (Non-Goals) and §18 (Roadmap):
 - Plugin marketplace UI — v3+.
 
 If a request would build any of the above, say so and stop.
+
+---
+
+## 9. Where we are now (post-M1)
+
+**M1 closed at v0.1.0** (2026-05-18). Foundation is in:
+
+- TypeScript + Vite + CRXJS toolchain, ESLint 9 flat config, Prettier 3,
+  Husky 9, Vitest 2, tsx 4. CI gates: lint / format / typecheck / test
+  (42 unit tests across masking + HAR) / build / **perf bench**
+  (`bench/fetch-overhead.bench.ts`, PRD §13.1 — p95 < 0.5 ms hard cap).
+- `src/types/events.ts` is the canonical PRD §6.1.2 implementation.
+  `src/lib/storage.ts` owns PRD §6.1.3 keys + `SessionMetadata.lastSequence`
+  persistence. `src/lib/masking.ts` is PRD §11.2 (default header / body /
+  form rules + custom-pattern compilation). `src/lib/har.ts` is PRD §6.4.2.
+- Service worker applies masking before storage, drops blocklisted
+  origins, mints CapturedEvent envelopes, writes via `appendEvent`.
+- Popup: filtered list + detail view + Privacy panel (PRD §11.4) +
+  Copy / JSON / HAR / cURL.
+- Settings: General (theme) + Privacy (default chips, custom CRUD,
+  origin blocklist, test sandbox). Four other sections are stubbed
+  with milestone badges (Capture M1·W4 — actually deferred to M2,
+  Detection M3, Sharing M4, Advanced M2+).
+
+**M2 axis: context capture growth.** Expected scope (subject to
+sprint-by-sprint planning):
+
+- Tier 2 events come online — `action.click`, `action.input` with
+  capture-time form-field masking, `console.warn/info`, `navigation`,
+  `network.websocket` frame metadata.
+- Narrative engine v1 (template-based, no LLM — PRD §22.1 stays
+  deferred to v2).
+- Batched storage writes (PRD §13.1 perf strategy) once Tier 2 traffic
+  makes per-event writes a measurable cost.
+- Closed-tab archive (PRD §6.1.3 `archives/recent`, TTL 7 days).
+- XHR perf bench (PRD §13.1 row 2 — fetch is gated, XHR pending).
+- M2-end: unlisted CWS submission for closed-beta testers (OQ-3).
+  Repo stays **private until then**.
+
+**Branch state:** all M1 work landed on `feature/m1-foundation` and
+will rebase-merge to `main` at the v0.1.0 tag. After M1 closeout new
+sprints branch fresh from `main` (e.g. `feature/m2-week-1`).
