@@ -242,6 +242,68 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 
   const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
   await renderBadge(tabId, buffer);
+
+  // Tier 3 screenshot on error (PRD §6.1.1) — fire-and-forget. Caps at
+  // one screenshot per tab per 2 s; failures are silent (some pages
+  // can't be captured, that's fine).
+  if (isErrorEvent(event)) {
+    void maybeCaptureScreenshot(tabId, event, session, captureCfg).catch(() => {});
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Screenshot on error (PRD §6.1.1 Tier 3, §6.2.1 white-screen heuristic
+// adjacent). chrome.tabs.captureVisibleTab is throttled by Chrome to
+// roughly 2 per second per window; we add our own 2-second per-tab gate
+// so simultaneous bursts don't queue.
+// ---------------------------------------------------------------------------
+
+const SCREENSHOT_MIN_INTERVAL_MS = 2000;
+const screenshotLastShotAt = new Map<number, number>();
+
+async function maybeCaptureScreenshot(
+  tabId: number,
+  trigger: CapturedEvent,
+  session: { sessionId: string; lastSequence: number },
+  captureCfg: CaptureSettings
+): Promise<void> {
+  const now = Date.now();
+  const last = screenshotLastShotAt.get(tabId) ?? 0;
+  if (now - last < SCREENSHOT_MIN_INTERVAL_MS) return;
+  screenshotLastShotAt.set(tabId, now);
+
+  let dataUrl: string;
+  try {
+    dataUrl = await chrome.tabs.captureVisibleTab({ format: 'jpeg', quality: 70 });
+  } catch {
+    return; // Tab inactive, cross-origin restriction, etc. — silent skip.
+  }
+  if (!dataUrl) return;
+
+  // Best-effort dimension probe. chrome.tabs.captureVisibleTab returns
+  // raw bytes; reading the actual size needs a decode pass we don't
+  // care to pay here. The replay bundle (M4) will re-measure on demand.
+  const dims = { width: 0, height: 0 };
+
+  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
+  const event: CapturedEvent = {
+    id: crypto.randomUUID(),
+    type: 'screenshot',
+    timestamp: Date.now(),
+    sessionId: session.sessionId,
+    sequenceNumber,
+    tabId,
+    url: trigger.url,
+    data: {
+      storageRef: `screenshots/${session.sessionId}/${crypto.randomUUID()}.jpg`,
+      dataUrl,
+      trigger: 'error',
+      width: dims.width,
+      height: dims.height,
+    },
+    meta: { cascadeOf: trigger.id },
+  };
+  await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
 }
 
 // ---------------------------------------------------------------------------

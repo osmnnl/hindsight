@@ -188,9 +188,15 @@ export interface NavigationData {
 }
 
 export interface ScreenshotData {
-  /** Storage ref (e.g. `screenshots/<sessionId>/<eventId>.jpg`). Embedded
-   *  data URIs land later in the replay-bundle generator (PRD §5). */
+  /** Storage ref (e.g. `screenshots/<sessionId>/<eventId>.jpg`). Used
+   *  by the replay-bundle generator (M4) to externalize large images
+   *  out of the event buffer. */
   storageRef: string;
+  /** Inline JPEG data URL captured by chrome.tabs.captureVisibleTab.
+   *  M3 first cut keeps the bytes inline so the popup / side panel
+   *  can render without a second storage round-trip. M4 moves them
+   *  to the storageRef path for the replay bundle (PRD §5). */
+  dataUrl?: string;
   /** What surfaced this screenshot (PRD §6.1.1 Tier 3 — error trigger,
    *  recording cadence, etc.). */
   trigger: 'error' | 'recording-tick' | 'mutation' | 'manual';

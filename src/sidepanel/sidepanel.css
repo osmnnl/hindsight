@@ -129,6 +129,16 @@ button:hover {
   color: var(--text);
 }
 
+/* ---------- screenshot panel (PRD §6.1.1 Tier 3) ---------- */
+.section img.screenshot {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
 /* ---------- visual timeline scrubber (PRD §6.3.3) ---------- */
 .scrubber {
   padding: 8px 14px 6px;

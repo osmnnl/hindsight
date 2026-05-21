@@ -761,6 +761,7 @@ function showSimpleDetail(e: CapturedEvent): void {
         <strong>${escapeHtml(e.type)}</strong>
       </div>
     </div>
+    ${renderScreenshotPanel(findPairedScreenshot(e.id))}
     ${renderRedactionsPanel(e.meta?.redactions)}
     ${body}
   `;
@@ -887,6 +888,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
         : ''
     }
 
+    ${renderScreenshotPanel(findPairedScreenshot(c.id))}
     ${renderRedactionsPanel(c.meta?.redactions)}
 
     <div class="section">
@@ -1134,6 +1136,31 @@ function downloadAsFile(c: NetworkRequestEvent): void {
  * before it was stored — fulfills the PRD §11.4 "Pre-share preview"
  * transparency commitment at the per-event level.
  */
+/** Returns the most recent 'screenshot' event whose meta.cascadeOf
+ *  matches `triggerId`, or null. The SW emits one screenshot per
+ *  triggering error within the 2-second rate-limit window, so at most
+ *  one paired screenshot exists per triggering event. */
+function findPairedScreenshot(triggerId: string): CapturedEvent | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e && e.type === 'screenshot' && e.meta?.cascadeOf === triggerId) return e;
+  }
+  return null;
+}
+
+function renderScreenshotPanel(shot: CapturedEvent | null): string {
+  if (!shot || shot.type !== 'screenshot') return '';
+  const dataUrl = shot.data.dataUrl;
+  if (!dataUrl) return '';
+  return `
+    <div class="section">
+      <h3>Screenshot at error moment</h3>
+      <img class="screenshot" src="${escapeHtml(dataUrl)}" alt="Page screenshot captured when this error fired" />
+      <p class="hint">Captured by chrome.tabs.captureVisibleTab — JPEG quality 0.7.</p>
+    </div>
+  `;
+}
+
 function renderRedactionsPanel(redactions: Redaction[] | undefined): string {
   if (!redactions || redactions.length === 0) return '';
 
