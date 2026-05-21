@@ -4,6 +4,119 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-05-21 — M4: Replay bundle + sharing hub
+
+Fourth milestone. The PRD's killer-differentiator feature lands: a
+standalone HTML replay bundle that a teammate can drag into any browser
+tab and see the whole session, no extension, no service, no login.
+Recording mode + Tier 4 captures (cursor, scroll, periodic screenshots)
+fill out the explicit-record path. The sharing hub gains Slack /
+Discord / Teams webhooks with size-aware step-down halving, GitHub
+Issue + mailto web intents, a unified markdown bug-report formatter,
+and a ZIP-everything export that bundles markdown + JSON + HAR + the
+replay bundle + inline screenshots into one shareable artifact.
+
+### Added
+
+- **Standalone HTML replay bundle** (PRD §5) — `src/lib/replay-bundle.ts`
+  emits a single `.html` document with the captured session embedded
+  in `window.__HINDSIGHT__` and a vanilla-DOM viewer (no framework,
+  no CDN). Scrubber, narrative panel, event list, detail pane,
+  redactions panel — all in one self-contained file.
+- **Bundle viewer filter / search / keyboard nav** — filter chips
+  (failed / all), full-text search across `type` + `url` + `data`,
+  `← → ↑ ↓` step through visible events.
+- **Recording mode** (PRD §6.5) — ● Record / ■ Stop in the side
+  panel and a recording banner in the popup. `recording.start` /
+  `recording.stop` envelopes, periodic 2-second JPEG snapshots on
+  the active tab, 10 Hz cursor + throttled scroll captures (Tier
+  4 events, SW drops them unless the tab is in recording mode so
+  non-recording sessions pay zero cost).
+- **Bundle auto-download on Stop** — toggling off Recording fires a
+  `hindsight-recording-<host>-<timestamp>.html` download.
+- **Webhook pipeline** (Slack / Discord / Teams) —
+  `src/lib/destinations/webhooks.ts` formats per-destination payloads
+  (Slack Block Kit, Discord embed, Teams MessageCard) and runs a
+  size-aware step-down halving loop when the report exceeds the
+  destination's hard limit.
+- **GitHub Issue + mailto web intents** —
+  `src/lib/destinations/web-intents.ts` builds prefilled new-issue
+  URLs and `mailto:` drafts with a truncation flag.
+- **Unified markdown bug-report formatter** —
+  `src/lib/formatters/markdown.ts` covers every event family,
+  honours `maxDetailEvents` for size-aware destinations, and is
+  reused by ZIP / webhook / web-intent / sidepanel copy paths.
+- **ZIP archive export** — `src/lib/zip.ts` is a dependency-free
+  vanilla writer (compression method 0, UTF-8 filenames, CRC-32).
+  The new "⤓ ZIP" button in the sidepanel bundles `report.md`,
+  `session.json`, `session.har`, `replay.html`, and inline
+  screenshots under `screenshots/`.
+- **"Replay this request" button** (PRD §6.3.5) — re-fires a
+  captured network event from the extension context.
+  Confirm-prompt for POST / PUT / PATCH / DELETE. Skips masked
+  headers, shows status + response inline with a "diff vs original"
+  badge. Surfaces CORS / host-permission errors clearly.
+- **Privacy preview modal** (PRD §6.4.4) — replaces the M4·W12
+  `confirm()` with an in-panel overlay that summarises event count,
+  per-rule redaction breakdown, and destination identity before the
+  payload leaves the user's machine. Esc cancels, Enter continues.
+- **Settings → Advanced section** — debug logging toggle, perf
+  budget soft-warning threshold, live storage usage stats, and a
+  "Reset everything" factory-reset button.
+- **Popup recording banner** — `00:00` timer + ■ Stop button so the
+  user can end a recording without opening the side panel.
+- **Sidepanel keyboard ergonomics** — Esc closes the detail view,
+  screenshot click opens the full JPEG in a new tab.
+- **6 ZIP-writer unit tests** — CRC-32 vector, multi-entry counts,
+  UTF-8 filename flag, verbatim payload bytes.
+- **92 unit tests total**, both perf gates green (fetch p95
+  ~0.010 ms, XHR p95 ~0.001 ms).
+
+### Changed
+
+- Sharing settings UI ships GitHub default-repo + default-mailto
+  recipient fields alongside the three webhook slots.
+- Recording state survives a service-worker eviction round-trip;
+  popup + sidepanel poll `GET_RECORDING` to stay in sync.
+- Settings → Advanced no longer carries the "M2+" badge.
+
+### Architecture
+
+- New modules: `src/lib/replay-bundle.ts`, `src/lib/zip.ts`,
+  `src/lib/formatters/markdown.ts`, `src/lib/destinations/webhooks.ts`,
+  `src/lib/destinations/web-intents.ts`.
+- `runtime-messages.ts` gains `ToggleRecordingRuntimeMessage`,
+  `GetRecordingRuntimeMessage`, `RecordingState`.
+- `service-worker.ts` learns Tier 4 gating, periodic screenshot
+  timers, `recording.start` / `recording.stop` envelope minting,
+  and per-tab recording state cleanup on `tabs.onRemoved`.
+- `lib/settings.ts` adds `AdvancedSettings` + accessors.
+
+### Commits (~16 on `feature/m4-foundation`)
+
+```
+feat(replay):       standalone HTML bundle generator — W12-1
+feat(sidepanel):    Save as replay bundle button — W12-5
+feat(recording):    Start/Stop UI + SW state — W12-2
+feat(recording):    bundle download on stop — W12-3
+feat(settings):     Sharing section + webhook URLs — W12-4
+feat(formatters):   unified markdown bug report — W13-3
+feat(destinations): Slack/Discord/Teams webhook pipeline — W13-1
+feat(destinations): GitHub Issue + mailto web intents — W13-5
+feat(recording):    Tier 4 captures — W13-2
+feat(export):       ZIP archive everything — W14-1
+feat(sidepanel):    Replay this request button — W14-2
+feat(sidepanel):    Privacy preview modal — W14-3
+feat(replay):       bundle viewer filter / search / keyboard nav — W14-4
+feat(settings):     Advanced section live — W14-5
+feat(popup):        recording banner + sidepanel UX polish — W15
+chore(release):     M4 closeout — v0.4.0 — W16
+```
+
+[0.4.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.0
+
+---
+
 ## [0.3.0] — 2026-05-21 — M3: Side panel + visual timeline
 
 Third milestone. The side panel takes over as the primary inspection

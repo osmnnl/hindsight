@@ -184,7 +184,47 @@ If a request would build any of the above, say so and stop.
 
 ---
 
-## 9. Where we are now (post-M3)
+## 9. Where we are now (post-M4)
+
+**M4 closed at v0.4.0** (2026-05-21). The killer-differentiator
+standalone HTML replay bundle ships; the sharing hub covers Slack /
+Discord / Teams webhooks (size-aware step-down halving), GitHub Issue
+and mailto web intents, ZIP-everything export (`src/lib/zip.ts`,
+vanilla writer, zero deps), and a unified markdown bug-report
+formatter. Recording mode + Tier 4 captures (cursor 10 Hz, scroll
+throttled, periodic 2 s screenshots) land behind a ● Record / ■ Stop
+toggle in the sidepanel and a recording banner in the popup. The
+sidepanel network detail gains a "Replay this request" button with
+destructive-method confirms. The privacy preview modal replaces the
+M4·W12 `confirm()` — surfaces event count, per-rule redactions and
+destination identity before the user commits. Settings → Advanced
+section is live (debug logging toggle, perf budget threshold, storage
+usage stats, reset-everything). 92 unit tests, both perf gates green
+(fetch p95 ~0.010 ms, XHR p95 ~0.001 ms).
+
+**M5 axis: pre-launch polish.** Expected scope:
+
+- Perf audit + benchmark expansion (memory leak harness, sidepanel
+  stress test 1000+ events, real-world site smoke).
+- Accessibility audit — axe-core CI integration, WCAG AA compliance,
+  manual NVDA / VoiceOver pass, full ARIA dialog with focus trap for
+  the privacy preview modal (W14-3 ships a simple overlay; OQ-M4-L
+  defers the focus trap to here).
+- Security audit — CSP review, dependency audit, input validation
+  sweep at all system boundaries.
+- Documentation site (hindsight.dev) + landing page + demo video
+  (out-of-repo).
+- CWS public submission + Edge Add-ons submission → `v1.0.0` tag.
+
+**Branch state:** all M4 work landed on `feature/m4-foundation`.
+Rebase-merge to `main` at v0.4.0 tag, then start M5 sprints from
+fresh `feature/m5-*` branches.
+
+---
+
+## 10. Earlier — post-M3 (kept for reference)
+
+## 10b. Earlier — post-M3 (kept for reference)
 
 **M3 closed at v0.3.0** (2026-05-21). The side panel is the primary
 inspection surface; the popup is a 130-line launcher. Visual

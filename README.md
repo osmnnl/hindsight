@@ -9,10 +9,13 @@ share a complete, faithful bug report.
 
 No backend, no signup, no telemetry. Open source under MIT.
 
-**Status:** M3 milestone shipped at `v0.3.0` (May 2026). Side panel,
-visual scrubber, detection engine, recent-archive viewer all live.
-Unlisted Chrome Web Store beta submission is the next user-driven
-step (see `docs/CWS-LISTING.md`).
+**Status:** M4 milestone shipped at `v0.4.0` (May 2026). The
+killer-differentiator standalone HTML replay bundle, recording mode
+with Tier 4 captures, multi-destination sharing hub (Slack / Discord /
+Teams webhooks + GitHub Issue / mailto web intents), ZIP-everything
+export, "Replay this request" and a privacy preview modal are all
+live. M5 is pre-launch polish (perf + a11y + security audits, CWS
+public submission).
 
 ---
 
@@ -22,12 +25,12 @@ The capture system is organized into four tiers (PRD §6.1.1). The
 extension's M1 build only activates Tier 1; the rest light up as their
 respective milestones land.
 
-| Tier                   | Events                                                                               | Default | M1             | M2              | M3+    |
-| ---------------------- | ------------------------------------------------------------------------------------ | ------- | -------------- | --------------- | ------ |
-| **1 — Essential**      | `fetch`, `XMLHttpRequest`, page navigations, console errors / unhandled rejections   | on      | ✅ fetch / XHR | + console + nav | —      |
-| **2 — Important**      | Clicks, form input changes, WebSocket frames, console warn/info                      | on      | —              | ✅              | refine |
-| **3 — Conditional**    | Page screenshots on error, performance long tasks, layout shifts, Server-Sent Events | trigger | —              | —               | ✅ M3  |
-| **4 — Recording mode** | Periodic screenshots, cursor trail, scroll, DOM mutations, tab focus                 | opt-in  | —              | —               | ✅ M4  |
+| Tier                   | Events                                                                               | Default | M1             | M2              | M3     | M4     |
+| ---------------------- | ------------------------------------------------------------------------------------ | ------- | -------------- | --------------- | ------ | ------ |
+| **1 — Essential**      | `fetch`, `XMLHttpRequest`, page navigations, console errors / unhandled rejections   | on      | ✅ fetch / XHR | + console + nav | refine | refine |
+| **2 — Important**      | Clicks, form input changes, WebSocket frames, console warn/info                      | on      | —              | ✅              | refine | refine |
+| **3 — Conditional**    | Page screenshots on error, performance long tasks, layout shifts, Server-Sent Events | trigger | —              | —               | ✅     | refine |
+| **4 — Recording mode** | Periodic screenshots, cursor trail, scroll, DOM mutations, tab focus                 | opt-in  | —              | —               | —      | ✅     |
 
 Captured events are stored per tab in `chrome.storage.local` under
 `sessions/{tabId}/events` (PRD §6.1.3). The buffer holds the most recent
