@@ -19,7 +19,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "bench": "tsx bench/fetch-overhead.bench.ts",
+    "bench": "tsx bench/fetch-overhead.bench.ts && tsx bench/xhr-overhead.bench.ts",
+    "bench:fetch": "tsx bench/fetch-overhead.bench.ts",
+    "bench:xhr": "tsx bench/xhr-overhead.bench.ts",
     "prepare": "husky"
   },
   "devDependencies": {
