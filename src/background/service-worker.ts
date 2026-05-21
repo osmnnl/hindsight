@@ -31,7 +31,7 @@ import {
 } from '@/lib/masking';
 import { readPrivacySettings, SettingsKeys, type CustomPatternSetting } from '@/lib/settings';
 import {
-  isFailedNetwork,
+  isErrorEvent,
   type CapturedEvent,
   type EventMeta,
   type NavigationData,
@@ -272,7 +272,9 @@ function nextSequence(sessionId: string, persistedFloor: number): number {
 }
 
 async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void> {
-  const failedCount = buffer.reduce((n, e) => n + (isFailedNetwork(e) ? 1 : 0), 0);
+  // PRD §6.2.1: failed requests AND console.error / console.unhandled
+  // both feed the badge. isErrorEvent unifies both predicates.
+  const failedCount = buffer.reduce((n, e) => n + (isErrorEvent(e) ? 1 : 0), 0);
   try {
     await chrome.action.setBadgeText({
       tabId,

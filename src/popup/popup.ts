@@ -6,7 +6,7 @@
 // generic — do not introduce vendor-specific strings (CLAUDE.md §5.1).
 
 import type { CapturedEvent, NetworkFetchEvent, NetworkXhrEvent, Redaction } from '@/types/events';
-import { isFailedNetwork } from '@/types/events';
+import { isErrorEvent, isFailedNetwork } from '@/types/events';
 import {
   type ClearEventsRuntimeMessage,
   type GetEventsRuntimeMessage,
@@ -229,7 +229,7 @@ async function writeTextAndImage(
 }
 
 let tabId: number | undefined;
-let events: NetworkRequestEvent[] = [];
+let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -256,8 +256,7 @@ async function refresh(): Promise<void> {
   try {
     const message: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
     const result = await chrome.runtime.sendMessage(message);
-    const all = Array.isArray(result) ? (result as CapturedEvent[]) : [];
-    events = all.filter(isRequestLike);
+    events = Array.isArray(result) ? (result as CapturedEvent[]) : [];
     render();
   } catch {
     /* service worker briefly inactive */
@@ -283,13 +282,13 @@ function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
-  const data = filterMode === 'failed' ? events.filter(isFailedNetwork) : events;
+  const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
 
   if (data.length === 0) {
     list.innerHTML = `
       <div class="empty">
-        <div class="empty-title">${filterMode === 'failed' ? 'No failed requests' : 'No requests yet'}</div>
-        <div class="empty-sub">${filterMode === 'failed' ? 'Switch to "All" to see successful traffic.' : 'Reproduce the bug on this tab — requests will appear here.'}</div>
+        <div class="empty-title">${filterMode === 'failed' ? 'No errors yet' : 'No events yet'}</div>
+        <div class="empty-sub">${filterMode === 'failed' ? 'Switch to "All" to see every captured event.' : 'Browse the page — clicks, requests, navigations, console errors appear here.'}</div>
       </div>`;
     bulkBar.classList.add('hidden');
     return;
@@ -301,14 +300,14 @@ function render(): void {
     .reverse()
     .forEach((e) => {
       const div = document.createElement('div');
-      const failed = isFailedNetwork(e);
-      div.className = `item ${failed ? 'failed' : 'success'}`;
+      const row = formatRow(e);
+      div.className = `item ${row.className}`;
       div.innerHTML = `
-      <div class="status">${e.data.response.status || 'ERR'}</div>
-      <div class="method">${escapeHtml(e.data.request.method)}</div>
-      <div class="url" title="${escapeHtml(e.data.request.url)}">${escapeHtml(shortUrl(e.data.request.url))}</div>
-      <div class="time">${fmtTime(e.data.timing.startedAt)}</div>
-      <div class="duration">${e.data.timing.durationMs}ms</div>
+      <div class="status">${escapeHtml(row.statusBadge)}</div>
+      <div class="method">${escapeHtml(row.method)}</div>
+      <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
+      <div class="time">${fmtTime(row.timestamp)}</div>
+      <div class="duration">${escapeHtml(row.duration)}</div>
     `;
       div.addEventListener('click', () => showDetail(e));
       list.appendChild(div);
@@ -317,33 +316,151 @@ function render(): void {
   renderBulkBar(data);
 }
 
-function renderBulkBar(data: NetworkRequestEvent[]): void {
+/** Dispatch on event.type to populate the five-column row layout shared
+ *  across all event families. Network keeps the existing semantics; other
+ *  types repurpose the columns so the table stays visually consistent. */
+function formatRow(e: CapturedEvent): {
+  className: string;
+  statusBadge: string;
+  method: string;
+  urlText: string;
+  urlTitle: string;
+  timestamp: number;
+  duration: string;
+} {
+  if (e.type === 'network.fetch' || e.type === 'network.xhr') {
+    const failed = isFailedNetwork(e);
+    return {
+      className: failed ? 'failed' : 'success',
+      statusBadge: String(e.data.response.status || 'ERR'),
+      method: e.data.request.method,
+      urlText: shortUrl(e.data.request.url),
+      urlTitle: e.data.request.url,
+      timestamp: e.data.timing.startedAt,
+      duration: `${e.data.timing.durationMs}ms`,
+    };
+  }
+  if (e.type === 'console.error' || e.type === 'console.unhandled') {
+    return {
+      className: 'failed',
+      statusBadge: e.type === 'console.unhandled' ? 'UNC' : 'ERR',
+      method: 'LOG',
+      urlText: e.data.message,
+      urlTitle: e.data.message,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  if (e.type === 'console.warn' || e.type === 'console.info') {
+    return {
+      className: 'success',
+      statusBadge: e.type === 'console.warn' ? 'WRN' : 'INF',
+      method: 'LOG',
+      urlText: e.data.message,
+      urlTitle: e.data.message,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  if (e.type === 'action.click') {
+    const name = e.data.target.accessibleName ?? e.data.target.tag.toLowerCase();
+    return {
+      className: 'success',
+      statusBadge: 'CLK',
+      method: '',
+      urlText: `<${e.data.target.tag.toLowerCase()}> ${name}`,
+      urlTitle: name,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  if (e.type === 'action.input') {
+    const name = e.data.target.accessibleName ?? e.data.target.tag.toLowerCase();
+    const masked = e.meta?.redactions?.some((r) => r.scope === 'form.value');
+    return {
+      className: 'success',
+      statusBadge: masked ? 'INP🛡' : 'INP',
+      method: '',
+      urlText: `${name} = ${e.data.value}`,
+      urlTitle: name,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  if (e.type === 'navigation') {
+    const fromHost = (() => {
+      try {
+        return e.data.fromUrl ? new URL(e.data.fromUrl).host : null;
+      } catch {
+        return null;
+      }
+    })();
+    const toHost = (() => {
+      try {
+        return new URL(e.data.toUrl).host;
+      } catch {
+        return e.data.toUrl;
+      }
+    })();
+    const text = fromHost ? `${fromHost} → ${toHost}` : `→ ${toHost}`;
+    return {
+      className: 'success',
+      statusBadge: 'NAV',
+      method: '',
+      urlText: text,
+      urlTitle: e.data.toUrl,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  // Fallback for event types not yet given a dedicated row (websocket,
+  // sse, screenshot, performance.*, recording.*, mutation, cursor).
+  return {
+    className: 'success',
+    statusBadge: e.type.split('.')[0]?.toUpperCase().slice(0, 3) ?? 'EVT',
+    method: '',
+    urlText: e.type,
+    urlTitle: e.type,
+    timestamp: e.timestamp,
+    duration: '',
+  };
+}
+
+function renderBulkBar(data: CapturedEvent[]): void {
   const bulkBar = document.getElementById('bulk-bar');
   if (!bulkBar) return;
-  const combinedReport = buildBulkReport(data);
-  const isOversize = combinedReport.length > SLACK_SAFE_THRESHOLD;
-  const label = filterMode === 'failed' ? 'failed' : 'total';
+  const networkItems = data.filter(isRequestLike);
+  const failedCount = data.filter(isErrorEvent).length;
+  const networkReport = buildBulkReport(networkItems);
+  const isOversize = networkReport.length > SLACK_SAFE_THRESHOLD;
+  const hasNetwork = networkItems.length > 0;
 
   bulkBar.classList.remove('hidden');
   bulkBar.innerHTML = `
-    <div class="bulk-count"><strong>${data.length}</strong> ${label} · ${fmtSize(combinedReport.length)}${isOversize ? ' · JSON auto-downloads' : ''}</div>
+    <div class="bulk-count">
+      <strong>${data.length}</strong> events
+      ${failedCount > 0 ? `· <span class="error-count">${failedCount} error${failedCount === 1 ? '' : 's'}</span>` : ''}
+      ${hasNetwork ? `· ${networkItems.length} network` : ''}
+    </div>
     <div class="bulk-actions">
-      <button id="copy-all" class="${isOversize ? 'warning' : 'primary'}">📋 Copy all + screenshot</button>
-      <button id="download-all">⤓ JSON</button>
-      <button id="download-har">⤓ HAR</button>
+      ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">📋 Copy network</button>` : ''}
+      <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
+      <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
     </div>
   `;
 
   document.getElementById('copy-all')?.addEventListener('click', async (clickEvent) => {
     const btn = clickEvent.currentTarget as HTMLButtonElement;
     btn.textContent = '… rendering';
-    const r = await writeTextAndImage(combinedReport, data, { maxText: SLACK_SAFE_THRESHOLD });
+    const r = await writeTextAndImage(networkReport, networkItems, {
+      maxText: SLACK_SAFE_THRESHOLD,
+    });
 
     if (r.textSkipped && r.hasImage) {
-      downloadAllAsFile(data);
+      downloadAllAsFile(networkItems);
       btn.textContent = `✓ Image · JSON ⤓ (text too long)`;
     } else if (r.hasImage && r.hasText) {
-      btn.textContent = `✓ Copied ${data.length} + image`;
+      btn.textContent = `✓ Copied ${networkItems.length} + image`;
     } else if (r.hasText) {
       btn.textContent = `✓ Copied text only`;
     } else if (r.hasImage) {
@@ -353,36 +470,63 @@ function renderBulkBar(data: NetworkRequestEvent[]): void {
     }
     btn.classList.add('copied');
     setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
       2200
     );
   });
 
   document.getElementById('download-all')?.addEventListener('click', (clickEvent) => {
     const btn = clickEvent.currentTarget as HTMLButtonElement;
-    downloadAllAsFile(data);
+    downloadEventsAsJson(data);
     btn.textContent = '✓ Downloaded';
     btn.classList.add('copied');
     setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
       1800
     );
   });
 
   document.getElementById('download-har')?.addEventListener('click', (clickEvent) => {
     const btn = clickEvent.currentTarget as HTMLButtonElement;
+    if (networkItems.length === 0) return;
     try {
-      downloadAsHar(data);
+      downloadAsHar(networkItems);
       btn.textContent = '✓ HAR ⤓';
       btn.classList.add('copied');
     } catch {
       btn.textContent = 'No requests';
     }
     setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isFailedNetwork) : events),
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
       1800
     );
   });
+}
+
+/** Downloads every event currently in scope as a single JSON file.
+ *  Distinct from downloadAllAsFile (network-only) — this is the full
+ *  session dump. Network request bodies pass through maskedEventForExport
+ *  as a defense-in-depth net; non-network events ship as-is (already
+ *  meta.redactions-annotated where applicable). */
+function downloadEventsAsJson(items: CapturedEvent[]): void {
+  const payload = items.map((e) => {
+    if (isRequestLike(e)) return maskedEventForExport(e);
+    return e;
+  });
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `hindsight-session-${items.length}-events-${ts}.json`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 }
 
 /** Triggers a HAR 1.2 file download for the given events. Mapper lives
@@ -480,7 +624,118 @@ function downloadAllAsFile(items: NetworkRequestEvent[]): void {
   }, 1000);
 }
 
-function showDetail(c: NetworkRequestEvent): void {
+function showDetail(e: CapturedEvent): void {
+  if (isRequestLike(e)) {
+    showNetworkDetail(e);
+  } else {
+    showSimpleDetail(e);
+  }
+}
+
+/** Detail view for non-network event families. Smaller surface than the
+ *  network view (no Request/Response panels, no HAR/cURL) but still wired
+ *  to the redactions panel and the bulk-bar restore on Back. */
+function showSimpleDetail(e: CapturedEvent): void {
+  const detail = document.getElementById('detail');
+  if (!detail) return;
+  const row = formatRow(e);
+  const body = renderSimpleDetailBody(e);
+
+  detail.classList.remove('hidden');
+  detail.innerHTML = `
+    <div class="detail-top">
+      <div class="detail-back">
+        <button id="back" class="secondary">← Back</button>
+        <span class="time">${new Date(e.timestamp).toLocaleTimeString()}</span>
+      </div>
+      <div class="detail-heading ${row.className}">
+        <span class="pill">${escapeHtml(row.statusBadge)}</span>
+        <strong>${escapeHtml(e.type)}</strong>
+      </div>
+    </div>
+    ${renderRedactionsPanel(e.meta?.redactions)}
+    ${body}
+  `;
+
+  document.getElementById('back')?.addEventListener('click', () => {
+    detail.classList.add('hidden');
+    detail.innerHTML = '';
+    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+  });
+  document.getElementById('bulk-bar')?.classList.add('hidden');
+}
+
+function renderSimpleDetailBody(e: CapturedEvent): string {
+  if (
+    e.type === 'console.error' ||
+    e.type === 'console.unhandled' ||
+    e.type === 'console.warn' ||
+    e.type === 'console.info'
+  ) {
+    const source = e.data.source
+      ? `<div class="hint">${escapeHtml(e.data.source.file)}:${e.data.source.line}${e.data.source.column != null ? ':' + e.data.source.column : ''}</div>`
+      : '';
+    return `
+      <div class="section">
+        <h3>Message</h3>
+        <pre>${escapeHtml(e.data.message)}</pre>
+        ${source}
+      </div>
+      ${
+        e.data.stack
+          ? `<div class="section" style="padding-bottom: 16px;">
+              <h3>Stack</h3>
+              <pre>${escapeHtml(e.data.stack)}</pre>
+             </div>`
+          : ''
+      }
+    `;
+  }
+  if (e.type === 'action.click') {
+    return `
+      <div class="section">
+        <h3>Target</h3>
+        <pre>${escapeHtml(JSON.stringify(e.data.target, null, 2))}</pre>
+      </div>
+      <div class="section" style="padding-bottom: 16px;">
+        <h3>Modifiers</h3>
+        <pre>${escapeHtml(JSON.stringify(e.data.modifiers, null, 2))} · button=${e.data.button}</pre>
+      </div>
+    `;
+  }
+  if (e.type === 'action.input') {
+    return `
+      <div class="section">
+        <h3>Target</h3>
+        <pre>${escapeHtml(JSON.stringify(e.data.target, null, 2))}</pre>
+      </div>
+      <div class="section" style="padding-bottom: 16px;">
+        <h3>Value</h3>
+        <pre>${escapeHtml(e.data.value)}</pre>
+        ${e.data.inputType ? `<div class="hint">input type: ${escapeHtml(e.data.inputType)}</div>` : ''}
+      </div>
+    `;
+  }
+  if (e.type === 'navigation') {
+    return `
+      <div class="section" style="padding-bottom: 16px;">
+        <h3>Transition</h3>
+        <pre>${escapeHtml(e.data.fromUrl ?? '(initial)')}\n  →\n${escapeHtml(e.data.toUrl)}</pre>
+        ${e.data.transitionType ? `<div class="hint">transitionType: ${escapeHtml(e.data.transitionType)}</div>` : ''}
+      </div>
+    `;
+  }
+  // Other event types — fall back to a raw JSON view.
+  return `
+    <div class="section" style="padding-bottom: 16px;">
+      <h3>Raw event</h3>
+      <pre>${escapeHtml(JSON.stringify(e, null, 2))}</pre>
+    </div>
+  `;
+}
+
+function showNetworkDetail(c: NetworkRequestEvent): void {
   const detail = document.getElementById('detail');
   if (!detail) return;
   const failed = isFailedNetwork(c);
@@ -555,7 +810,7 @@ function showDetail(c: NetworkRequestEvent): void {
   document.getElementById('back')?.addEventListener('click', () => {
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    const data = filterMode === 'failed' ? events.filter(isFailedNetwork) : events;
+    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
 
