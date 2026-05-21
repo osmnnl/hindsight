@@ -19,6 +19,23 @@
         </div>
       </header>
 
+      <div id="scrubber" class="scrubber hidden" aria-label="Timeline scrubber">
+        <div id="scrubber-bars" class="scrubber-bars" aria-hidden="true"></div>
+        <input
+          id="scrubber-input"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="100"
+          aria-label="Jump to time"
+        />
+        <div class="scrubber-axis" aria-hidden="true">
+          <span id="scrubber-start"></span>
+          <span id="scrubber-end"></span>
+        </div>
+      </div>
+
       <div id="list" class="list">
         <div class="empty">
           <div class="empty-title">No events yet</div>

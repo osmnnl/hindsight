@@ -284,11 +284,21 @@ async function clearAll(): Promise<void> {
   await refresh();
 }
 
+// Map of rendered row id → event, populated each render() pass. Used by
+// the delegated click handler on #list and by the scrubber's "scroll to
+// nearest event" logic. Keying by event.id (which is a UUID minted in
+// the SW) lets us round-trip from a DOM data-attr without re-walking the
+// event list.
+const renderedById = new Map<string, CapturedEvent>();
+let listDelegationWired = false;
+
 function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
   const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+
+  renderScrubber(data);
 
   if (data.length === 0) {
     list.innerHTML = `
@@ -300,26 +310,112 @@ function render(): void {
     return;
   }
 
-  list.innerHTML = '';
-  data
+  renderedById.clear();
+  // Newest first — same order as before. Each row gets a data-event-id
+  // so the delegated click handler on the list container can resolve it.
+  const html = data
     .slice()
     .reverse()
-    .forEach((e) => {
-      const div = document.createElement('div');
+    .map((e) => {
+      renderedById.set(e.id, e);
       const row = formatRow(e);
-      div.className = `item ${row.className}`;
-      div.innerHTML = `
-      <div class="status">${escapeHtml(row.statusBadge)}</div>
-      <div class="method">${escapeHtml(row.method)}</div>
-      <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
-      <div class="time">${fmtTime(row.timestamp)}</div>
-      <div class="duration">${escapeHtml(row.duration)}</div>
-    `;
-      div.addEventListener('click', () => showDetail(e));
-      list.appendChild(div);
+      return `<div class="item ${row.className}" data-event-id="${escapeHtml(e.id)}">
+        <div class="status">${escapeHtml(row.statusBadge)}</div>
+        <div class="method">${escapeHtml(row.method)}</div>
+        <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
+        <div class="time">${fmtTime(row.timestamp)}</div>
+        <div class="duration">${escapeHtml(row.duration)}</div>
+      </div>`;
+    })
+    .join('');
+  list.innerHTML = html;
+
+  // One delegated click listener on the list — independent of how many
+  // rows are in the DOM. Avoids the 1000-listener footprint that the
+  // per-row addEventListener pattern accumulated for power users.
+  if (!listDelegationWired) {
+    list.addEventListener('click', (clickEvent) => {
+      const target = clickEvent.target;
+      const row = target instanceof Element ? target.closest<HTMLElement>('[data-event-id]') : null;
+      if (!row) return;
+      const id = row.dataset.eventId;
+      if (!id) return;
+      const evt = renderedById.get(id);
+      if (evt) showDetail(evt);
     });
+    listDelegationWired = true;
+  }
 
   renderBulkBar(data);
+}
+
+// ---------------------------------------------------------------------------
+// Visual timeline scrubber (PRD §6.3.3)
+// ---------------------------------------------------------------------------
+
+const SCRUBBER_BUCKETS = 40;
+
+function renderScrubber(data: CapturedEvent[]): void {
+  const wrap = document.getElementById('scrubber');
+  const bars = document.getElementById('scrubber-bars');
+  const range = document.getElementById('scrubber-input');
+  const startLabel = document.getElementById('scrubber-start');
+  const endLabel = document.getElementById('scrubber-end');
+  if (!wrap || !bars || !(range instanceof HTMLInputElement) || !startLabel || !endLabel) return;
+
+  if (data.length < 2) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+
+  const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
+  const start = sorted[0]!.timestamp;
+  const end = sorted[sorted.length - 1]!.timestamp;
+  const span = Math.max(1, end - start);
+
+  // Density histogram — count events per bucket.
+  const counts = new Array<number>(SCRUBBER_BUCKETS).fill(0);
+  for (const e of sorted) {
+    const idx = Math.min(
+      SCRUBBER_BUCKETS - 1,
+      Math.floor(((e.timestamp - start) / span) * SCRUBBER_BUCKETS)
+    );
+    counts[idx] = (counts[idx] ?? 0) + 1;
+  }
+  const peak = Math.max(...counts, 1);
+
+  bars.innerHTML = counts
+    .map((c) => {
+      const h = Math.round((c / peak) * 100);
+      return `<div class="scrubber-bar" style="height:${h}%" aria-hidden="true"></div>`;
+    })
+    .join('');
+
+  startLabel.textContent = fmtTime(start);
+  endLabel.textContent = fmtTime(end);
+
+  if (!range.dataset.wired) {
+    range.addEventListener('input', () => {
+      const pct = Number(range.value);
+      scrollListToTimePercent(pct);
+    });
+    range.dataset.wired = '1';
+  }
+  // Default to fully right (newest) on fresh render.
+  range.value = '100';
+}
+
+function scrollListToTimePercent(pct: number): void {
+  const list = document.getElementById('list');
+  if (!list) return;
+  const items = list.querySelectorAll<HTMLElement>('.item');
+  if (items.length === 0) return;
+  // Items are newest-first in the DOM — pct=0 is oldest (bottom), pct=100
+  // is newest (top). Convert pct → target index from the top.
+  const fromBottom = Math.round(((100 - pct) / 100) * (items.length - 1));
+  const target = items[fromBottom];
+  if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 /** Dispatch on event.type to populate the five-column row layout shared

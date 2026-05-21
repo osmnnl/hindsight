@@ -129,6 +129,59 @@ button:hover {
   color: var(--text);
 }
 
+/* ---------- visual timeline scrubber (PRD §6.3.3) ---------- */
+.scrubber {
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scrubber.hidden {
+  display: none;
+}
+
+.scrubber-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 32px;
+}
+
+.scrubber-bar {
+  flex: 1;
+  min-height: 2px;
+  background: var(--accent);
+  opacity: 0.6;
+  border-radius: 1px;
+  transition: opacity 120ms ease;
+}
+
+.scrubber-bar:hover {
+  opacity: 1;
+}
+
+.scrubber input[type='range'] {
+  width: 100%;
+  margin: 0;
+  cursor: grab;
+  accent-color: var(--accent);
+}
+
+.scrubber input[type='range']:active {
+  cursor: grabbing;
+}
+
+.scrubber-axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
 /* ---------- list ---------- */
 .list {
   flex: 1;
