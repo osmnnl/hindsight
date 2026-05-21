@@ -240,6 +240,20 @@ button:hover {
   border-radius: 4px;
   background: var(--surface-2);
 }
+/* Detection-flag indicators — see src/lib/detection.ts (PRD §6.2.1).
+   Each flag adds a left-border tint to the row so the user can scan
+   the list and pick out cascades / slow requests / anomalies. */
+.item.flag-slow {
+  border-left: 2px solid var(--warn);
+}
+.item.flag-cascade {
+  background: rgba(99, 102, 241, 0.05);
+  border-left: 2px solid #6366f1;
+}
+.item.flag-anomaly {
+  border-left-color: #ec4899;
+}
+
 .item.failed .status {
   color: var(--danger);
   background: rgba(239, 68, 68, 0.12);

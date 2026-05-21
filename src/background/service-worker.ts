@@ -29,6 +29,7 @@ import {
   tryCompilePattern,
   type BodyPatternRule,
 } from '@/lib/masking';
+import { detect } from '@/lib/detection';
 import {
   DEFAULT_CAPTURE_SETTINGS,
   readCaptureSettings,
@@ -238,6 +239,22 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
       void _exhaustive;
       return;
     }
+  }
+
+  // Detection engine — stamp meta.flags + meta.cascadeOf based on the
+  // recent buffer before persistence (PRD §6.2.1). The buffer query is
+  // cheap thanks to W6-1's in-memory cache in storage.ts.
+  const recentBuffer = await readEvents(tabId);
+  const detection = detect(event, recentBuffer);
+  if (detection.flags.length > 0 || detection.cascadeOf) {
+    const existingMeta: EventMeta = event.meta ?? {};
+    event.meta = {
+      ...existingMeta,
+      ...(detection.flags.length > 0
+        ? { flags: [...(existingMeta.flags ?? []), ...detection.flags] }
+        : {}),
+      ...(detection.cascadeOf ? { cascadeOf: detection.cascadeOf } : {}),
+    };
   }
 
   const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);

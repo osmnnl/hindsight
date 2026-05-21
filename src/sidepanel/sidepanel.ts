@@ -355,6 +355,19 @@ function render(): void {
 
 const SCRUBBER_BUCKETS = 40;
 
+/** Appends class names derived from detection flags so CSS can paint
+ *  cascade members / slow requests / anomalies distinctly. */
+function classNameFromFlags(base: string, e: CapturedEvent): string {
+  const flags = e.meta?.flags;
+  if (!flags || flags.length === 0) return base;
+  const extras: string[] = [];
+  if (flags.includes('slow')) extras.push('flag-slow');
+  if (flags.includes('cascade-member') || flags.includes('cascade-head'))
+    extras.push('flag-cascade');
+  if (flags.includes('anomaly')) extras.push('flag-anomaly');
+  return [base, ...extras].join(' ');
+}
+
 function renderScrubber(data: CapturedEvent[]): void {
   const wrap = document.getElementById('scrubber');
   const bars = document.getElementById('scrubber-bars');
@@ -433,7 +446,7 @@ function formatRow(e: CapturedEvent): {
   if (e.type === 'network.fetch' || e.type === 'network.xhr') {
     const failed = isFailedNetwork(e);
     return {
-      className: failed ? 'failed' : 'success',
+      className: classNameFromFlags(failed ? 'failed' : 'success', e),
       statusBadge: String(e.data.response.status || 'ERR'),
       method: e.data.request.method,
       urlText: shortUrl(e.data.request.url),
