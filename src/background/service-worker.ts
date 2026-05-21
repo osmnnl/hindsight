@@ -235,7 +235,79 @@ chrome.runtime.onMessage.addListener(
 // minting so the side panel UI works end-to-end.
 // ---------------------------------------------------------------------------
 
+// Recording state — persisted to chrome.storage.local so a service-
+// worker eviction (Chrome kills idle MV3 SWs after ~30s) doesn't
+// silently kill an in-progress recording. The in-memory Map mirrors
+// the storage snapshot for synchronous reads on the capture hot path;
+// every mutation writes through to the persisted record so a fresh
+// SW boot can rehydrate (see hydrateRecordingState below) and re-arm
+// the screenshot interval.
 const recordingByTab = new Map<number, { startedAt: number }>();
+
+const RECORDING_STORAGE_KEY = 'recording/active';
+
+interface PersistedRecordingState {
+  [tabId: string]: { startedAt: number };
+}
+
+async function persistRecordingState(): Promise<void> {
+  const snapshot: PersistedRecordingState = {};
+  for (const [tabId, entry] of recordingByTab) {
+    snapshot[String(tabId)] = { startedAt: entry.startedAt };
+  }
+  try {
+    if (Object.keys(snapshot).length === 0) {
+      await chrome.storage.local.remove(RECORDING_STORAGE_KEY);
+    } else {
+      await chrome.storage.local.set({ [RECORDING_STORAGE_KEY]: snapshot });
+    }
+  } catch {
+    /* storage briefly unavailable — next mutation retries */
+  }
+}
+
+/** Read persisted recording state on SW boot, repopulate the Map and
+ *  re-arm a screenshot interval for each active recording. Called
+ *  unconditionally at module load — cheap no-op when nothing is
+ *  recording. */
+async function hydrateRecordingState(): Promise<void> {
+  let snapshot: PersistedRecordingState | undefined;
+  try {
+    const stored = await chrome.storage.local.get(RECORDING_STORAGE_KEY);
+    snapshot = stored[RECORDING_STORAGE_KEY] as PersistedRecordingState | undefined;
+  } catch {
+    return;
+  }
+  if (!snapshot) return;
+  for (const [tabIdStr, entry] of Object.entries(snapshot)) {
+    const tabId = Number(tabIdStr);
+    if (!Number.isFinite(tabId)) continue;
+    // Verify the tab still exists — closed tabs leave stale entries
+    // if the SW was evicted before chrome.tabs.onRemoved fired.
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab) {
+        continue;
+      }
+    } catch {
+      continue;
+    }
+    recordingByTab.set(tabId, { startedAt: entry.startedAt });
+    armRecordingTimer(tabId);
+  }
+  // Drop any tab entries that no longer have real tabs behind them.
+  await persistRecordingState();
+}
+
+void hydrateRecordingState().catch(() => {});
+
+function armRecordingTimer(tabId: number): void {
+  if (recordingScreenshotTimers.has(tabId)) return;
+  const timer = setInterval(() => {
+    void captureRecordingTickScreenshot(tabId).catch(() => {});
+  }, RECORDING_SHOT_INTERVAL_MS);
+  recordingScreenshotTimers.set(tabId, timer);
+}
 
 function getRecordingState(tabId: number): RecordingState {
   const entry = recordingByTab.get(tabId);
@@ -260,16 +332,15 @@ async function toggleRecording(tabId: number): Promise<RecordingState> {
       clearInterval(existingTimer);
       recordingScreenshotTimers.delete(tabId);
     }
+    await persistRecordingState();
     const durationMs = Date.now() - current.startedAt;
     await emitRecordingEvent(tabId, 'recording.stop', { durationMs });
     return { recording: false };
   }
   const startedAt = Date.now();
   recordingByTab.set(tabId, { startedAt });
-  const timer = setInterval(() => {
-    void captureRecordingTickScreenshot(tabId).catch(() => {});
-  }, RECORDING_SHOT_INTERVAL_MS);
-  recordingScreenshotTimers.set(tabId, timer);
+  armRecordingTimer(tabId);
+  await persistRecordingState();
   await emitRecordingEvent(tabId, 'recording.start', { startedAt });
   return { recording: true, startedAt };
 }
@@ -277,12 +348,32 @@ async function toggleRecording(tabId: number): Promise<RecordingState> {
 /** Fires every RECORDING_SHOT_INTERVAL_MS while a tab is recording.
  *  Same captureVisibleTab + queueEvent path as maybeCaptureScreenshot,
  *  but tagged trigger='recording-tick' so the side panel and replay
- *  bundle can distinguish a cadence shot from an error shot. */
+ *  bundle can distinguish a cadence shot from an error shot.
+ *
+ *  IMPORTANT: chrome.tabs.captureVisibleTab() grabs the *currently
+ *  visible* tab of the window. If the user switched to a different
+ *  tab mid-recording, capturing without a guard would shoot the wrong
+ *  page. We check that the recording tab is still active in its
+ *  window before firing — silent skip otherwise. */
 async function captureRecordingTickScreenshot(tabId: number): Promise<void> {
   if (!recordingByTab.has(tabId)) return;
   let dataUrl: string;
   try {
-    dataUrl = await chrome.tabs.captureVisibleTab({ format: 'jpeg', quality: 70 });
+    let tab: chrome.tabs.Tab | undefined;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      // tabs.get needs the 'tabs' permission. If denied, fall back to
+      // capturing whatever's visible — the user accepted the recording
+      // expectation that the focused page gets shot.
+      tab = undefined;
+    }
+    if (tab && !tab.active) return; // recording tab is no longer visible
+    const windowId = tab?.windowId;
+    dataUrl =
+      windowId != null
+        ? await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 70 })
+        : await chrome.tabs.captureVisibleTab({ format: 'jpeg', quality: 70 });
   } catch {
     return; // tab inactive in its window; we'll try again on the next tick.
   }
@@ -337,9 +428,19 @@ async function emitRecordingEvent(
 }
 
 // Clean up recording state when its tab closes — same lifecycle as
-// the navigation lastUrl map.
+// the navigation lastUrl map. Also clears the screenshot interval so
+// captureVisibleTab doesn't keep firing against a dead tab id.
 chrome.tabs.onRemoved.addListener((tabId) => {
-  recordingByTab.delete(tabId);
+  const wasRecording = recordingByTab.delete(tabId);
+  const timer = recordingScreenshotTimers.get(tabId);
+  if (timer != null) {
+    clearInterval(timer);
+    recordingScreenshotTimers.delete(tabId);
+  }
+  notifiedThisSession.delete(`session-for-tab-${tabId}`);
+  if (wasRecording) {
+    void persistRecordingState().catch(() => {});
+  }
 });
 
 async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise<void> {
