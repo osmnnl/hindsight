@@ -9,8 +9,10 @@ share a complete, faithful bug report.
 
 No backend, no signup, no telemetry. Open source under MIT.
 
-**Status:** M2 milestone shipped at `v0.2.0` (May 2026). Unlisted Chrome
-Web Store beta submission imminent (see `docs/CWS-LISTING.md`).
+**Status:** M3 milestone shipped at `v0.3.0` (May 2026). Side panel,
+visual scrubber, detection engine, recent-archive viewer all live.
+Unlisted Chrome Web Store beta submission is the next user-driven
+step (see `docs/CWS-LISTING.md`).
 
 ---
 
@@ -120,8 +122,8 @@ The full plan lives in [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md)
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | **M1 — Foundation**                   | TS port, CapturedEvent model, manifest §9.2 baseline, masking engine, Settings + Privacy UI, HAR export, perf gate                  | ✅ v0.1.0 |
 | **M2 — Context capture**              | Tier 2 events (clicks, inputs, console, nav, WebSocket, SPA routes), narrative engine v1, batched writes, archive, Capture settings | ✅ v0.2.0 |
-| **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping, recent-archive viewer          | next      |
-| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | —         |
+| **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping, recent-archive viewer          | ✅ v0.3.0 |
+| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | next      |
 | **M5 — Pre-launch polish**            | Performance optimization, WCAG AA audit, security audit, CWS submission                                                             | —         |
 
 AI / LLM integration is **explicitly deferred to v2+** (PRD §22.1).

@@ -1,6 +1,6 @@
 {
   "name": "hindsight",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Privacy-first Chrome MV3 extension for passive browser activity capture and shareable bug reports.",
   "license": "MIT",

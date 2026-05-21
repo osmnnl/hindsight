@@ -184,7 +184,45 @@ If a request would build any of the above, say so and stop.
 
 ---
 
-## 9. Where we are now (post-M2)
+## 9. Where we are now (post-M3)
+
+**M3 closed at v0.3.0** (2026-05-21). The side panel is the primary
+inspection surface; the popup is a 130-line launcher. Visual
+scrubber + event delegation handle 1000-event sessions at 60 fps.
+Detection engine stamps meta.flags / cascadeOf in the SW; cluster
+banner collapses members under a single summary row. Screenshots
+fire on errors via chrome.tabs.captureVisibleTab. Performance
+long-task + layout-shift observers capture (Tier 3 toggleable).
+White-screen heuristic emits a synthetic error 5 s after page load.
+Detection notifications fire for cascade-head + anomaly with
+per-session de-dup. Severity-tiered badge (green / yellow / red).
+Recent-archive viewer surfaces closed-tab sessions inline. Theme
+preference syncs across popup + side panel + settings. 65 unit
+tests; both fetch + XHR perf gates green.
+
+**M4 axis: replay bundle + sharing hub.** Expected scope:
+
+- Standalone HTML replay bundle generator (PRD §5) — the
+  killer-differentiator feature. Single `.html` file that contains
+  the whole session + an embedded viewer; works offline, no
+  recipient setup.
+- Recording mode (PRD §6.5) — explicit user start/stop, Tier 4
+  captures (periodic screenshots, cursor trail, DOM mutations,
+  scroll, focus).
+- Multi-destination sharing hub (PRD §6.4) — webhooks
+  (Slack / Discord / Teams), web intents (GitHub / GitLab /
+  Linear / Notion / email), clipboard / download formats.
+- Per-destination size-aware formatters (PRD §6.4.3).
+- Replay request feature (PRD §6.3.5) — "Replay this request"
+  button in the network detail view.
+
+**Branch state:** all M3 work landed on `feature/m3-foundation`.
+Rebase-merge to `main` at v0.3.0 tag, then start M4 sprints from
+fresh `feature/m4-*` branches.
+
+---
+
+## 10. Earlier — post-M2 (kept for reference)
 
 **M2 closed at v0.2.0** (2026-05-21). Context capture eksen genişledi:
 all Tier 1 + Tier 2 event families capture, mixed timeline in popup,
@@ -192,7 +230,7 @@ SPA route detection, closed-tab archive (7-day TTL), batched 250 ms
 storage writes, narrative engine v1, Settings → Capture section live,
 XHR perf bench. 53 unit tests, both fetch + XHR p95 gates green.
 
-**M3 axis: side panel + visual timeline.** Expected scope:
+**M3 axis (delivered): side panel + visual timeline.**
 
 - `chrome.sidePanel` migration — primary surface for sustained
   inspection. PRD §6.3.

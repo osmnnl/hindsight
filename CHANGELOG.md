@@ -4,6 +4,105 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-05-21 — M3: Side panel + visual timeline
+
+Third milestone. The side panel takes over as the primary inspection
+surface; the popup shrinks to a launcher. Detection rules grow from
+hidden state into a real cluster banner with collapse / expand
+behavior. Screenshots fire on errors, performance long tasks and
+layout shifts get captured, white-screen-after-navigation gets a
+heuristic, and chrome.notifications wire in behind a per-session
+de-dup. The badge is finally severity-tiered.
+
+### Added
+
+- **chrome.sidePanel migration** — full M2 popup UI moves to
+  `src/sidepanel/`. The popup becomes a 130-line launcher (latest
+  failure card + Open side panel + Send quick report + Settings
+  link). chrome.commands listener wires Ctrl+Shift+H to
+  `chrome.sidePanel.open` so the keyboard shortcut works
+  end-to-end.
+- **Theme sync** — new src/lib/theme.ts applies the Settings →
+  General theme to body[data-theme]. Popup, side panel, and
+  settings page all listen to chrome.storage.onChanged and re-skin
+  live.
+- **Visual timeline scrubber** — CSS-only 40-bucket density
+  histogram in the side panel header plus a range input that
+  scrolls the list to the nearest event in time. Event delegation
+  on the list container keeps the 1000-event budget in check.
+- **Closed-tab archive viewer** — sidepanel surfaces
+  archives/recent entries as a collapsible "Closed sessions"
+  panel. Lazy-render keeps init time flat even with a full
+  archive. Per-entry expand reveals a read-only event list. Clear
+  Archive link wipes the lot on demand.
+- **Screenshot capture on error** — chrome.tabs.captureVisibleTab
+  fires within 2 s per tab when an isErrorEvent lands. Inline
+  JPEG (quality 70) on the ScreenshotEvent so the side panel
+  detail view can render without a second storage hop.
+- **Detection rule engine** — new src/lib/detection.ts with 12
+  unit tests. Rules: failed network / console.error, slow request
+  (> 3 s), cascade (3+ failures to same origin within 10 s, with
+  inherited heads), repeated identical failure ("anomaly"). Runs
+  in the SW before persistence, stamps meta.flags + meta.cascadeOf.
+- **Cluster collapse + banner UI** — cascades now render as a
+  single banner above the events ("🔴 N-failure cascade — METHOD
+  /path"). Click anywhere on the banner toggles. Members render
+  indented when expanded. summarizeCluster picks dominant
+  status / method / path / span.
+- **Performance long-task + CLS** — PerformanceObserver in
+  page-world emits performance.longtask (> 100 ms) and
+  performance.cls. Per-type row rendering in the side panel.
+  Tier 3 gate (off via Settings → Capture stops these from
+  persisting; screenshot stays on regardless).
+- **White-screen heuristic** — 5 s post-load element count check.
+  < 5 visible elements → synthetic console.unhandled flows
+  through the existing error path. Per IIFE-lifetime once so
+  SPA routes don't false-positive.
+- **Detection settings section** — Smart detection master toggle,
+  chrome.notifications opt-in with runtime permission request,
+  notification frequency (first-per-session vs every). Detection
+  events fire notifications for cascade-head AND anomaly with
+  separate dedup keys.
+- **Severity-tiered badge** — empty bubble (healthy), yellow "!"
+  (slow / long task / CLS present), red count (errors). PRD
+  §6.2.2 color semantics.
+- **Tier 3 toggle in Settings → Capture** — performance observers
+  opt-out without disabling screenshot.
+- **Per-type row rendering** — formatRow learns performance.longtask
+  / performance.cls / screenshot first-class layouts.
+
+### Changed
+
+- Popup completely rewritten as a minimal launcher (1.1 kB).
+- renderBadge uses isErrorEvent + warn-class flags for color
+  selection instead of always red.
+- Cluster collapse UI replaces the M2 per-row toggle.
+- M3-aware capture table in README; M2 row flips to ✅.
+
+### Commits (15 on M3 branch)
+
+```
+feat(sidepanel):  chrome.sidePanel migration + theme sync — W9-1
+feat(sidepanel):  visual timeline scrubber + event delegation — W9-2
+feat(capture):    screenshot capture on error — W9-3
+feat(detection):  rule engine + cluster grouping — W9-4
+feat(sidepanel):  recent-archive viewer — W9-5
+feat(sidepanel):  cluster collapse UI — W10-1
+feat(capture):    performance long-task + CLS — W10-3
+feat(detection):  white-screen heuristic — W10-4
+feat(settings):   Detection section + notifications — W10-2
+feat(sw):         severity-tiered badge — W10-5
+feat(sidepanel):  per-type row rendering — W11-1
+feat(sidepanel):  cluster banner UI — W11-2
+feat(settings):   Tier 3 toggle — W11-3
+feat(sw):         notification anomaly rule — W11-4
+chore(release):   M3 closeout — v0.3.0 — W11-5
+```
+
+[0.3.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.3.0
+
+---
+
 ## [0.2.0] — 2026-05-21 — M2: Context capture
 
 Second milestone. The capture pipeline now covers every PRD §6.1.1
