@@ -4,6 +4,103 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.2.0] — 2026-05-21 — M2: Context capture
+
+Second milestone. The capture pipeline now covers every PRD §6.1.1
+Tier 1 and Tier 2 event family — clicks, form inputs (with
+page-world masking), console.error / warn / info / unhandled,
+navigation (both real and SPA), and WebSocket frames. The popup
+renders a mixed timeline; closed tabs move to a 7-day archive;
+storage writes batch at 250 ms; both fetch and XHR overhead are
+hard-gated in CI.
+
+### Added
+
+- **Click + form input capture** (PRD §6.1.1 Tier 2). New
+  src/lib/dom-descriptor.ts builds an accessibility-leaning
+  TargetDescriptor (aria-label → aria-labelledby → text/value →
+  placeholder → title chain). Input events apply
+  shouldMaskFormField page-world because FormFieldMeta only exists
+  in the DOM — the value lands in storage already masked when a
+  field matches a default rule.
+- **Console capture broadened** — error / warn / info / unhandled
+  via a single wrapConsoleMethod factory. Window-level 'error' and
+  'unhandledrejection' listeners cover uncaught paths. Full stacks
+  preserved (PRD §4.1 no information loss).
+- **Navigation events** — chrome.webNavigation.onCommitted in the
+  service worker emits NavigationEvent on every non-reload
+  top-frame commit. fromUrl tracked via in-memory lastUrlPerTab.
+- **SPA route detection** — page-world wraps history.pushState /
+  replaceState and listens to hashchange. popstate intentionally
+  not wrapped (overlaps with webNav back/forward).
+- **WebSocket frame metadata** — createWebSocketPatch subclass
+  emits connect / open / message (both directions) / close / error
+  with byteSize. Frame content stays opt-in (deferred to v3+).
+- **Mixed timeline rendering** — popup.ts dispatches on event.type
+  for the five-column row + per-type detail view. JSON download
+  carries every event; HAR export stays network-only.
+- **Batched storage writes** — queueEvent + 250 ms flush window
+  (PRD §13.1 / §13.2). SessionMetadata.lastSequence rides along on
+  the same chrome.storage.local.set. Projected buffer reads keep
+  the popup gap-free.
+- **Closed-tab archive** — archives/recent key, 7-day TTL. Tab
+  close moves session into archive; reload + user Clear stay
+  delete-only. Lazy sweep on SW boot.
+- **Capture settings** — Settings → Capture section live with
+  Tier 2 toggle + per-tab buffer cap (50 / 200 / 500 / 2000). SW
+  caches the config and invalidates on chrome.storage.onChanged.
+  OQ-M2-J: toggle off filters new captures only, history stays.
+- **Narrative engine v1** — src/lib/narrative.ts template-based
+  CapturedEvent[] → markdown summary (Overview / Failures /
+  Actions / Navigation). Wired into popup bug report and JSON
+  download. NO LLM (PRD §22.1 explicitly v2+).
+- **XHR perf benchmark** — bench/xhr-overhead.bench.ts mirrors the
+  fetch bench. PRD §13.1 row 2 hard gate (< 0.5 ms p95). Observed
+  delta ≈ 0.001 ms.
+- **53 unit tests** — masking (29) + HAR (13) + narrative (11).
+
+### Changed
+
+- Badge counter now uses isErrorEvent (failed network +
+  console.error + console.unhandled) instead of only failed
+  network (PRD §6.2.1 detection-rule fanout).
+- Settings General section's Capture tab no longer carries an
+  "M1·W4" badge; it's live.
+- README capture table refreshed: Tier 1 + Tier 2 marked ✅ for M2.
+
+### Architecture
+
+- New module src/lib/dom-descriptor.ts (TargetDescriptor builder).
+- New module src/lib/narrative.ts (template renderer + tests).
+- PageBridgeMessage + CaptureRuntimeMessage envelope gain optional
+  redactions[] — page-world form masking ships its redactions to
+  the service worker where they merge with SW-applied header / body
+  redactions.
+
+### Commits (16 on M2 branch)
+
+```
+feat(capture):   click event capture — W5-1
+feat(capture):   form input capture + page-world form masking — W5-2
+feat(capture):   console.error + window.error + unhandledrejection — W5-3
+feat(capture):   navigation event in service worker — W5-4
+feat(popup):     mixed timeline rendering — W5-5
+feat(storage):   batched writes — 250 ms flush window — W6-1
+feat(capture):   WebSocket frame metadata — W6-2
+feat(capture):   console.warn + console.info — W6-3
+feat(narrative): template-based narrative engine v1 — W6-4
+feat(bench):     XHR overhead benchmark — W6-5
+feat(storage):   closed-tab archive — 7-day TTL — W7-1
+feat(capture):   SPA route change detection — W7-2
+feat(settings):  Capture section UI + Tier 2 toggle + buffer cap — W7-3
+chore(release):  M2 audit + CHANGELOG + README + version 0.2.0 — W7-4
+chore(release):  CWS submission prep — W7-5
+```
+
+[0.2.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.2.0
+
+---
+
 ## [0.1.0] — 2026-05-18 — M1: Foundation
 
 First milestone. The extension now installs, captures fetch + XHR

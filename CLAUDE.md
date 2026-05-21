@@ -184,7 +184,39 @@ If a request would build any of the above, say so and stop.
 
 ---
 
-## 9. Where we are now (post-M1)
+## 9. Where we are now (post-M2)
+
+**M2 closed at v0.2.0** (2026-05-21). Context capture eksen genişledi:
+all Tier 1 + Tier 2 event families capture, mixed timeline in popup,
+SPA route detection, closed-tab archive (7-day TTL), batched 250 ms
+storage writes, narrative engine v1, Settings → Capture section live,
+XHR perf bench. 53 unit tests, both fetch + XHR p95 gates green.
+
+**M3 axis: side panel + visual timeline.** Expected scope:
+
+- `chrome.sidePanel` migration — primary surface for sustained
+  inspection. PRD §6.3.
+- Visual scrubber with event density histogram. PRD §6.3.3.
+- Synchronized panels (network / console / actions / screenshot
+  preview). PRD §6.3.1.
+- Page screenshot capture on error / explicit triggers. PRD §6.1.1
+  Tier 3.
+- Detection rule engine — surfaces "moments of interest" via the
+  badge + side panel highlights. PRD §6.2.
+- Cluster grouping (cascade detection). PRD §6.2.3.
+- Recent-archive viewer — surfaces the `archives/recent` entries
+  the M2 closed-tab archive has been collecting.
+- Theme application (current Settings → Theme value drives popup +
+  side panel styling end-to-end).
+
+**Branch state:** all M2 work landed on `feature/m2-week-5` (the
+branch name predates the multi-week scope). Rebase-merge to `main`
+at v0.2.0 tag, then start M3 sprints from fresh `feature/m3-*`
+branches.
+
+---
+
+## 10. Earlier — post-M1 (kept for reference)
 
 **M1 closed at v0.1.0** (2026-05-18). Foundation is in:
 

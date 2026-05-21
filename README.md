@@ -9,8 +9,8 @@ share a complete, faithful bug report.
 
 No backend, no signup, no telemetry. Open source under MIT.
 
-**Status:** M1 milestone shipped at `v0.1.0` (May 2026). Not yet on the
-Chrome Web Store — public beta lands at M2 close.
+**Status:** M2 milestone shipped at `v0.2.0` (May 2026). Unlisted Chrome
+Web Store beta submission imminent (see `docs/CWS-LISTING.md`).
 
 ---
 
@@ -29,8 +29,11 @@ respective milestones land.
 
 Captured events are stored per tab in `chrome.storage.local` under
 `sessions/{tabId}/events` (PRD §6.1.3). The buffer holds the most recent
-200 events per tab by default; FIFO eviction past that. Closing a tab
-clears its buffer (the 7-day archive lands in M3).
+200 events per tab by default (50 / 200 / 500 / 2000 user-selectable in
+Settings → Capture); FIFO eviction past that. Closing a tab moves its
+session into `archives/recent` with a 7-day TTL. Storage writes batch
+at 250 ms (PRD §13.2). The Tier 2 capture families can be turned off
+collectively in Settings → Capture; Tier 1 cannot.
 
 ---
 
@@ -113,13 +116,13 @@ commit so reviewers can load-unpack a PR build without checking out.
 The full plan lives in [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md)
 §18. M1 has just closed.
 
-| Milestone                             | Theme                                                                                                                          | Status    |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| **M1 — Foundation**                   | TS port, CapturedEvent model, manifest §9.2 baseline, masking engine, Settings + Privacy UI, HAR export, perf gate             | ✅ v0.1.0 |
-| **M2 — Context capture**              | Tier 2 events (clicks, inputs, console, nav, WebSocket), narrative engine v1, batched writes, unlisted CWS beta                | next      |
-| **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping                            | —         |
-| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion) | —         |
-| **M5 — Pre-launch polish**            | Performance optimization, WCAG AA audit, security audit, CWS submission                                                        | —         |
+| Milestone                             | Theme                                                                                                                               | Status    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **M1 — Foundation**                   | TS port, CapturedEvent model, manifest §9.2 baseline, masking engine, Settings + Privacy UI, HAR export, perf gate                  | ✅ v0.1.0 |
+| **M2 — Context capture**              | Tier 2 events (clicks, inputs, console, nav, WebSocket, SPA routes), narrative engine v1, batched writes, archive, Capture settings | ✅ v0.2.0 |
+| **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping, recent-archive viewer          | next      |
+| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | —         |
+| **M5 — Pre-launch polish**            | Performance optimization, WCAG AA audit, security audit, CWS submission                                                             | —         |
 
 AI / LLM integration is **explicitly deferred to v2+** (PRD §22.1).
 
