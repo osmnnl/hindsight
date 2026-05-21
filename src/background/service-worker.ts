@@ -322,10 +322,18 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
           : {}),
         ...(detection.cascadeOf ? { cascadeOf: detection.cascadeOf } : {}),
       };
-      // Desktop notifications (PRD §6.2.2). Only the cascade-head moment
-      // triggers — cascade-member fires are quiet by design.
-      if (detectionCfg.notificationsEnabled && detection.flags.includes('cascade-head')) {
-        void notifyCascade(event, session.sessionId, detectionCfg).catch(() => {});
+      // Desktop notifications (PRD §6.2.2). cascade-head + anomaly
+      // (repeated identical failure) are the two detection signals
+      // that warrant a system notification today. cascade-member,
+      // slow, and single-event failed fires stay quiet so the
+      // notification surface doesn't go noisy.
+      if (detectionCfg.notificationsEnabled) {
+        if (detection.flags.includes('cascade-head')) {
+          void notifyDetection(event, session.sessionId, 'cascade', detectionCfg).catch(() => {});
+        }
+        if (detection.flags.includes('anomaly')) {
+          void notifyDetection(event, session.sessionId, 'anomaly', detectionCfg).catch(() => {});
+        }
       }
     }
   }
@@ -351,9 +359,12 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 const SCREENSHOT_MIN_INTERVAL_MS = 2000;
 const screenshotLastShotAt = new Map<number, number>();
 
-async function notifyCascade(
+type NotificationRule = 'cascade' | 'anomaly';
+
+async function notifyDetection(
   event: CapturedEvent,
   sessionId: string,
+  rule: NotificationRule,
   cfg: DetectionSettings
 ): Promise<void> {
   if (cfg.notificationFrequency === 'first-per-session') {
@@ -362,9 +373,22 @@ async function notifyCascade(
       perSession = new Set();
       notifiedThisSession.set(sessionId, perSession);
     }
-    if (perSession.has('cascade')) return;
-    perSession.add('cascade');
+    if (perSession.has(rule)) return;
+    perSession.add(rule);
   }
+
+  const origin = safeOrigin(event.url);
+  const messages: Record<NotificationRule, { title: string; message: string }> = {
+    cascade: {
+      title: 'Hindsight: failure cascade',
+      message: `3+ failures on ${origin} within 10s — open the side panel for details.`,
+    },
+    anomaly: {
+      title: 'Hindsight: repeated identical failure',
+      message: `Same endpoint failing on ${origin} — open the side panel for details.`,
+    },
+  };
+  const copy = messages[rule];
 
   // chrome.notifications is an optional permission. Detection settings'
   // toggle requests it at enable time; here we just try and let the API
@@ -373,8 +397,8 @@ async function notifyCascade(
     await chrome.notifications.create({
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-      title: 'Hindsight: failure cascade',
-      message: `Detected on ${safeOrigin(event.url)} — open the side panel for details.`,
+      title: copy.title,
+      message: copy.message,
       priority: 1,
     });
   } catch {
