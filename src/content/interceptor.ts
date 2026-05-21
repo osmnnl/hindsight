@@ -13,7 +13,13 @@ import {
   type RawCapture,
 } from '@/lib/runtime-messages';
 import { MASKED, shouldMaskFormField } from '@/lib/masking';
-import type { ActionClickData, ActionInputData, ConsoleData, Redaction } from '@/types/events';
+import type {
+  ActionClickData,
+  ActionInputData,
+  ConsoleData,
+  NavigationData,
+  Redaction,
+} from '@/types/events';
 
 (() => {
   function post(capture: RawCapture, redactions?: Redaction[]): void {
@@ -169,6 +175,42 @@ import type { ActionClickData, ActionInputData, ConsoleData, Redaction } from '@
       if (a instanceof Error && a.stack) return { stack: a.stack };
     }
     return {};
+  }
+
+  // ---------- SPA route changes (Tier 1) ----------
+  // Modern SPAs change the URL via history.pushState/replaceState (or
+  // the hash) without triggering chrome.webNavigation.onCommitted — so
+  // the SW-side navigation handler from W5-4 misses them entirely.
+  // Wrap the History API in page-world to plug the gap. popstate is
+  // intentionally NOT listened-for: browser back/forward fires both
+  // popstate AND webNavigation.onCommitted(transitionType='auto_subframe'
+  // | 'back_forward'), and we don't want to double-count.
+  const originalPushState = history.pushState.bind(history);
+  history.pushState = function (state: unknown, title: string, url?: string | URL | null): void {
+    const fromUrl = window.location.href;
+    originalPushState(state, title, url ?? null);
+    emitSpaNavigation(fromUrl, window.location.href, 'pushState');
+  };
+
+  const originalReplaceState = history.replaceState.bind(history);
+  history.replaceState = function (state: unknown, title: string, url?: string | URL | null): void {
+    const fromUrl = window.location.href;
+    originalReplaceState(state, title, url ?? null);
+    emitSpaNavigation(fromUrl, window.location.href, 'replaceState');
+  };
+
+  window.addEventListener('hashchange', (e) => {
+    emitSpaNavigation(e.oldURL, e.newURL, 'hashchange');
+  });
+
+  function emitSpaNavigation(fromUrl: string, toUrl: string, transitionType: string): void {
+    if (fromUrl === toUrl) return;
+    try {
+      const data: NavigationData = { fromUrl, toUrl, transitionType };
+      post({ type: 'navigation', data });
+    } catch {
+      /* never break the page */
+    }
   }
 
   // ---------- Form input (Tier 2) ----------
