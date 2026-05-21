@@ -5,7 +5,7 @@
 // events. Has no access to chrome.* APIs by design — emits RawCapture
 // envelopes over window.postMessage to the ISOLATED-world bridge.
 
-import { createFetchPatch, createXhrPatch } from '@/lib/network-patch';
+import { createFetchPatch, createWebSocketPatch, createXhrPatch } from '@/lib/network-patch';
 import { buildTargetDescriptor } from '@/lib/dom-descriptor';
 import {
   CAPTURE_BRIDGE_TAG,
@@ -29,9 +29,12 @@ import type { ActionClickData, ActionInputData, ConsoleData, Redaction } from '@
     }
   }
 
-  // ---------- Network (Tier 1) ----------
+  // ---------- Network (Tier 1 — fetch/XHR; Tier 2 — WebSocket) ----------
   window.fetch = createFetchPatch(window.fetch, post);
   window.XMLHttpRequest = createXhrPatch(window.XMLHttpRequest, post);
+  if (typeof window.WebSocket !== 'undefined') {
+    window.WebSocket = createWebSocketPatch(window.WebSocket, post);
+  }
 
   // ---------- Clicks (Tier 2) ----------
   // Capture phase so `stopPropagation()` further down the page can't

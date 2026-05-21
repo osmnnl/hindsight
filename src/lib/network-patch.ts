@@ -11,6 +11,7 @@ import type {
   NetworkRequest,
   NetworkResponse,
   NetworkTiming,
+  NetworkWebSocketData,
   NetworkXhrData,
 } from '@/types/events';
 import type { RawCapture } from '@/lib/runtime-messages';
@@ -265,6 +266,101 @@ export function serializeBody(body: BodyInit | Document | null | undefined): str
     return '[unserializable body]';
   }
 }
+
+// ---------------------------------------------------------------------------
+// WebSocket
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a WebSocket constructor that emits NetworkWebSocketData on
+ * connect / open / message (both directions) / close / error. Frame
+ * content is intentionally not captured — PRD §6.1.1 Tier 2 says
+ * "metadata-only unless user opts in"; the opt-in path lands later.
+ *
+ * Implementation note: we subclass the real WebSocket so the new
+ * instance preserves every native behavior (binaryType, extensions,
+ * protocol, etc.). The captured OriginalWebSocket reference is the
+ * pre-patch class — assigning the subclass back to window.WebSocket
+ * does not introduce recursion because `super(...)` resolves through
+ * the captured class.
+ */
+export function createWebSocketPatch(
+  OriginalWebSocket: typeof WebSocket,
+  post: Post
+): typeof WebSocket {
+  class PatchedWebSocket extends OriginalWebSocket {
+    constructor(url: string | URL, protocols?: string | string[]) {
+      super(url, protocols);
+      const wsUrl = typeof url === 'string' ? url : url.toString();
+
+      const emit = (data: NetworkWebSocketData): void => {
+        post({ type: 'network.websocket', data });
+      };
+
+      emit({ phase: 'connect', url: wsUrl });
+
+      this.addEventListener('open', () => {
+        emit({ phase: 'open', url: wsUrl });
+      });
+
+      this.addEventListener('message', (e: MessageEvent) => {
+        const byteSize = wsByteSize(e.data);
+        emit({
+          phase: 'message',
+          url: wsUrl,
+          direction: 'recv',
+          ...(byteSize != null ? { byteSize } : {}),
+        });
+      });
+
+      this.addEventListener('error', () => {
+        emit({ phase: 'error', url: wsUrl });
+      });
+
+      this.addEventListener('close', (e: CloseEvent) => {
+        emit({
+          phase: 'close',
+          url: wsUrl,
+          ...(typeof e.code === 'number' ? { code: e.code } : {}),
+          ...(e.reason ? { reason: e.reason } : {}),
+        });
+      });
+    }
+
+    override send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+      try {
+        const byteSize = wsByteSize(data);
+        post({
+          type: 'network.websocket',
+          data: {
+            phase: 'message',
+            url: this.url,
+            direction: 'send',
+            ...(byteSize != null ? { byteSize } : {}),
+          },
+        });
+      } catch {
+        /* never break the page */
+      }
+      super.send(data);
+    }
+  }
+
+  return PatchedWebSocket as unknown as typeof WebSocket;
+}
+
+function wsByteSize(data: unknown): number | undefined {
+  if (data == null) return undefined;
+  if (typeof data === 'string') return data.length;
+  if (data instanceof Blob) return data.size;
+  if (data instanceof ArrayBuffer) return data.byteLength;
+  if (ArrayBuffer.isView(data)) return data.byteLength;
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Header parsing (XHR / fetch)
+// ---------------------------------------------------------------------------
 
 export function parseRawHeaders(raw: string | null): Record<string, string> {
   const obj: Record<string, string> = {};
