@@ -462,10 +462,16 @@ async function initSharing(): Promise<void> {
   const slack = document.getElementById('slack-webhook');
   const discord = document.getElementById('discord-webhook');
   const teams = document.getElementById('teams-webhook');
+  const githubOwner = document.getElementById('github-owner');
+  const githubRepo = document.getElementById('github-repo');
+  const emailTo = document.getElementById('email-to');
   if (
     !(slack instanceof HTMLInputElement) ||
     !(discord instanceof HTMLInputElement) ||
-    !(teams instanceof HTMLInputElement)
+    !(teams instanceof HTMLInputElement) ||
+    !(githubOwner instanceof HTMLInputElement) ||
+    !(githubRepo instanceof HTMLInputElement) ||
+    !(emailTo instanceof HTMLInputElement)
   ) {
     return;
   }
@@ -474,6 +480,9 @@ async function initSharing(): Promise<void> {
   slack.value = current.slackWebhook;
   discord.value = current.discordWebhook;
   teams.value = current.teamsWebhook;
+  githubOwner.value = current.githubOwner;
+  githubRepo.value = current.githubRepo;
+  emailTo.value = current.emailTo;
 
   const wire = (input: HTMLInputElement, key: keyof SharingSettings): void => {
     const persist = debounce(() => {
@@ -485,6 +494,9 @@ async function initSharing(): Promise<void> {
   wire(slack, 'slackWebhook');
   wire(discord, 'discordWebhook');
   wire(teams, 'teamsWebhook');
+  wire(githubOwner, 'githubOwner');
+  wire(githubRepo, 'githubRepo');
+  wire(emailTo, 'emailTo');
 }
 
 let sharingFlashTimer: ReturnType<typeof setTimeout> | null = null;

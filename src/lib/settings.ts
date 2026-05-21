@@ -141,6 +141,15 @@ export interface SharingSettings {
   slackWebhook: string;
   discordWebhook: string;
   teamsWebhook: string;
+  /** GitHub web-intent destination — owner + repo prefill the
+   *  `github.com/<owner>/<repo>/issues/new` URL. Optional; the
+   *  "Send to GitHub" button is hidden when either is empty
+   *  (OQ-M4-G resolution). */
+  githubOwner: string;
+  githubRepo: string;
+  /** Default mailto: recipient. Empty = the user's mail client
+   *  prompts for one. */
+  emailTo: string;
   schemaVersion: number;
 }
 
@@ -148,6 +157,9 @@ export const DEFAULT_SHARING_SETTINGS: SharingSettings = {
   slackWebhook: '',
   discordWebhook: '',
   teamsWebhook: '',
+  githubOwner: '',
+  githubRepo: '',
+  emailTo: '',
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 

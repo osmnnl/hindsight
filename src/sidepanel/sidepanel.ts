@@ -29,6 +29,7 @@ import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
 import { readSharingSettings, type SharingSettings } from '@/lib/settings';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
+import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
@@ -1069,11 +1070,39 @@ async function renderShareButtons(data: CapturedEvent[]): Promise<void> {
   if (sharing.teamsWebhook)
     configured.push({ dest: 'teams', url: sharing.teamsWebhook, label: 'Teams' });
 
-  container.innerHTML = configured
+  const webhookHtml = configured
     .map((c) => `<button class="share-btn" data-dest="${c.dest}">→ ${escapeHtml(c.label)}</button>`)
     .join('');
+  const githubAvailable = sharing.githubOwner && sharing.githubRepo;
+  const intentHtml = `
+    ${githubAvailable ? '<button class="share-btn" data-intent="github">→ GitHub</button>' : ''}
+    <button class="share-btn" data-intent="email">→ Email</button>
+  `;
+  container.innerHTML = webhookHtml + intentHtml;
 
-  container.querySelectorAll<HTMLButtonElement>('.share-btn').forEach((btn) => {
+  container.querySelectorAll<HTMLButtonElement>('[data-intent]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const intent = btn.dataset.intent;
+      let result: { url: string; truncated: boolean } | null = null;
+      if (intent === 'github') {
+        result = buildGithubIssueUrl(data, {
+          owner: sharing.githubOwner,
+          repo: sharing.githubRepo,
+        });
+      } else if (intent === 'email') {
+        result = buildMailtoUrl(data, { to: sharing.emailTo || undefined });
+      }
+      if (!result) return;
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+      const original = btn.textContent ?? '';
+      btn.textContent = result.truncated ? '✓ Opened (truncated)' : '✓ Opened';
+      setTimeout(() => {
+        btn.textContent = original;
+      }, 2200);
+    });
+  });
+
+  container.querySelectorAll<HTMLButtonElement>('.share-btn[data-dest]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const dest = btn.dataset.dest as WebhookDestination;
       const entry = configured.find((c) => c.dest === dest);

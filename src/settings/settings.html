@@ -269,6 +269,45 @@
             />
           </div>
 
+          <div class="subsection">
+            <h3>GitHub default repo</h3>
+            <p class="hint">
+              "Send to GitHub" opens a new-issue form with the bug report pre-filled. Leave blank to
+              hide the button.
+            </p>
+            <div class="origin-input">
+              <input
+                type="text"
+                id="github-owner"
+                placeholder="owner"
+                spellcheck="false"
+                autocomplete="off"
+              />
+              <input
+                type="text"
+                id="github-repo"
+                placeholder="repo"
+                spellcheck="false"
+                autocomplete="off"
+              />
+            </div>
+          </div>
+
+          <div class="subsection">
+            <h3>Default email recipient</h3>
+            <p class="hint">
+              "Send to Email" opens a mailto: draft addressed here. Leave blank to let the mail
+              client prompt for a recipient.
+            </p>
+            <input
+              type="email"
+              id="email-to"
+              placeholder="engineer@example.com"
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+
           <div id="sharing-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
