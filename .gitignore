@@ -34,3 +34,6 @@ Thumbs.db
 
 # Husky generated runtime
 .husky/_/
+
+# Claude working notes (local-only progress/plan ledger)
+.claude/
