@@ -16,16 +16,33 @@
 
       <main>
         <div id="summary" class="summary">
-          <div class="counts">
+          <button
+            id="summary-counts"
+            class="counts-button"
+            type="button"
+            aria-label="Open side panel filtered to failures"
+          >
             <span class="count-total"><strong>0</strong> events</span>
             <span class="count-errors hidden"></span>
-          </div>
-          <div id="latest-error" class="latest-error hidden"></div>
+          </button>
+
+          <div id="failure-list" class="failure-list hidden" role="list"></div>
+        </div>
+
+        <div id="recording-banner" class="recording-banner hidden">
+          <span class="recording-dot" aria-hidden="true"></span>
+          <span class="recording-label">Recording · <span id="recording-time">00:00</span></span>
+          <button id="recording-stop" class="ghost-stop">■ Stop</button>
         </div>
 
         <div class="actions">
           <button id="open-panel" class="primary">Open side panel</button>
-          <button id="quick-report" class="secondary" disabled>Send quick report</button>
+          <button id="download-bundle" class="secondary" disabled>⤓ Download replay bundle</button>
+        </div>
+
+        <div id="quick-share" class="quick-share hidden">
+          <div class="quick-share-label">Send to</div>
+          <div class="quick-share-buttons" id="quick-share-buttons"></div>
         </div>
 
         <footer class="popup-footer">

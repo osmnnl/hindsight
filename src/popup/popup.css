@@ -111,32 +111,132 @@ main {
   margin-left: 4px;
 }
 
-.latest-error {
+.counts-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.counts-button:hover {
+  background: var(--bg-elev);
+  border-color: var(--border);
+}
+
+.failure-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.failure-list.hidden {
+  display: none;
+}
+
+.failure-row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-left: 3px solid var(--error);
   border-radius: 6px;
-  padding: 8px 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.latest-error-label {
+.failure-row:hover {
+  border-color: var(--accent);
+}
+
+.failure-status {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.failure-line {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.failure-time {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 10.5px;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 2px;
 }
 
-.latest-error-line {
+.recording-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.1);
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 12px;
-  word-break: break-all;
 }
 
-.latest-error-time {
+.recording-banner.hidden {
+  display: none;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--error);
+  box-shadow: 0 0 8px var(--error);
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.recording-label {
+  flex: 1;
+  color: var(--text);
+}
+
+.ghost-stop {
+  background: transparent;
+  border: 1px solid var(--error);
+  color: var(--error);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font: inherit;
   font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
+  cursor: pointer;
+}
+
+.ghost-stop:hover {
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .actions {
@@ -168,6 +268,56 @@ main {
 
 .actions button.secondary:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actions button.copied {
+  background: var(--success);
+  border-color: var(--success);
+  color: #052013;
+}
+
+.quick-share {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.quick-share.hidden {
+  display: none;
+}
+
+.quick-share-label {
+  font-size: 10.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quick-share-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.quick-share-btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.quick-share-btn:hover {
+  border-color: var(--accent);
+}
+
+.quick-share-btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
