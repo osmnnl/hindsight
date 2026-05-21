@@ -34,6 +34,8 @@ import {
   isFailedNetwork,
   type CapturedEvent,
   type EventMeta,
+  type NavigationData,
+  type NavigationEvent,
   type NetworkFetchData,
   type NetworkXhrData,
   type Redaction,
@@ -304,12 +306,64 @@ function safeOrigin(pageUrl: string): string {
 // ---------------------------------------------------------------------------
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  lastUrlPerTab.delete(tabId);
   void clearSession(tabId).catch(() => {});
 });
 
+// Per-tab "last committed top-frame URL" — used to fill NavigationData.fromUrl
+// without an extra chrome.tabs.get round-trip. Volatile; resets on
+// service-worker eviction. The first navigation after eviction reports
+// fromUrl=null, which is acceptable (PRD §6.1.3 lets live state lapse).
+const lastUrlPerTab = new Map<number, string>();
+
 chrome.webNavigation?.onCommitted?.addListener?.((details) => {
-  if (details.frameId === 0 && details.transitionType === 'reload') {
-    void clearSession(details.tabId).catch(() => {});
-    void clearBadge(details.tabId).catch(() => {});
+  if (details.frameId !== 0) return; // top frame only — sub-frames are not navigations in PRD §6.1.1 terms.
+  const { tabId, url, transitionType } = details;
+
+  if (transitionType === 'reload') {
+    lastUrlPerTab.delete(tabId);
+    void clearSession(tabId).catch(() => {});
+    void clearBadge(tabId).catch(() => {});
+    return;
   }
+
+  const fromUrl = lastUrlPerTab.get(tabId) ?? null;
+  lastUrlPerTab.set(tabId, url);
+  void emitNavigationEvent(tabId, url, fromUrl, transitionType).catch(() => {});
 });
+
+async function emitNavigationEvent(
+  tabId: number,
+  toUrl: string,
+  fromUrl: string | null,
+  transitionType: string
+): Promise<void> {
+  const origin = safeOrigin(toUrl);
+  const privacy = await loadPrivacyConfig();
+  // Same blocklist rule as handleCapture: a blocked origin drops every
+  // event family, navigation markers included.
+  if (privacy.blocklist.has(origin)) return;
+
+  const session = await getOrCreateSession(tabId, origin);
+  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
+
+  const data: NavigationData = {
+    fromUrl,
+    toUrl,
+    ...(transitionType ? { transitionType } : {}),
+  };
+  const event: NavigationEvent = {
+    id: crypto.randomUUID(),
+    type: 'navigation',
+    timestamp: Date.now(),
+    sessionId: session.sessionId,
+    sequenceNumber,
+    tabId,
+    url: toUrl,
+    data,
+  };
+
+  const buffer = await appendEvent(tabId, event, DEFAULT_MAX_EVENTS_PER_TAB);
+  await bumpSessionSequence(tabId, sequenceNumber);
+  await renderBadge(tabId, buffer);
+}
