@@ -1,11 +1,14 @@
-// Settings page — General + Privacy sections (PRD §6.6.1).
+// Settings page — General + Privacy + Capture sections (PRD §6.6.1).
 
 import {
+  readCaptureSettings,
   readGeneralSettings,
   readPrivacySettings,
+  writeCaptureSettings,
   writeGeneralSettings,
   writePrivacySettings,
   type CustomPatternSetting,
+  type MaxEventsPerTab,
   type PrivacySettings,
   type ThemePreference,
 } from '@/lib/settings';
@@ -26,6 +29,7 @@ async function init(): Promise<void> {
   setupSectionNav();
   await initGeneral();
   await initPrivacy();
+  await initCapture();
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +406,41 @@ function flashSaved(target: HTMLElement | null): void {
   target.textContent = '✓ Saved';
   if (generalFlashTimer) clearTimeout(generalFlashTimer);
   generalFlashTimer = setTimeout(() => {
+    target.textContent = '';
+  }, SAVE_FLASH_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Capture — Tier 2 toggle, buffer cap
+// ---------------------------------------------------------------------------
+
+async function initCapture(): Promise<void> {
+  const tier2 = document.getElementById('tier2-toggle');
+  const maxEvents = document.getElementById('max-events');
+  if (!(tier2 instanceof HTMLInputElement) || !(maxEvents instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const current = await readCaptureSettings();
+  tier2.checked = current.tier2Enabled;
+  maxEvents.value = String(current.maxEventsPerTab);
+
+  tier2.addEventListener('change', () => {
+    void writeCaptureSettings({ tier2Enabled: tier2.checked }).then(flashCapture);
+  });
+  maxEvents.addEventListener('change', () => {
+    const v = Number(maxEvents.value) as MaxEventsPerTab;
+    void writeCaptureSettings({ maxEventsPerTab: v }).then(flashCapture);
+  });
+}
+
+let captureFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashCapture(): void {
+  const target = document.getElementById('capture-status');
+  if (!target) return;
+  target.textContent = '✓ Saved';
+  if (captureFlashTimer) clearTimeout(captureFlashTimer);
+  captureFlashTimer = setTimeout(() => {
     target.textContent = '';
   }, SAVE_FLASH_MS);
 }

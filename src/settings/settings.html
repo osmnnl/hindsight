@@ -15,9 +15,7 @@
       <nav class="sections" aria-label="Settings sections">
         <button class="section-link active" data-section="general">General</button>
         <button class="section-link" data-section="privacy">Privacy</button>
-        <button class="section-link disabled" data-section="capture" disabled>
-          Capture <span class="badge">M1·W4</span>
-        </button>
+        <button class="section-link" data-section="capture">Capture</button>
         <button class="section-link disabled" data-section="detection" disabled>
           Detection <span class="badge">M3</span>
         </button>
@@ -124,6 +122,47 @@
           </div>
 
           <div id="privacy-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="section-capture" class="section">
+          <h2>Capture</h2>
+          <p class="lead">
+            Pick which event families Hindsight records and how big the per-tab buffer is. Tier 1
+            events (network requests, navigations, errors) cannot be disabled (<code
+              >PRD §6.1.1</code
+            >).
+          </p>
+
+          <div class="subsection">
+            <h3>Tier 2 events</h3>
+            <p class="hint">
+              Clicks, form input changes, WebSocket frames, console.warn / console.info. Disabling
+              stops new captures only — existing buffer stays intact.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="tier2-toggle" />
+              Capture Tier 2 events
+            </label>
+          </div>
+
+          <div class="subsection">
+            <h3>Per-tab buffer</h3>
+            <p class="hint">
+              Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move
+              to a 7-day archive (read-only until M3 ships the side panel).
+            </p>
+            <div class="field">
+              <label for="max-events">Maximum events per tab</label>
+              <select id="max-events" name="max-events">
+                <option value="50">50</option>
+                <option value="200">200 (default)</option>
+                <option value="500">500</option>
+                <option value="2000">2000</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="capture-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
     </div>

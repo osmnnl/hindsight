@@ -64,6 +64,32 @@ export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 
+// ---------------------------------------------------------------------------
+// Schema — Capture (PRD §6.6.1 Capture)
+// ---------------------------------------------------------------------------
+
+/** Valid buffer-cap options surfaced in the dropdown. PRD §6.6.1 lists
+ *  these four; the schema enforces the literal type so the UI and the
+ *  storage layer can't disagree. */
+export type MaxEventsPerTab = 50 | 200 | 500 | 2000;
+
+export interface CaptureSettings {
+  /** When false, the service worker drops Tier 2 events
+   *  (network.websocket, console.warn / info, action.click / input).
+   *  Tier 1 cannot be disabled per PRD §6.1.1. OQ-M2-J: turning this
+   *  off only stops new captures — existing event buffers stay intact. */
+  tier2Enabled: boolean;
+  /** Per-tab rolling buffer cap. */
+  maxEventsPerTab: MaxEventsPerTab;
+  schemaVersion: number;
+}
+
+export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
+  tier2Enabled: true,
+  maxEventsPerTab: 200,
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
+};
+
 export const SettingsKeys = {
   general: 'settings/general',
   capture: 'settings/capture',
@@ -117,4 +143,23 @@ export async function writePrivacySettings(patch: Partial<PrivacySettings>): Pro
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
   await chrome.storage.sync.set({ [SettingsKeys.privacy]: next });
+}
+
+export async function readCaptureSettings(): Promise<CaptureSettings> {
+  const stored = await chrome.storage.sync.get(SettingsKeys.capture);
+  const value = stored[SettingsKeys.capture] as Partial<CaptureSettings> | undefined;
+  if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+    return { ...DEFAULT_CAPTURE_SETTINGS };
+  }
+  return { ...DEFAULT_CAPTURE_SETTINGS, ...value };
+}
+
+export async function writeCaptureSettings(patch: Partial<CaptureSettings>): Promise<void> {
+  const current = await readCaptureSettings();
+  const next: CaptureSettings = {
+    ...current,
+    ...patch,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+  };
+  await chrome.storage.sync.set({ [SettingsKeys.capture]: next });
 }

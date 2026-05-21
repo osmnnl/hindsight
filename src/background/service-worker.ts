@@ -9,7 +9,6 @@
 import {
   archiveSession,
   clearSession,
-  DEFAULT_MAX_EVENTS_PER_TAB,
   getOrCreateSession,
   queueEvent,
   readEvents,
@@ -30,11 +29,19 @@ import {
   tryCompilePattern,
   type BodyPatternRule,
 } from '@/lib/masking';
-import { readPrivacySettings, SettingsKeys, type CustomPatternSetting } from '@/lib/settings';
+import {
+  DEFAULT_CAPTURE_SETTINGS,
+  readCaptureSettings,
+  readPrivacySettings,
+  SettingsKeys,
+  type CaptureSettings,
+  type CustomPatternSetting,
+} from '@/lib/settings';
 import {
   isErrorEvent,
   type CapturedEvent,
   type EventMeta,
+  type EventType,
   type NavigationData,
   type NavigationEvent,
   type NetworkFetchData,
@@ -61,6 +68,29 @@ interface PrivacyConfig {
 }
 
 let privacyConfigPromise: Promise<PrivacyConfig> | null = null;
+
+// Capture settings cache. Invalidated on chrome.storage.onChanged for
+// settings/capture so the user toggling Tier 2 / changing the buffer
+// cap takes effect on the next event without an SW restart.
+let captureConfigPromise: Promise<CaptureSettings> | null = null;
+
+function loadCaptureConfig(): Promise<CaptureSettings> {
+  if (captureConfigPromise) return captureConfigPromise;
+  captureConfigPromise = readCaptureSettings().catch(() => ({ ...DEFAULT_CAPTURE_SETTINGS }));
+  return captureConfigPromise;
+}
+
+const TIER_2_TYPES: ReadonlySet<EventType> = new Set([
+  'network.websocket',
+  'console.warn',
+  'console.info',
+  'action.click',
+  'action.input',
+]);
+
+function isTier2(type: EventType): boolean {
+  return TIER_2_TYPES.has(type);
+}
 
 function loadPrivacyConfig(): Promise<PrivacyConfig> {
   if (privacyConfigPromise) return privacyConfigPromise;
@@ -98,6 +128,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' && SettingsKeys.privacy in changes) {
     privacyConfigPromise = null;
   }
+  if (area === 'sync' && SettingsKeys.capture in changes) {
+    captureConfigPromise = null;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -130,10 +163,15 @@ chrome.runtime.onMessage.addListener(
 async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise<void> {
   const origin = safeOrigin(msg.pageUrl);
   const privacy = await loadPrivacyConfig();
+  const captureCfg = await loadCaptureConfig();
 
   // Per-domain blocklist (PRD §6.6.1 "Per-domain 'never capture here'").
   // Dropped silently — the user explicitly told us to ignore this origin.
   if (privacy.blocklist.has(origin)) return;
+
+  // Tier 2 toggle. OQ-M2-J: only NEW captures are filtered — existing
+  // buffer stays untouched. Tier 1 cannot be disabled per PRD §6.1.1.
+  if (!captureCfg.tier2Enabled && isTier2(msg.capture.type)) return;
 
   // Apply capture-time masking before envelope construction. The result
   // is a new RawCapture variant with masked data and a redaction list.
@@ -202,7 +240,7 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
     }
   }
 
-  const buffer = await queueEvent(tabId, event, sequenceNumber, DEFAULT_MAX_EVENTS_PER_TAB);
+  const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
   await renderBadge(tabId, buffer);
 }
 
@@ -352,6 +390,8 @@ async function emitNavigationEvent(
   // event family, navigation markers included.
   if (privacy.blocklist.has(origin)) return;
 
+  // navigation is Tier 1 (always on), so no tier-2 gate here.
+  const captureCfg = await loadCaptureConfig();
   const session = await getOrCreateSession(tabId, origin);
   const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
 
@@ -371,6 +411,6 @@ async function emitNavigationEvent(
     data,
   };
 
-  const buffer = await queueEvent(tabId, event, sequenceNumber, DEFAULT_MAX_EVENTS_PER_TAB);
+  const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
   await renderBadge(tabId, buffer);
 }
