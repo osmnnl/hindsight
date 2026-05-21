@@ -343,9 +343,41 @@ function updateRecordTimer(): void {
 }
 
 /** Called when toggleRecording observes the transition true → false.
- *  Wired in C55 to generate + download the replay bundle. */
+ *  Fetches the current event buffer (which already includes the
+ *  recording.start / .stop bookends) and downloads a replay bundle
+ *  named after the recording rather than the live session.
+ *  PRD §6.5.2 "Stopping & Bundling". */
 async function onRecordingStopped(): Promise<void> {
-  /* W12-3 wires the bundle download here. */
+  if (tabId == null) return;
+  try {
+    const msg: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
+    const result = await chrome.runtime.sendMessage(msg);
+    const recordedEvents = Array.isArray(result) ? (result as CapturedEvent[]) : [];
+    if (recordedEvents.length === 0) return;
+
+    const html = generateBundle(recordedEvents, { appVersion: __APP_VERSION__ });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const host = (() => {
+      try {
+        return new URL(recordedEvents[0]?.url ?? '').host || 'session';
+      } catch {
+        return 'session';
+      }
+    })();
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hindsight-recording-${host}-${ts}.html`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1000);
+  } catch {
+    /* swallow — best-effort */
+  }
 }
 
 async function refresh(): Promise<void> {
