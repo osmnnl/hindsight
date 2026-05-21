@@ -256,6 +256,43 @@ import type {
     true
   );
 
+  // ---------- White-screen heuristic (PRD §6.2.1) ----------
+  // Once per IIFE-lifetime (i.e. per top-frame load), check 5 s after
+  // window.load whether the page has fewer than 5 visible elements.
+  // SPA route changes don't re-run the IIFE so this only fires on a
+  // genuine fresh page — OQ-M3-F resolution. The synthetic
+  // console.unhandled re-uses the existing SW error path: badge ticks
+  // red, screenshot fires via the standard isErrorEvent trigger.
+  let whiteScreenChecked = false;
+  function scheduleWhiteScreenCheck(): void {
+    if (whiteScreenChecked) return;
+    whiteScreenChecked = true;
+    setTimeout(() => {
+      const all = document.body?.querySelectorAll('*');
+      if (!all) return;
+      let visible = 0;
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          visible++;
+          if (visible >= 5) return; // healthy page — bail
+        }
+      }
+      const data: ConsoleData = {
+        level: 'unhandled',
+        message: `White-screen heuristic: only ${visible} visible element${visible === 1 ? '' : 's'} 5 s after load (PRD §6.2.1).`,
+      };
+      post({ type: 'console.unhandled', data });
+    }, 5000);
+  }
+  if (document.readyState === 'complete') {
+    scheduleWhiteScreenCheck();
+  } else {
+    window.addEventListener('load', scheduleWhiteScreenCheck, { once: true });
+  }
+
   // ---------- Performance long-task + CLS (Tier 3) ----------
   // PRD §6.1.1 Tier 3 "Conditional (triggered, not continuous)" — these
   // observers don't fire on idle pages. Long-task threshold mirrors the
