@@ -705,8 +705,41 @@ function formatRow(e: CapturedEvent): {
       duration: '',
     };
   }
-  // Fallback for event types not yet given a dedicated row (websocket,
-  // sse, screenshot, performance.*, recording.*, mutation, cursor).
+  if (e.type === 'performance.longtask') {
+    return {
+      className: 'success flag-slow',
+      statusBadge: 'PER',
+      method: 'LT',
+      urlText: e.data.attribution ? `Long task · ${e.data.attribution}` : 'Long task',
+      urlTitle: e.data.attribution ?? 'long task',
+      timestamp: e.timestamp,
+      duration: `${e.data.durationMs}ms`,
+    };
+  }
+  if (e.type === 'performance.cls') {
+    return {
+      className: 'success',
+      statusBadge: 'CLS',
+      method: e.data.hadRecentInput ? 'usr' : '',
+      urlText: `Layout shift · ${e.data.value.toFixed(4)}`,
+      urlTitle: `cls=${e.data.value.toFixed(4)}`,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  if (e.type === 'screenshot') {
+    return {
+      className: 'success',
+      statusBadge: '📷',
+      method: e.data.trigger,
+      urlText: 'Screenshot at error moment',
+      urlTitle: e.data.storageRef,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
+  // Fallback for the remaining event types (network.websocket,
+  // network.sse, recording.*, mutation, cursor) — picked up by name.
   return {
     className: 'success',
     statusBadge: e.type.split('.')[0]?.toUpperCase().slice(0, 3) ?? 'EVT',
