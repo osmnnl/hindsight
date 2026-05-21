@@ -7,11 +7,13 @@
 // keys from PRD §6.1.3. Also runs the action-badge state machine.
 
 import {
-  queueEvent,
+  archiveSession,
   clearSession,
   DEFAULT_MAX_EVENTS_PER_TAB,
   getOrCreateSession,
+  queueEvent,
   readEvents,
+  sweepArchive,
 } from '@/lib/storage';
 import {
   isCaptureMessage,
@@ -301,13 +303,19 @@ function safeOrigin(pageUrl: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Tab lifecycle — drop session + buffer on close, also on full reload
-// (PRD §6.1.3: live session resets on full reload).
+// Tab lifecycle — archive on close, drop on full reload.
+// PRD §6.1.3: live session resets on reload; closed tabs land in
+// archives/recent with a 7-day TTL.
 // ---------------------------------------------------------------------------
+
+// Lazy TTL sweep on service-worker start. Cheap on the happy path (no
+// expired entries) and self-correcting if the SW was evicted long enough
+// for entries to age out.
+void sweepArchive().catch(() => {});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   lastUrlPerTab.delete(tabId);
-  void clearSession(tabId).catch(() => {});
+  void archiveSession(tabId).catch(() => {});
 });
 
 // Per-tab "last committed top-frame URL" — used to fill NavigationData.fromUrl

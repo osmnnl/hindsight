@@ -6,7 +6,12 @@
 // in one place. Settings live on chrome.storage.sync and are handled by
 // src/lib/settings.ts.
 
-import { EVENTS_SCHEMA_VERSION, type CapturedEvent, type SessionMetadata } from '@/types/events';
+import {
+  EVENTS_SCHEMA_VERSION,
+  type ArchivedSession,
+  type CapturedEvent,
+  type SessionMetadata,
+} from '@/types/events';
 
 // ---------------------------------------------------------------------------
 // Key derivation — keep all literals here.
@@ -15,7 +20,15 @@ import { EVENTS_SCHEMA_VERSION, type CapturedEvent, type SessionMetadata } from 
 export const StorageKeys = {
   sessionMeta: (tabId: number): string => `sessions/${tabId}`,
   sessionEvents: (tabId: number): string => `sessions/${tabId}/events`,
+  /** Closed-tab archive — PRD §6.1.3 "kept for 7 days then evicted". */
+  archives: 'archives/recent',
 } as const;
+
+/** PRD §6.1.3: archive entries past this age are dropped on the next
+ *  sweep. Seven days strikes a balance between "long enough to find a
+ *  yesterday's bug" and "small enough that local storage doesn't bloat
+ *  on a heavy-browsing day." */
+export const ARCHIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // PRD §6.1.3: rolling buffer 200 events per tab by default (configurable up
 // to 2000). Settings UI exposes the override; for now we hard-code the
@@ -169,10 +182,10 @@ async function readEventsRaw(tabId: number): Promise<CapturedEvent[]> {
 }
 
 /**
- * Drops both the event buffer and the session metadata for a tab. Used by
- * the Clear button, tab close, and full-reload navigation handler. Also
- * tears down any in-memory queue and pending timer so the next session
- * starts clean.
+ * Drops both the event buffer and the session metadata for a tab without
+ * archiving — used by the user Clear button and the reload path
+ * (PRD §6.1.3 "live session resets on full reload"). Tab close goes
+ * through archiveSession instead.
  */
 export async function clearSession(tabId: number): Promise<void> {
   const timer = flushTimerByTab.get(tabId);
@@ -186,4 +199,50 @@ export async function clearSession(tabId: number): Promise<void> {
     StorageKeys.sessionMeta(tabId),
     StorageKeys.sessionEvents(tabId),
   ]);
+}
+
+/**
+ * Closed-tab path. Flushes any pending events, then moves the session's
+ * metadata + final event buffer into `archives/recent` so the side
+ * panel's M3 "recent sessions" view can surface it. Always pairs the
+ * archive write with a clean-up so live storage doesn't double-count.
+ * Empty sessions are dropped without archiving.
+ */
+export async function archiveSession(tabId: number): Promise<void> {
+  await flushTab(tabId);
+
+  const metaKey = StorageKeys.sessionMeta(tabId);
+  const eventsKey = StorageKeys.sessionEvents(tabId);
+  const stored = await chrome.storage.local.get([metaKey, eventsKey, StorageKeys.archives]);
+  const meta = stored[metaKey] as SessionMetadata | undefined;
+  const events = (stored[eventsKey] as CapturedEvent[] | undefined) ?? [];
+
+  if (!meta || events.length === 0) {
+    await clearSession(tabId);
+    return;
+  }
+
+  const cutoff = Date.now() - ARCHIVE_TTL_MS;
+  const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
+  const kept = existing.filter((a) => a.archivedAt >= cutoff);
+  kept.push({ meta, events, archivedAt: Date.now() });
+
+  await chrome.storage.local.set({ [StorageKeys.archives]: kept });
+  await clearSession(tabId);
+}
+
+/**
+ * TTL sweep of the archive. Idempotent: no-op when nothing is past the
+ * cutoff. Intended for lazy invocation on service-worker start; future
+ * archive surfaces (settings "Clear archive", side panel list) can call
+ * it on demand.
+ */
+export async function sweepArchive(): Promise<void> {
+  const stored = await chrome.storage.local.get(StorageKeys.archives);
+  const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
+  if (existing.length === 0) return;
+  const cutoff = Date.now() - ARCHIVE_TTL_MS;
+  const kept = existing.filter((a) => a.archivedAt >= cutoff);
+  if (kept.length === existing.length) return;
+  await chrome.storage.local.set({ [StorageKeys.archives]: kept });
 }

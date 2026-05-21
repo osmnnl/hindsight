@@ -397,3 +397,16 @@ export interface SessionMetadata {
 
 /** Storage schema version this codebase emits. Bump on breaking change. */
 export const EVENTS_SCHEMA_VERSION = 1;
+
+/**
+ * One entry in the closed-tab archive (PRD §6.1.3 key `archives/recent`,
+ * TTL 7 days). Carries the session metadata, the full event buffer at
+ * the time of close, and the archive timestamp the sweeper uses for TTL
+ * checks. The archive is the bridge between live tabs and the side
+ * panel's "recent sessions" view (M3).
+ */
+export interface ArchivedSession {
+  meta: SessionMetadata;
+  events: CapturedEvent[];
+  archivedAt: number;
+}
