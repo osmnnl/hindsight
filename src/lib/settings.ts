@@ -163,12 +163,38 @@ export const DEFAULT_SHARING_SETTINGS: SharingSettings = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 
+// ---------------------------------------------------------------------------
+// Schema — Advanced (PRD §15.3)
+// ---------------------------------------------------------------------------
+
+export interface AdvancedSettings {
+  /** When true, the service worker emits verbose console logs for
+   *  every captured event. Off by default — keeps the SW console
+   *  clean for normal use; engineers debugging Hindsight itself flip
+   *  this on. */
+  debugLogging: boolean;
+  /** Perf-budget warning threshold in milliseconds. PRD §13.1 hard
+   *  ceiling is 0.5 ms (CI bench-gate). Users on low-end hardware or
+   *  with bursty traffic may want a higher threshold before in-app
+   *  warnings fire. The CI gate is independent — this only affects
+   *  user-visible nudges in the side panel. */
+  perfBudgetMs: number;
+  schemaVersion: number;
+}
+
+export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
+  debugLogging: false,
+  perfBudgetMs: 0.5,
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
+};
+
 export const SettingsKeys = {
   general: 'settings/general',
   capture: 'settings/capture',
   detection: 'settings/detection',
   sharing: 'settings/sharing',
   privacy: 'settings/privacy',
+  advanced: 'settings/advanced',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -273,4 +299,23 @@ export async function writeSharingSettings(patch: Partial<SharingSettings>): Pro
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
   await chrome.storage.sync.set({ [SettingsKeys.sharing]: next });
+}
+
+export async function readAdvancedSettings(): Promise<AdvancedSettings> {
+  const stored = await chrome.storage.sync.get(SettingsKeys.advanced);
+  const value = stored[SettingsKeys.advanced] as Partial<AdvancedSettings> | undefined;
+  if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+    return { ...DEFAULT_ADVANCED_SETTINGS };
+  }
+  return { ...DEFAULT_ADVANCED_SETTINGS, ...value };
+}
+
+export async function writeAdvancedSettings(patch: Partial<AdvancedSettings>): Promise<void> {
+  const current = await readAdvancedSettings();
+  const next: AdvancedSettings = {
+    ...current,
+    ...patch,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+  };
+  await chrome.storage.sync.set({ [SettingsKeys.advanced]: next });
 }

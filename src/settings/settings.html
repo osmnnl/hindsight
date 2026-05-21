@@ -18,9 +18,7 @@
         <button class="section-link" data-section="capture">Capture</button>
         <button class="section-link" data-section="detection">Detection</button>
         <button class="section-link" data-section="sharing">Sharing</button>
-        <button class="section-link disabled" data-section="advanced" disabled>
-          Advanced <span class="badge">M2+</span>
-        </button>
+        <button class="section-link" data-section="advanced">Advanced</button>
       </nav>
 
       <main>
@@ -309,6 +307,76 @@
           </div>
 
           <div id="sharing-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="section-advanced" class="section">
+          <h2>Advanced</h2>
+          <p class="lead">
+            Power-user knobs. Most users never need these — defaults are tuned for the privacy and
+            performance promises in <code>PRD §4</code>.
+          </p>
+
+          <div class="subsection">
+            <h3>Debug logging</h3>
+            <p class="hint">
+              Emits verbose service-worker console logs for every captured event. Helpful when
+              debugging Hindsight itself; noisy otherwise.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="debug-logging-toggle" />
+              Enable verbose service-worker logs
+            </label>
+          </div>
+
+          <div class="subsection">
+            <h3>Perf budget threshold</h3>
+            <p class="hint">
+              Soft warning threshold (ms) for capture overhead. PRD §13.1 hard ceiling is 0.5 ms —
+              the CI bench gate enforces it independently. Raise this if you see false-positive perf
+              nudges on slow hardware.
+            </p>
+            <div class="field">
+              <label for="perf-budget">Threshold (ms)</label>
+              <input
+                type="number"
+                id="perf-budget"
+                min="0.1"
+                max="50"
+                step="0.1"
+                style="max-width: 120px"
+              />
+            </div>
+          </div>
+
+          <div class="subsection">
+            <h3>Storage usage</h3>
+            <p class="hint">
+              How much room the capture buffers and the closed-tab archive currently take in
+              <code>chrome.storage.local</code>.
+            </p>
+            <div class="field">
+              <pre id="storage-stats" class="sandbox-output">Calculating…</pre>
+              <button id="storage-refresh" class="btn-add" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div class="subsection">
+            <h3>Reset everything</h3>
+            <p class="hint">
+              Clears every captured session, the closed-tab archive, and resets every settings
+              section to defaults. There is no undo.
+            </p>
+            <button
+              id="reset-everything"
+              type="button"
+              class="btn-add"
+              style="color: var(--danger)"
+            >
+              Reset all data
+            </button>
+          </div>
+
+          <div id="advanced-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
     </div>

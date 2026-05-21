@@ -1,11 +1,13 @@
 // Settings page — General + Privacy + Capture sections (PRD §6.6.1).
 
 import {
+  readAdvancedSettings,
   readCaptureSettings,
   readDetectionSettings,
   readGeneralSettings,
   readPrivacySettings,
   readSharingSettings,
+  writeAdvancedSettings,
   writeCaptureSettings,
   writeDetectionSettings,
   writeGeneralSettings,
@@ -41,6 +43,7 @@ async function init(): Promise<void> {
   await initCapture();
   await initDetection();
   await initSharing();
+  await initAdvanced();
 }
 
 // ---------------------------------------------------------------------------
@@ -579,6 +582,92 @@ function flashCapture(): void {
   target.textContent = '✓ Saved';
   if (captureFlashTimer) clearTimeout(captureFlashTimer);
   captureFlashTimer = setTimeout(() => {
+    target.textContent = '';
+  }, SAVE_FLASH_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Advanced — debug logging, perf threshold, storage stats, factory reset
+// ---------------------------------------------------------------------------
+
+async function initAdvanced(): Promise<void> {
+  const debug = document.getElementById('debug-logging-toggle');
+  const perfBudget = document.getElementById('perf-budget');
+  const refreshBtn = document.getElementById('storage-refresh');
+  const resetBtn = document.getElementById('reset-everything');
+  if (
+    !(debug instanceof HTMLInputElement) ||
+    !(perfBudget instanceof HTMLInputElement) ||
+    !(refreshBtn instanceof HTMLButtonElement) ||
+    !(resetBtn instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  const current = await readAdvancedSettings();
+  debug.checked = current.debugLogging;
+  perfBudget.value = String(current.perfBudgetMs);
+
+  debug.addEventListener('change', () => {
+    void writeAdvancedSettings({ debugLogging: debug.checked }).then(flashAdvanced);
+  });
+  perfBudget.addEventListener('change', () => {
+    const v = Number(perfBudget.value);
+    if (!Number.isFinite(v) || v <= 0) {
+      perfBudget.value = String(current.perfBudgetMs);
+      return;
+    }
+    void writeAdvancedSettings({ perfBudgetMs: v }).then(flashAdvanced);
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    void refreshStorageStats();
+  });
+  resetBtn.addEventListener('click', () => {
+    void resetEverything();
+  });
+
+  await refreshStorageStats();
+}
+
+async function refreshStorageStats(): Promise<void> {
+  const out = document.getElementById('storage-stats');
+  if (!out) return;
+  try {
+    const local = await chrome.storage.local.getBytesInUse?.(null);
+    const sync = await chrome.storage.sync.getBytesInUse?.(null);
+    const formatKb = (n: number | undefined): string =>
+      n == null ? '—' : `${(n / 1024).toFixed(1)} KB`;
+    out.textContent = `local: ${formatKb(local)} · sync: ${formatKb(sync)}`;
+  } catch (e) {
+    out.textContent = `Unable to read storage: ${(e as Error).message ?? e}`;
+  }
+}
+
+async function resetEverything(): Promise<void> {
+  const confirmed = confirm(
+    'Reset everything? This clears every captured session, the 7-day archive, and resets every settings section to defaults. There is no undo.'
+  );
+  if (!confirmed) return;
+  try {
+    await chrome.storage.local.clear();
+    await chrome.storage.sync.clear();
+  } catch (e) {
+    alert(`Reset failed: ${(e as Error).message ?? e}`);
+    return;
+  }
+  flashAdvanced();
+  // Reload the page so every section reflects the reset defaults.
+  window.location.reload();
+}
+
+let advancedFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashAdvanced(): void {
+  const target = document.getElementById('advanced-status');
+  if (!target) return;
+  target.textContent = '✓ Saved';
+  if (advancedFlashTimer) clearTimeout(advancedFlashTimer);
+  advancedFlashTimer = setTimeout(() => {
     target.textContent = '';
   }, SAVE_FLASH_MS);
 }
