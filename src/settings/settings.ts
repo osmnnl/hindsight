@@ -2,13 +2,16 @@
 
 import {
   readCaptureSettings,
+  readDetectionSettings,
   readGeneralSettings,
   readPrivacySettings,
   writeCaptureSettings,
+  writeDetectionSettings,
   writeGeneralSettings,
   writePrivacySettings,
   type CustomPatternSetting,
   type MaxEventsPerTab,
+  type NotificationFrequency,
   type PrivacySettings,
   type ThemePreference,
 } from '@/lib/settings';
@@ -33,6 +36,7 @@ async function init(): Promise<void> {
   await initGeneral();
   await initPrivacy();
   await initCapture();
+  await initDetection();
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +439,68 @@ async function initCapture(): Promise<void> {
     const v = Number(maxEvents.value) as MaxEventsPerTab;
     void writeCaptureSettings({ maxEventsPerTab: v }).then(flashCapture);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Detection — smart-detection master switch, notifications
+// ---------------------------------------------------------------------------
+
+async function initDetection(): Promise<void> {
+  const smart = document.getElementById('smart-detection-toggle');
+  const notif = document.getElementById('notifications-toggle');
+  const freq = document.getElementById('notification-frequency');
+  if (
+    !(smart instanceof HTMLInputElement) ||
+    !(notif instanceof HTMLInputElement) ||
+    !(freq instanceof HTMLSelectElement)
+  ) {
+    return;
+  }
+
+  const current = await readDetectionSettings();
+  smart.checked = current.smartDetectionEnabled;
+  notif.checked = current.notificationsEnabled;
+  freq.value = current.notificationFrequency;
+
+  smart.addEventListener('change', () => {
+    void writeDetectionSettings({ smartDetectionEnabled: smart.checked }).then(flashDetection);
+  });
+
+  // chrome.notifications is an optional permission — request it the
+  // first time the user enables the toggle. If the user denies,
+  // bounce the checkbox back to false.
+  notif.addEventListener('change', () => {
+    void (async () => {
+      if (notif.checked) {
+        const granted = await chrome.permissions
+          .request({ permissions: ['notifications'] })
+          .catch(() => false);
+        if (!granted) {
+          notif.checked = false;
+          return;
+        }
+      }
+      await writeDetectionSettings({ notificationsEnabled: notif.checked });
+      flashDetection();
+    })();
+  });
+
+  freq.addEventListener('change', () => {
+    void writeDetectionSettings({
+      notificationFrequency: freq.value as NotificationFrequency,
+    }).then(flashDetection);
+  });
+}
+
+let detectionFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashDetection(): void {
+  const target = document.getElementById('detection-status');
+  if (!target) return;
+  target.textContent = '✓ Saved';
+  if (detectionFlashTimer) clearTimeout(detectionFlashTimer);
+  detectionFlashTimer = setTimeout(() => {
+    target.textContent = '';
+  }, SAVE_FLASH_MS);
 }
 
 let captureFlashTimer: ReturnType<typeof setTimeout> | null = null;

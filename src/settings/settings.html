@@ -16,9 +16,7 @@
         <button class="section-link active" data-section="general">General</button>
         <button class="section-link" data-section="privacy">Privacy</button>
         <button class="section-link" data-section="capture">Capture</button>
-        <button class="section-link disabled" data-section="detection" disabled>
-          Detection <span class="badge">M3</span>
-        </button>
+        <button class="section-link" data-section="detection">Detection</button>
         <button class="section-link disabled" data-section="sharing" disabled>
           Sharing <span class="badge">M4</span>
         </button>
@@ -163,6 +161,49 @@
           </div>
 
           <div id="capture-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="section-detection" class="section">
+          <h2>Detection</h2>
+          <p class="lead">
+            Hindsight watches captures for failed-request cascades, slow requests, and
+            white-screen-after-navigation patterns (<code>PRD §6.2.1</code>). Surfaces them as
+            colored flags in the side panel; optional desktop notifications for high-severity
+            events.
+          </p>
+
+          <div class="subsection">
+            <h3>Smart detection</h3>
+            <p class="hint">
+              When off, no detection rules run and no flags get stamped — the side panel still lists
+              events but the cluster grouping and left-border tints disappear.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="smart-detection-toggle" />
+              Enable smart detection
+            </label>
+          </div>
+
+          <div class="subsection">
+            <h3>Desktop notifications</h3>
+            <p class="hint">
+              Optional. Notify on cascades and repeated identical failures. Permission is requested
+              the first time you enable this.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="notifications-toggle" />
+              Show notifications for detected patterns
+            </label>
+            <div class="field" style="margin-top: 10px">
+              <label for="notification-frequency">Frequency</label>
+              <select id="notification-frequency">
+                <option value="first-per-session">First occurrence per session</option>
+                <option value="every">Every occurrence</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="detection-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
     </div>

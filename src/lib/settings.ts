@@ -90,6 +90,37 @@ export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 
+// ---------------------------------------------------------------------------
+// Schema — Detection (PRD §6.6.1 Detection + §6.2)
+// ---------------------------------------------------------------------------
+
+export type NotificationFrequency = 'first-per-session' | 'every';
+
+export interface DetectionSettings {
+  /** Master switch for the detection rule engine (PRD §6.6.1 "Smart
+   *  detection on/off"). When false, detect() is skipped and no
+   *  meta.flags / meta.cascadeOf gets stamped. */
+  smartDetectionEnabled: boolean;
+  /** When true, the service worker calls chrome.notifications.create
+   *  on detection.cascade-head fires (PRD §6.2.2 "Desktop
+   *  notifications"). Requires the `notifications` runtime permission;
+   *  the toggle in the Settings UI requests it the first time it's
+   *  enabled. */
+  notificationsEnabled: boolean;
+  /** PRD §6.2.2: "every" means fire on each detection event; the
+   *  default "first-per-session" suppresses duplicates so a 20-failure
+   *  cascade only notifies once. OQ-M3-G resolution. */
+  notificationFrequency: NotificationFrequency;
+  schemaVersion: number;
+}
+
+export const DEFAULT_DETECTION_SETTINGS: DetectionSettings = {
+  smartDetectionEnabled: true,
+  notificationsEnabled: false,
+  notificationFrequency: 'first-per-session',
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
+};
+
 export const SettingsKeys = {
   general: 'settings/general',
   capture: 'settings/capture',
@@ -162,4 +193,23 @@ export async function writeCaptureSettings(patch: Partial<CaptureSettings>): Pro
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
   await chrome.storage.sync.set({ [SettingsKeys.capture]: next });
+}
+
+export async function readDetectionSettings(): Promise<DetectionSettings> {
+  const stored = await chrome.storage.sync.get(SettingsKeys.detection);
+  const value = stored[SettingsKeys.detection] as Partial<DetectionSettings> | undefined;
+  if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+    return { ...DEFAULT_DETECTION_SETTINGS };
+  }
+  return { ...DEFAULT_DETECTION_SETTINGS, ...value };
+}
+
+export async function writeDetectionSettings(patch: Partial<DetectionSettings>): Promise<void> {
+  const current = await readDetectionSettings();
+  const next: DetectionSettings = {
+    ...current,
+    ...patch,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+  };
+  await chrome.storage.sync.set({ [SettingsKeys.detection]: next });
 }

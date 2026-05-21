@@ -36,11 +36,14 @@ import {
 import { detect } from '@/lib/detection';
 import {
   DEFAULT_CAPTURE_SETTINGS,
+  DEFAULT_DETECTION_SETTINGS,
   readCaptureSettings,
+  readDetectionSettings,
   readPrivacySettings,
   SettingsKeys,
   type CaptureSettings,
   type CustomPatternSetting,
+  type DetectionSettings,
 } from '@/lib/settings';
 import {
   isErrorEvent,
@@ -84,6 +87,24 @@ function loadCaptureConfig(): Promise<CaptureSettings> {
   captureConfigPromise = readCaptureSettings().catch(() => ({ ...DEFAULT_CAPTURE_SETTINGS }));
   return captureConfigPromise;
 }
+
+// Detection settings cache. Invalidated on chrome.storage.onChanged for
+// settings/detection. Controls the smart-detection master switch + the
+// notifications policy.
+let detectionConfigPromise: Promise<DetectionSettings> | null = null;
+
+function loadDetectionConfig(): Promise<DetectionSettings> {
+  if (detectionConfigPromise) return detectionConfigPromise;
+  detectionConfigPromise = readDetectionSettings().catch(() => ({
+    ...DEFAULT_DETECTION_SETTINGS,
+  }));
+  return detectionConfigPromise;
+}
+
+// Per-session notification dedup. Keyed by sessionId + ruleId so a
+// 20-failure cascade only notifies once (OQ-M3-G first-per-session
+// resolution; 'every' frequency bypasses this check).
+const notifiedThisSession = new Map<string, Set<string>>();
 
 const TIER_2_TYPES: ReadonlySet<EventType> = new Set([
   'network.websocket',
@@ -135,6 +156,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (area === 'sync' && SettingsKeys.capture in changes) {
     captureConfigPromise = null;
+  }
+  if (area === 'sync' && SettingsKeys.detection in changes) {
+    detectionConfigPromise = null;
   }
 });
 
@@ -274,17 +298,25 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   // Detection engine — stamp meta.flags + meta.cascadeOf based on the
   // recent buffer before persistence (PRD §6.2.1). The buffer query is
   // cheap thanks to W6-1's in-memory cache in storage.ts.
-  const recentBuffer = await readEvents(tabId);
-  const detection = detect(event, recentBuffer);
-  if (detection.flags.length > 0 || detection.cascadeOf) {
-    const existingMeta: EventMeta = event.meta ?? {};
-    event.meta = {
-      ...existingMeta,
-      ...(detection.flags.length > 0
-        ? { flags: [...(existingMeta.flags ?? []), ...detection.flags] }
-        : {}),
-      ...(detection.cascadeOf ? { cascadeOf: detection.cascadeOf } : {}),
-    };
+  const detectionCfg = await loadDetectionConfig();
+  if (detectionCfg.smartDetectionEnabled) {
+    const recentBuffer = await readEvents(tabId);
+    const detection = detect(event, recentBuffer);
+    if (detection.flags.length > 0 || detection.cascadeOf) {
+      const existingMeta: EventMeta = event.meta ?? {};
+      event.meta = {
+        ...existingMeta,
+        ...(detection.flags.length > 0
+          ? { flags: [...(existingMeta.flags ?? []), ...detection.flags] }
+          : {}),
+        ...(detection.cascadeOf ? { cascadeOf: detection.cascadeOf } : {}),
+      };
+      // Desktop notifications (PRD §6.2.2). Only the cascade-head moment
+      // triggers — cascade-member fires are quiet by design.
+      if (detectionCfg.notificationsEnabled && detection.flags.includes('cascade-head')) {
+        void notifyCascade(event, session.sessionId, detectionCfg).catch(() => {});
+      }
+    }
   }
 
   const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
@@ -307,6 +339,37 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 
 const SCREENSHOT_MIN_INTERVAL_MS = 2000;
 const screenshotLastShotAt = new Map<number, number>();
+
+async function notifyCascade(
+  event: CapturedEvent,
+  sessionId: string,
+  cfg: DetectionSettings
+): Promise<void> {
+  if (cfg.notificationFrequency === 'first-per-session') {
+    let perSession = notifiedThisSession.get(sessionId);
+    if (!perSession) {
+      perSession = new Set();
+      notifiedThisSession.set(sessionId, perSession);
+    }
+    if (perSession.has('cascade')) return;
+    perSession.add('cascade');
+  }
+
+  // chrome.notifications is an optional permission. Detection settings'
+  // toggle requests it at enable time; here we just try and let the API
+  // throw if the user has revoked since.
+  try {
+    await chrome.notifications.create({
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+      title: 'Hindsight: failure cascade',
+      message: `Detected on ${safeOrigin(event.url)} — open the side panel for details.`,
+      priority: 1,
+    });
+  } catch {
+    /* permission revoked, browser pop-out closed, etc. — silent */
+  }
+}
 
 async function maybeCaptureScreenshot(
   tabId: number,
