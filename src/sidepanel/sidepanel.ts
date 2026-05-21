@@ -30,6 +30,8 @@ import { generateBundle } from '@/lib/replay-bundle';
 import { readSharingSettings, type SharingSettings } from '@/lib/settings';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
+import { toMarkdownReport } from '@/lib/formatters/markdown';
+import { buildZip, type ZipEntry } from '@/lib/zip';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
@@ -272,13 +274,49 @@ async function init(): Promise<void> {
     void toggleRecording();
   });
 
+  // M4·W15-extra: popup may have planted a focus-event / focus-filter
+  // key in chrome.storage.local so the side panel boots into the right
+  // filter and selects the right row immediately.
+  await consumePopupFocus();
+
   await refresh();
   await refreshArchive();
   await refreshRecordingState();
+  await applyPopupFocus();
   pollTimer = setInterval(() => {
     void refresh();
     updateRecordTimer();
   }, 1000);
+
+  // Screenshot click-to-zoom: open the JPEG data URL in a new tab so the
+  // user can inspect at full pixel size. Delegated because screenshot
+  // panels are rendered dynamically inside the detail view.
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest<HTMLElement>('[data-screenshot-url]');
+    if (!link) return;
+    const url = link.dataset.screenshotUrl;
+    if (!url) return;
+    e.preventDefault();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  });
+
+  // Esc closes the detail view — keyboard ergonomics for back-and-forth
+  // inspection. Skip when typing into an input or the privacy modal is
+  // open (the modal owns its own Esc handler).
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.querySelector('.privacy-modal-overlay')) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const detail = document.getElementById('detail');
+    if (!detail || detail.classList.contains('hidden')) return;
+    detail.classList.add('hidden');
+    detail.innerHTML = '';
+    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+  });
+
   window.addEventListener('unload', () => {
     if (pollTimer) clearInterval(pollTimer);
   });
@@ -382,6 +420,79 @@ async function onRecordingStopped(): Promise<void> {
     /* swallow — best-effort */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Popup ↔ sidepanel handoff (M4·W15-extra)
+// ---------------------------------------------------------------------------
+
+const FOCUS_EVENT_KEY = 'sidepanel/focus-event';
+const FOCUS_FILTER_KEY = 'sidepanel/focus-filter';
+
+let pendingFocusEventId: string | null = null;
+
+/** Reads any focus hint the popup planted and clears it so a later
+ *  re-open of the panel doesn't re-trigger. Sets filterMode if the
+ *  popup asked for one. */
+async function consumePopupFocus(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get([FOCUS_EVENT_KEY, FOCUS_FILTER_KEY]);
+    const filter = stored[FOCUS_FILTER_KEY];
+    const eventId = stored[FOCUS_EVENT_KEY];
+    if (typeof filter === 'string' && (filter === 'failed' || filter === 'all')) {
+      filterMode = filter;
+    }
+    if (typeof eventId === 'string' && eventId.length > 0) {
+      pendingFocusEventId = eventId;
+    }
+    await chrome.storage.local.remove([FOCUS_EVENT_KEY, FOCUS_FILTER_KEY]);
+  } catch {
+    /* swallow — handoff is best-effort */
+  }
+  // Sync the filter chip state to whatever consumePopupFocus picked.
+  document.querySelectorAll<HTMLElement>('.filter').forEach((b) => {
+    const isActive = b.dataset.filter === filterMode;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+/** Once `events` has been populated by the first refresh, open the
+ *  detail view for the focused event (if any) and scroll its row
+ *  into the visible list. */
+async function applyPopupFocus(): Promise<void> {
+  if (!pendingFocusEventId) return;
+  const target = events.find((e) => e.id === pendingFocusEventId);
+  pendingFocusEventId = null;
+  if (!target) return;
+  showDetail(target);
+}
+
+/** When the side panel is already open and the user clicks a failure
+ *  in the popup, the popup's chrome.sidePanel.open() doesn't re-init
+ *  the page — the in-memory state stays. Listen for writes to the
+ *  focus-event key so the running sidepanel reacts. */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const filterChange = changes[FOCUS_FILTER_KEY];
+  const eventChange = changes[FOCUS_EVENT_KEY];
+  if (!filterChange && !eventChange) return;
+
+  const nextFilter = filterChange?.newValue;
+  if (typeof nextFilter === 'string' && (nextFilter === 'failed' || nextFilter === 'all')) {
+    setFilter(nextFilter);
+  }
+  const nextEventId = eventChange?.newValue;
+  if (typeof nextEventId === 'string' && nextEventId.length > 0) {
+    void (async () => {
+      await refresh();
+      const target = events.find((e) => e.id === nextEventId);
+      if (target) showDetail(target);
+    })();
+  }
+  // Clear the keys so a tab-switch that re-opens the panel doesn't
+  // re-trigger this focus.
+  void chrome.storage.local.remove([FOCUS_EVENT_KEY, FOCUS_FILTER_KEY]).catch(() => {});
+});
 
 async function refresh(): Promise<void> {
   if (tabId == null) return;
@@ -487,7 +598,9 @@ async function clearArchiveAndRefresh(): Promise<void> {
 function setFilter(mode: FilterMode): void {
   filterMode = mode;
   document.querySelectorAll<HTMLElement>('.filter').forEach((b) => {
-    b.classList.toggle('active', b.dataset.filter === mode);
+    const isActive = b.dataset.filter === mode;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
   render();
 }
@@ -973,6 +1086,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
       <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
       <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
       <button id="download-bundle" title="Download as a self-contained HTML replay bundle (PRD §5)">⤓ Bundle</button>
+      <button id="download-zip" title="Download everything as one ZIP — markdown, JSON, HAR, bundle, screenshots">⤓ ZIP</button>
       <span id="share-buttons" class="share-buttons"></span>
     </div>
   `;
@@ -1044,6 +1158,22 @@ function renderBulkBar(data: CapturedEvent[]): void {
       1800
     );
   });
+
+  document.getElementById('download-zip')?.addEventListener('click', (clickEvent) => {
+    const btn = clickEvent.currentTarget as HTMLButtonElement;
+    btn.textContent = '… packing';
+    try {
+      downloadAsZip(data);
+      btn.textContent = '✓ ZIP ⤓';
+      btn.classList.add('copied');
+    } catch {
+      btn.textContent = 'ZIP failed';
+    }
+    setTimeout(
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
+      1800
+    );
+  });
 }
 
 /** Generates and downloads a standalone HTML replay bundle (PRD §5).
@@ -1107,14 +1237,11 @@ async function renderShareButtons(data: CapturedEvent[]): Promise<void> {
       const dest = btn.dataset.dest as WebhookDestination;
       const entry = configured.find((c) => c.dest === dest);
       if (!entry) return;
-      const totalRedactions = data.reduce((n, e) => n + (e.meta?.redactions?.length ?? 0), 0);
-      const confirmed = confirm(
-        `Send ${data.length} event${data.length === 1 ? '' : 's'} to ${entry.label}?\n` +
-          (totalRedactions > 0
-            ? `${totalRedactions} field${totalRedactions === 1 ? '' : 's'} are masked at capture time and stay masked in the payload.\n`
-            : '') +
-          `\nWebhook URL: ${entry.url.slice(0, 40)}…\n\nContinue?`
-      );
+      const confirmed = await showPrivacyPreview({
+        destinationLabel: entry.label,
+        destinationDetail: entry.url,
+        events: data,
+      });
       if (!confirmed) return;
       const original = btn.textContent ?? '';
       btn.disabled = true;
@@ -1131,6 +1258,118 @@ async function renderShareButtons(data: CapturedEvent[]): Promise<void> {
       }, 2400);
     });
   });
+}
+
+/** Packs the full session into a single .zip with markdown / JSON / HAR
+ *  / replay-bundle / inline screenshots. PRD §6.4.2 — one shareable
+ *  artifact when the user wants every representation at once. */
+function downloadAsZip(items: CapturedEvent[]): void {
+  const encoder = new TextEncoder();
+  const networkItems = items.filter(isRequestLike);
+  const entries: ZipEntry[] = [];
+
+  const markdown = toMarkdownReport(items, { title: deriveSessionTitle(items) });
+  if (markdown) entries.push({ name: 'report.md', data: encoder.encode(markdown) });
+
+  const jsonPayload = items.map((e) => (isRequestLike(e) ? maskedEventForExport(e) : e));
+  const narrative = items.length >= 2 ? narrate(items) : '';
+  const sessionJson = narrative
+    ? { _narrative: narrative, events: jsonPayload }
+    : { events: jsonPayload };
+  entries.push({
+    name: 'session.json',
+    data: encoder.encode(JSON.stringify(sessionJson, null, 2)),
+  });
+
+  if (networkItems.length > 0) {
+    const maskedItems = networkItems.map(maskedEventForExport);
+    const har = toHar(maskedItems, {
+      creatorVersion: __APP_VERSION__,
+      browser: parseBrowser(navigator.userAgent),
+      pageTitle: items[0]?.url ?? 'Hindsight Session',
+    });
+    entries.push({
+      name: 'session.har',
+      data: encoder.encode(JSON.stringify({ log: har }, null, 2)),
+    });
+  }
+
+  entries.push({
+    name: 'replay.html',
+    data: encoder.encode(generateBundle(items, { appVersion: __APP_VERSION__ })),
+  });
+
+  // Inline screenshot payloads — strip the `data:image/...;base64,`
+  // prefix and stash one .jpg per event so the recipient can browse
+  // them without a viewer. Files are numbered by their position in the
+  // chronological event list.
+  let shotIdx = 0;
+  for (const e of items) {
+    if (e.type !== 'screenshot') continue;
+    const url = e.data.dataUrl;
+    if (!url) continue;
+    const decoded = decodeDataUrlToBytes(url);
+    if (!decoded) continue;
+    const name = `screenshots/${String(++shotIdx).padStart(3, '0')}-${e.data.trigger}.${decoded.ext}`;
+    entries.push({ name, data: decoded.bytes });
+  }
+
+  const zip = buildZip(entries);
+  // Slice() returns a Uint8Array<ArrayBuffer> regardless of the source
+  // buffer kind, which satisfies Blob's BlobPart constraint without
+  // forcing a SharedArrayBuffer cast at the call site.
+  const blob = new Blob([zip.slice().buffer], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  const host = deriveSessionHost(items);
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hindsight-${host}-${ts}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
+}
+
+function deriveSessionTitle(items: CapturedEvent[]): string {
+  const host = deriveSessionHost(items);
+  return `Hindsight session · ${host}`;
+}
+
+function deriveSessionHost(items: CapturedEvent[]): string {
+  for (const e of items) {
+    try {
+      const h = new URL(e.url).host;
+      if (h) return h;
+    } catch {
+      /* keep looking */
+    }
+  }
+  return 'session';
+}
+
+function decodeDataUrlToBytes(dataUrl: string): { bytes: Uint8Array; ext: string } | null {
+  const match = /^data:([^;,]+)?(?:;base64)?,(.*)$/i.exec(dataUrl);
+  if (!match) return null;
+  const mime = (match[1] ?? 'application/octet-stream').toLowerCase();
+  const payload = match[2] ?? '';
+  const isBase64 = /;base64/i.test(dataUrl);
+  let bytes: Uint8Array;
+  try {
+    if (isBase64) {
+      const bin = atob(payload);
+      bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(payload));
+    }
+  } catch {
+    return null;
+  }
+  const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+  return { bytes, ext };
 }
 
 function downloadAsBundle(items: CapturedEvent[]): void {
@@ -1425,7 +1664,9 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-action="download" class="${isOversize ? '' : 'secondary'}">⤓ Download JSON</button>
       <button data-copy="curl" class="secondary">cURL · ${fmtSize(curlText.length)}</button>
       <button data-copy="response" class="secondary">Response · ${fmtSize(respText.length)}</button>
+      <button data-action="replay" class="secondary" title="Re-fire this request from the extension context (PRD §6.3.5)">↻ Replay</button>
     </div>
+    <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
     ${
       isOversize
@@ -1523,6 +1764,81 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       }, 1600);
     });
   });
+
+  detail.querySelectorAll<HTMLButtonElement>('[data-action="replay"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      void replayRequest(c, btn);
+    });
+  });
+}
+
+/** Methods that mutate server state — gated behind an explicit confirm()
+ *  before firing. PRD §6.3.5; OQ-M4-K resolution: destructive only. */
+const DESTRUCTIVE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Promise<void> {
+  const method = c.data.request.method.toUpperCase();
+  if (DESTRUCTIVE_METHODS.has(method)) {
+    const ok = confirm(
+      `Replay ${method} ${c.data.request.url}?\n\nThis re-fires a state-changing request. Make sure you understand what it will do on the target server.`
+    );
+    if (!ok) return;
+  }
+  const result = document.getElementById('replay-result');
+  if (!result) return;
+  result.classList.remove('hidden');
+  result.innerHTML = '<div class="replay-status">… replaying</div>';
+  const original = btn.textContent ?? '↻ Replay';
+  btn.disabled = true;
+
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(c.data.request.headers)) {
+    // Skip masked headers — sending the literal `***MASKED***` string is
+    // worse than letting the browser/extension context attach its own
+    // value where applicable.
+    if (v === '***MASKED***') continue;
+    headers[k] = v;
+  }
+
+  const start = performance.now();
+  try {
+    const resp = await fetch(c.data.request.url, {
+      method,
+      headers,
+      body: method === 'GET' || method === 'HEAD' ? undefined : (c.data.request.body ?? undefined),
+      credentials: 'omit',
+    });
+    const durationMs = Math.round(performance.now() - start);
+    const text = await resp.text().catch(() => '');
+    const sameStatus = resp.status === c.data.response.status;
+    const className = sameStatus ? 'replay-ok' : 'replay-diff';
+    result.innerHTML = `
+      <div class="replay-status ${className}">
+        <strong>${resp.status} ${escapeHtml(resp.statusText)}</strong>
+        · ${durationMs}ms
+        ${sameStatus ? '' : `<span class="hint">(original was ${c.data.response.status})</span>`}
+      </div>
+      ${
+        text
+          ? `<details class="replay-body" open>
+              <summary>Response body · ${fmtSize(text.length)}</summary>
+              <pre>${escapeHtml(text.slice(0, 8000))}${text.length > 8000 ? '\n…(truncated)' : ''}</pre>
+            </details>`
+          : ''
+      }
+      <p class="hint">Replayed from the extension context — cookies/credentials may differ from the original session.</p>
+    `;
+  } catch (err) {
+    result.innerHTML = `
+      <div class="replay-status replay-fail">
+        <strong>Network error</strong> — ${escapeHtml((err as Error).message ?? String(err))}
+      </div>
+      <p class="hint">CORS or host-permission restriction is the usual cause. The captured request is unchanged in storage.</p>
+    `;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 }
 
 // ---------- formatters ----------
@@ -1704,8 +2020,10 @@ function renderScreenshotPanel(shot: CapturedEvent | null): string {
   return `
     <div class="section">
       <h3>Screenshot at error moment</h3>
-      <img class="screenshot" src="${escapeHtml(dataUrl)}" alt="Page screenshot captured when this error fired" />
-      <p class="hint">Captured by chrome.tabs.captureVisibleTab — JPEG quality 0.7.</p>
+      <a class="screenshot-link" data-screenshot-url="${escapeHtml(dataUrl)}" title="Click to open full size in a new tab">
+        <img class="screenshot" src="${escapeHtml(dataUrl)}" alt="Page screenshot captured when this error fired" />
+      </a>
+      <p class="hint">Captured by chrome.tabs.captureVisibleTab — JPEG quality 0.7. Click to enlarge.</p>
     </div>
   `;
 }
@@ -1808,6 +2126,140 @@ function shortUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Privacy preview modal — PRD §6.4.4.
+//
+// Replaces the M4·W12 confirm() with an in-panel overlay that surfaces
+// exactly what's about to leave the user's machine: event count,
+// per-rule redaction summary, and the destination identity. OQ-M4-L
+// resolution: simple overlay + Esc, no focus trap (full ARIA dialog
+// lands in M5's a11y pass).
+// ---------------------------------------------------------------------------
+
+interface PrivacyPreviewOptions {
+  destinationLabel: string;
+  destinationDetail: string;
+  events: CapturedEvent[];
+}
+
+function showPrivacyPreview(opts: PrivacyPreviewOptions): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const overlay = document.createElement('div');
+    overlay.className = 'privacy-modal-overlay';
+
+    const redactionGroups = summarizeRedactions(opts.events);
+    const failedCount = opts.events.filter(isErrorEvent).length;
+    const detailShort = opts.destinationDetail
+      ? opts.destinationDetail.length > 64
+        ? opts.destinationDetail.slice(0, 64) + '…'
+        : opts.destinationDetail
+      : '';
+
+    overlay.innerHTML = `
+      <div class="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+        <h2 id="privacy-modal-title">Send to ${escapeHtml(opts.destinationLabel)}?</h2>
+        <ul class="privacy-modal-summary">
+          <li><strong>${opts.events.length}</strong> event${opts.events.length === 1 ? '' : 's'}${failedCount > 0 ? ` · <span class="muted">${failedCount} error${failedCount === 1 ? '' : 's'}</span>` : ''}</li>
+          ${detailShort ? `<li class="muted"><code>${escapeHtml(detailShort)}</code></li>` : ''}
+        </ul>
+        ${
+          redactionGroups.total > 0
+            ? `<div class="privacy-modal-redactions">
+                <strong>${redactionGroups.total} field${redactionGroups.total === 1 ? '' : 's'} masked at capture time</strong>
+                <ul>${redactionGroups.rows
+                  .map(
+                    (g) =>
+                      `<li><strong>${escapeHtml(g.label)}</strong> <span class="muted">— ${g.count}×</span></li>`
+                  )
+                  .join('')}</ul>
+                <p class="muted">Masked values were never written to storage (PRD §11.2) — they leave masked.</p>
+              </div>`
+            : `<p class="privacy-modal-noredactions muted">No fields matched a masking rule in this session.</p>`
+        }
+        <div class="privacy-modal-actions">
+          <button data-action="cancel" class="secondary">Cancel</button>
+          <button data-action="continue" class="primary">Continue</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const cleanup = (result: boolean): void => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      previouslyFocused?.focus?.();
+      resolve(result);
+    };
+    // Focus trap: cycle Tab / Shift+Tab between Cancel and Continue so
+    // keyboard users can't escape into the surrounding side-panel UI.
+    // PRD §11.4 + M5 W18 a11y obligation: dialog role + focus trap.
+    const focusables = (): HTMLButtonElement[] =>
+      Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup(false);
+        return;
+      }
+      if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        cleanup(true);
+        return;
+      }
+      if (e.key === 'Tab') {
+        const list = focusables();
+        if (list.length === 0) return;
+        const first = list[0]!;
+        const last = list[list.length - 1]!;
+        const active = document.activeElement;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay
+      .querySelector<HTMLButtonElement>('[data-action="cancel"]')
+      ?.addEventListener('click', () => cleanup(false));
+    overlay
+      .querySelector<HTMLButtonElement>('[data-action="continue"]')
+      ?.addEventListener('click', () => cleanup(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+
+    // Focus continue button so Enter immediately commits.
+    setTimeout(() => {
+      overlay.querySelector<HTMLButtonElement>('[data-action="continue"]')?.focus();
+    }, 10);
+  });
+}
+
+function summarizeRedactions(items: CapturedEvent[]): {
+  total: number;
+  rows: { label: string; count: number }[];
+} {
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const e of items) {
+    for (const r of e.meta?.redactions ?? []) {
+      total++;
+      counts.set(r.rule, (counts.get(r.rule) ?? 0) + 1);
+    }
+  }
+  const rows = Array.from(counts.entries())
+    .map(([rule, count]) => ({ label: lookupRuleLabel(rule), count }))
+    .sort((a, b) => b.count - a.count);
+  return { total, rows };
 }
 
 function escapeHtml(s: unknown): string {

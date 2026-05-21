@@ -12,13 +12,32 @@
           <span class="dot"></span>
           <span class="brand-name">Hindsight</span>
         </div>
-        <div class="filters">
-          <button class="filter active" data-filter="failed">Failed</button>
-          <button class="filter" data-filter="all">All</button>
-          <button id="record-toggle" class="ghost" title="Start a Tier 4 recording (PRD §6.5)">
+        <div class="filters" role="toolbar" aria-label="Capture controls">
+          <button
+            class="filter active"
+            data-filter="failed"
+            aria-pressed="true"
+            aria-label="Show only failed events"
+          >
+            Failed
+          </button>
+          <button
+            class="filter"
+            data-filter="all"
+            aria-pressed="false"
+            aria-label="Show every captured event"
+          >
+            All
+          </button>
+          <button
+            id="record-toggle"
+            class="ghost"
+            title="Start a Tier 4 recording (PRD §6.5)"
+            aria-label="Toggle recording mode"
+          >
             ● Record
           </button>
-          <button class="ghost" id="clear">Clear</button>
+          <button class="ghost" id="clear" aria-label="Clear captures for this tab">Clear</button>
         </div>
       </header>
 

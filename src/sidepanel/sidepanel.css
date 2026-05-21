@@ -170,6 +170,32 @@ button:hover {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  #record-toggle.recording {
+    animation: none;
+  }
+  .privacy-modal-overlay {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* A11y: keyboard focus rings — visible accent outline (PRD §11.4
+   transparency + M5 W18 a11y). */
+button:focus-visible,
+.filter:focus-visible,
+.share-btn:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ---------- closed-tab archive (PRD §6.1.3) ---------- */
 .archive-panel {
   border-bottom: 1px solid var(--border);
@@ -277,6 +303,15 @@ button:hover {
   border: 1px solid var(--border);
   border-radius: 4px;
   margin: 4px 0;
+}
+
+.screenshot-link {
+  display: block;
+  cursor: zoom-in;
+}
+
+.screenshot-link:hover img.screenshot {
+  border-color: var(--accent);
 }
 
 /* ---------- visual timeline scrubber (PRD §6.3.3) ---------- */
@@ -653,6 +688,179 @@ button:hover {
 }
 .copy-row button.warning:hover {
   background: rgba(245, 158, 11, 0.08);
+}
+
+/* Privacy preview modal — PRD §6.4.4 */
+.privacy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 16, 32, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: privacy-modal-fade 120ms ease;
+}
+
+@keyframes privacy-modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.privacy-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px 16px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32);
+  font-size: 13px;
+}
+
+.privacy-modal h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.privacy-modal-summary {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.privacy-modal-summary li {
+  padding: 2px 0;
+}
+
+.privacy-modal-summary code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.privacy-modal-redactions {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.privacy-modal-redactions ul {
+  margin: 6px 0 6px 16px;
+  padding: 0;
+  line-height: 1.6;
+}
+
+.privacy-modal-redactions p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+}
+
+.privacy-modal-noredactions {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.privacy-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.privacy-modal-actions button {
+  padding: 6px 14px;
+}
+
+.privacy-modal-actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1303;
+  font-weight: 600;
+}
+
+.privacy-modal-actions button.secondary {
+  background: transparent;
+  border-color: var(--border);
+}
+
+.replay-result {
+  margin: 4px 14px 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.replay-result.hidden {
+  display: none;
+}
+
+.replay-status {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.replay-status.replay-ok strong {
+  color: var(--success);
+}
+
+.replay-status.replay-diff strong {
+  color: var(--warn);
+}
+
+.replay-status.replay-fail strong {
+  color: var(--danger);
+}
+
+.replay-status .hint {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.replay-body {
+  margin-top: 6px;
+}
+
+.replay-body > summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.replay-body pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.replay-result > .hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .size-warning {
