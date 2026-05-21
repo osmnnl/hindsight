@@ -70,21 +70,35 @@ import type { ActionClickData, ActionInputData, ConsoleData, Redaction } from '@
     return 0;
   }
 
-  // ---------- Console errors + unhandled rejections (Tier 1) ----------
-  const originalConsoleError = console.error.bind(console);
-  console.error = function patchedConsoleError(...args: unknown[]): void {
-    try {
-      const data: ConsoleData = {
-        level: 'error',
-        message: formatConsoleArgs(args),
-        ...extractStackFromArgs(args),
-      };
-      post({ type: 'console.error', data });
-    } catch {
-      /* never break the page */
-    }
-    originalConsoleError(...args);
-  };
+  // ---------- Console errors + warn + info + unhandled rejections ----------
+  //   error / unhandled — Tier 1 (PRD §6.1.1 default-on, always)
+  //   warn / info       — Tier 2 (PRD §6.1.1 default-on, user-toggleable;
+  //                       toggle UI lands with the Settings Capture
+  //                       section)
+  console.error = wrapConsoleMethod('console.error', console.error, 'error');
+  console.warn = wrapConsoleMethod('console.warn', console.warn, 'warn');
+  console.info = wrapConsoleMethod('console.info', console.info, 'info');
+
+  function wrapConsoleMethod(
+    eventType: 'console.error' | 'console.warn' | 'console.info',
+    original: (...args: unknown[]) => void,
+    level: ConsoleData['level']
+  ): (...args: unknown[]) => void {
+    const boundOriginal = original.bind(console);
+    return function patchedConsole(...args: unknown[]): void {
+      try {
+        const data: ConsoleData = {
+          level,
+          message: formatConsoleArgs(args),
+          ...extractStackFromArgs(args),
+        };
+        post({ type: eventType, data });
+      } catch {
+        /* never break the page */
+      }
+      boundOriginal(...args);
+    };
+  }
 
   window.addEventListener('error', (e) => {
     try {
