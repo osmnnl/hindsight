@@ -13,7 +13,7 @@ import {
   type RawCapture,
 } from '@/lib/runtime-messages';
 import { MASKED, shouldMaskFormField } from '@/lib/masking';
-import type { ActionClickData, ActionInputData, Redaction } from '@/types/events';
+import type { ActionClickData, ActionInputData, ConsoleData, Redaction } from '@/types/events';
 
 (() => {
   function post(capture: RawCapture, redactions?: Redaction[]): void {
@@ -65,6 +65,93 @@ import type { ActionClickData, ActionInputData, Redaction } from '@/types/events
     if (b === 1) return 1;
     if (b === 2) return 2;
     return 0;
+  }
+
+  // ---------- Console errors + unhandled rejections (Tier 1) ----------
+  const originalConsoleError = console.error.bind(console);
+  console.error = function patchedConsoleError(...args: unknown[]): void {
+    try {
+      const data: ConsoleData = {
+        level: 'error',
+        message: formatConsoleArgs(args),
+        ...extractStackFromArgs(args),
+      };
+      post({ type: 'console.error', data });
+    } catch {
+      /* never break the page */
+    }
+    originalConsoleError(...args);
+  };
+
+  window.addEventListener('error', (e) => {
+    try {
+      const data: ConsoleData = {
+        level: 'unhandled',
+        message: e.message || String(e.error ?? '[unknown error]'),
+        ...(e.error instanceof Error && e.error.stack ? { stack: e.error.stack } : {}),
+        ...(e.filename
+          ? {
+              source: {
+                file: e.filename,
+                line: e.lineno || 0,
+                ...(e.colno ? { column: e.colno } : {}),
+              },
+            }
+          : {}),
+      };
+      post({ type: 'console.unhandled', data });
+    } catch {
+      /* never break the page */
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (e) => {
+    try {
+      const reason = e.reason;
+      let message: string;
+      let stack: string | undefined;
+      if (reason instanceof Error) {
+        message = reason.message;
+        stack = reason.stack;
+      } else if (typeof reason === 'string') {
+        message = reason;
+      } else {
+        try {
+          message = JSON.stringify(reason);
+        } catch {
+          message = String(reason);
+        }
+      }
+      const data: ConsoleData = {
+        level: 'unhandled',
+        message,
+        ...(stack ? { stack } : {}),
+      };
+      post({ type: 'console.unhandled', data });
+    } catch {
+      /* never break the page */
+    }
+  });
+
+  function formatConsoleArgs(args: unknown[]): string {
+    return args
+      .map((a) => {
+        if (typeof a === 'string') return a;
+        if (a instanceof Error) return a.message;
+        try {
+          return JSON.stringify(a);
+        } catch {
+          return String(a);
+        }
+      })
+      .join(' ');
+  }
+
+  function extractStackFromArgs(args: unknown[]): { stack?: string } {
+    for (const a of args) {
+      if (a instanceof Error && a.stack) return { stack: a.stack };
+    }
+    return {};
   }
 
   // ---------- Form input (Tier 2) ----------
