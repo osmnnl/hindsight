@@ -114,8 +114,14 @@ const TIER_2_TYPES: ReadonlySet<EventType> = new Set([
   'action.input',
 ]);
 
+const TIER_3_TYPES: ReadonlySet<EventType> = new Set(['performance.longtask', 'performance.cls']);
+
 function isTier2(type: EventType): boolean {
   return TIER_2_TYPES.has(type);
+}
+
+function isTier3(type: EventType): boolean {
+  return TIER_3_TYPES.has(type);
 }
 
 function loadPrivacyConfig(): Promise<PrivacyConfig> {
@@ -211,6 +217,11 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   // Tier 2 toggle. OQ-M2-J: only NEW captures are filtered — existing
   // buffer stays untouched. Tier 1 cannot be disabled per PRD §6.1.1.
   if (!captureCfg.tier2Enabled && isTier2(msg.capture.type)) return;
+
+  // Tier 3 toggle (OQ-M3-J) — performance observers gated; screenshot
+  // capture stays on because it's triggered server-side from the error
+  // path, not from a page-world observer.
+  if (!captureCfg.tier3Enabled && isTier3(msg.capture.type)) return;
 
   // Apply capture-time masking before envelope construction. The result
   // is a new RawCapture variant with masked data and a redaction list.

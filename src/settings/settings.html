@@ -144,6 +144,18 @@
           </div>
 
           <div class="subsection">
+            <h3>Tier 3 events</h3>
+            <p class="hint">
+              Performance long tasks (>100 ms) and layout shifts. Screenshots on error stay on
+              regardless of this toggle.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="tier3-toggle" />
+              Capture performance long tasks + layout shifts
+            </label>
+          </div>
+
+          <div class="subsection">
             <h3>Per-tab buffer</h3>
             <p class="hint">
               Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move

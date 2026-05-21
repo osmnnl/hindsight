@@ -79,6 +79,11 @@ export interface CaptureSettings {
    *  Tier 1 cannot be disabled per PRD §6.1.1. OQ-M2-J: turning this
    *  off only stops new captures — existing event buffers stay intact. */
   tier2Enabled: boolean;
+  /** When false, the service worker drops Tier 3 performance events
+   *  (performance.longtask, performance.cls). Screenshot-on-error
+   *  stays on regardless — OQ-M3-J: screenshot is essential triage
+   *  data, not a performance-observer artifact. */
+  tier3Enabled: boolean;
   /** Per-tab rolling buffer cap. */
   maxEventsPerTab: MaxEventsPerTab;
   schemaVersion: number;
@@ -86,6 +91,7 @@ export interface CaptureSettings {
 
 export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
   tier2Enabled: true,
+  tier3Enabled: true,
   maxEventsPerTab: 200,
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
