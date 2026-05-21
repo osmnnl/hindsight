@@ -200,6 +200,24 @@ body {
   outline-offset: 1px;
 }
 
+/* Sharing section webhook URL inputs — full-width monospace fields. */
+#section-sharing .subsection input[type='url'] {
+  width: 100%;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
+#section-sharing .subsection input[type='url']:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .field .hint {
   margin: 0;
   font-size: 12.5px;

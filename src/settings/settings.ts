@@ -5,14 +5,17 @@ import {
   readDetectionSettings,
   readGeneralSettings,
   readPrivacySettings,
+  readSharingSettings,
   writeCaptureSettings,
   writeDetectionSettings,
   writeGeneralSettings,
   writePrivacySettings,
+  writeSharingSettings,
   type CustomPatternSetting,
   type MaxEventsPerTab,
   type NotificationFrequency,
   type PrivacySettings,
+  type SharingSettings,
   type ThemePreference,
 } from '@/lib/settings';
 import {
@@ -37,6 +40,7 @@ async function init(): Promise<void> {
   await initPrivacy();
   await initCapture();
   await initDetection();
+  await initSharing();
 }
 
 // ---------------------------------------------------------------------------
@@ -448,6 +452,50 @@ async function initCapture(): Promise<void> {
     const v = Number(maxEvents.value) as MaxEventsPerTab;
     void writeCaptureSettings({ maxEventsPerTab: v }).then(flashCapture);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Sharing — webhook URLs (PRD §6.4 + §6.6.1)
+// ---------------------------------------------------------------------------
+
+async function initSharing(): Promise<void> {
+  const slack = document.getElementById('slack-webhook');
+  const discord = document.getElementById('discord-webhook');
+  const teams = document.getElementById('teams-webhook');
+  if (
+    !(slack instanceof HTMLInputElement) ||
+    !(discord instanceof HTMLInputElement) ||
+    !(teams instanceof HTMLInputElement)
+  ) {
+    return;
+  }
+
+  const current = await readSharingSettings();
+  slack.value = current.slackWebhook;
+  discord.value = current.discordWebhook;
+  teams.value = current.teamsWebhook;
+
+  const wire = (input: HTMLInputElement, key: keyof SharingSettings): void => {
+    const persist = debounce(() => {
+      void writeSharingSettings({ [key]: input.value.trim() }).then(flashSharing);
+    }, 350);
+    input.addEventListener('input', persist);
+    input.addEventListener('blur', persist);
+  };
+  wire(slack, 'slackWebhook');
+  wire(discord, 'discordWebhook');
+  wire(teams, 'teamsWebhook');
+}
+
+let sharingFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashSharing(): void {
+  const target = document.getElementById('sharing-status');
+  if (!target) return;
+  target.textContent = '✓ Saved';
+  if (sharingFlashTimer) clearTimeout(sharingFlashTimer);
+  sharingFlashTimer = setTimeout(() => {
+    target.textContent = '';
+  }, SAVE_FLASH_MS);
 }
 
 // ---------------------------------------------------------------------------

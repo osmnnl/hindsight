@@ -127,6 +127,30 @@ export const DEFAULT_DETECTION_SETTINGS: DetectionSettings = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 
+// ---------------------------------------------------------------------------
+// Schema — Sharing (PRD §6.4 + §6.6.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * One webhook destination. URLs are kept verbatim — they're already
+ * the user's secret to manage. M4·W13 wires the actual POST pipeline;
+ * this schema lands now so the Settings UI can persist user input
+ * during W12.
+ */
+export interface SharingSettings {
+  slackWebhook: string;
+  discordWebhook: string;
+  teamsWebhook: string;
+  schemaVersion: number;
+}
+
+export const DEFAULT_SHARING_SETTINGS: SharingSettings = {
+  slackWebhook: '',
+  discordWebhook: '',
+  teamsWebhook: '',
+  schemaVersion: SETTINGS_SCHEMA_VERSION,
+};
+
 export const SettingsKeys = {
   general: 'settings/general',
   capture: 'settings/capture',
@@ -218,4 +242,23 @@ export async function writeDetectionSettings(patch: Partial<DetectionSettings>):
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
   await chrome.storage.sync.set({ [SettingsKeys.detection]: next });
+}
+
+export async function readSharingSettings(): Promise<SharingSettings> {
+  const stored = await chrome.storage.sync.get(SettingsKeys.sharing);
+  const value = stored[SettingsKeys.sharing] as Partial<SharingSettings> | undefined;
+  if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+    return { ...DEFAULT_SHARING_SETTINGS };
+  }
+  return { ...DEFAULT_SHARING_SETTINGS, ...value };
+}
+
+export async function writeSharingSettings(patch: Partial<SharingSettings>): Promise<void> {
+  const current = await readSharingSettings();
+  const next: SharingSettings = {
+    ...current,
+    ...patch,
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+  };
+  await chrome.storage.sync.set({ [SettingsKeys.sharing]: next });
 }

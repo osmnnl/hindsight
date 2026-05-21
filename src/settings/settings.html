@@ -17,9 +17,7 @@
         <button class="section-link" data-section="privacy">Privacy</button>
         <button class="section-link" data-section="capture">Capture</button>
         <button class="section-link" data-section="detection">Detection</button>
-        <button class="section-link disabled" data-section="sharing" disabled>
-          Sharing <span class="badge">M4</span>
-        </button>
+        <button class="section-link" data-section="sharing">Sharing</button>
         <button class="section-link disabled" data-section="advanced" disabled>
           Advanced <span class="badge">M2+</span>
         </button>
@@ -216,6 +214,62 @@
           </div>
 
           <div id="detection-status" class="save-status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section id="section-sharing" class="section">
+          <h2>Sharing</h2>
+          <p class="lead">
+            Optional webhook URLs for Slack, Discord, and Microsoft Teams. Hindsight POSTs shareable
+            bug reports directly to these endpoints; URLs are stored in
+            <code>chrome.storage.sync</code> alongside the rest of your settings. Leave blank to
+            disable a destination.
+          </p>
+
+          <div class="subsection">
+            <h3>Slack incoming webhook</h3>
+            <p class="hint">
+              Create one at <code>api.slack.com/apps</code> → Incoming Webhooks. URL looks like
+              <code>https://hooks.slack.com/services/...</code>.
+            </p>
+            <input
+              type="url"
+              id="slack-webhook"
+              placeholder="https://hooks.slack.com/services/..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="subsection">
+            <h3>Discord webhook</h3>
+            <p class="hint">
+              Server settings → Integrations → Create webhook. URL looks like
+              <code>https://discord.com/api/webhooks/...</code>.
+            </p>
+            <input
+              type="url"
+              id="discord-webhook"
+              placeholder="https://discord.com/api/webhooks/..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="subsection">
+            <h3>Microsoft Teams webhook</h3>
+            <p class="hint">
+              Channel → ⋯ → Connectors → Incoming Webhook. Configurable outlook.office.com URL.
+            </p>
+            <input
+              type="url"
+              id="teams-webhook"
+              placeholder="https://*.webhook.office.com/..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+
+          <div id="sharing-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
       </main>
     </div>
