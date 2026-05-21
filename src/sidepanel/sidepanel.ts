@@ -27,6 +27,8 @@ import { toHar } from '@/lib/har';
 import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
+import { readSharingSettings, type SharingSettings } from '@/lib/settings';
+import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
@@ -970,8 +972,13 @@ function renderBulkBar(data: CapturedEvent[]): void {
       <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
       <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
       <button id="download-bundle" title="Download as a self-contained HTML replay bundle (PRD §5)">⤓ Bundle</button>
+      <span id="share-buttons" class="share-buttons"></span>
     </div>
   `;
+  // Async-populate the share buttons after the bulk-bar HTML lands so
+  // the render() function stays synchronous. Sharing config lives in
+  // chrome.storage.sync and is rarely changed mid-session.
+  void renderShareButtons(data);
 
   document.getElementById('copy-all')?.addEventListener('click', async (clickEvent) => {
     const btn = clickEvent.currentTarget as HTMLButtonElement;
@@ -1041,6 +1048,62 @@ function renderBulkBar(data: CapturedEvent[]): void {
 /** Generates and downloads a standalone HTML replay bundle (PRD §5).
  *  Works on the full mixed event list; the viewer inside the bundle
  *  handles per-type rendering itself. */
+/** Renders Send-to-<destination> buttons for every webhook URL the
+ *  user has configured. Privacy preview before send (PRD §6.4.4):
+ *  the user gets a confirm() dialog summarizing event count + the
+ *  destination before any network request fires. */
+async function renderShareButtons(data: CapturedEvent[]): Promise<void> {
+  const container = document.getElementById('share-buttons');
+  if (!container) return;
+  let sharing: SharingSettings;
+  try {
+    sharing = await readSharingSettings();
+  } catch {
+    return;
+  }
+  const configured: Array<{ dest: WebhookDestination; url: string; label: string }> = [];
+  if (sharing.slackWebhook)
+    configured.push({ dest: 'slack', url: sharing.slackWebhook, label: 'Slack' });
+  if (sharing.discordWebhook)
+    configured.push({ dest: 'discord', url: sharing.discordWebhook, label: 'Discord' });
+  if (sharing.teamsWebhook)
+    configured.push({ dest: 'teams', url: sharing.teamsWebhook, label: 'Teams' });
+
+  container.innerHTML = configured
+    .map((c) => `<button class="share-btn" data-dest="${c.dest}">→ ${escapeHtml(c.label)}</button>`)
+    .join('');
+
+  container.querySelectorAll<HTMLButtonElement>('.share-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const dest = btn.dataset.dest as WebhookDestination;
+      const entry = configured.find((c) => c.dest === dest);
+      if (!entry) return;
+      const totalRedactions = data.reduce((n, e) => n + (e.meta?.redactions?.length ?? 0), 0);
+      const confirmed = confirm(
+        `Send ${data.length} event${data.length === 1 ? '' : 's'} to ${entry.label}?\n` +
+          (totalRedactions > 0
+            ? `${totalRedactions} field${totalRedactions === 1 ? '' : 's'} are masked at capture time and stay masked in the payload.\n`
+            : '') +
+          `\nWebhook URL: ${entry.url.slice(0, 40)}…\n\nContinue?`
+      );
+      if (!confirmed) return;
+      const original = btn.textContent ?? '';
+      btn.disabled = true;
+      btn.textContent = '… sending';
+      const result = await dispatchToWebhook(dest, entry.url, data);
+      if (result.ok) {
+        btn.textContent = `✓ Sent${result.truncated ? ' (truncated)' : ''}`;
+      } else {
+        btn.textContent = `✗ ${result.error ?? 'failed'}`;
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = original;
+      }, 2400);
+    });
+  });
+}
+
 function downloadAsBundle(items: CapturedEvent[]): void {
   const html = generateBundle(items, { appVersion: __APP_VERSION__ });
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });

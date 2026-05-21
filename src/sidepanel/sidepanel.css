@@ -129,6 +129,31 @@ button:hover {
   color: var(--text);
 }
 
+.share-buttons {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.share-btn {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.share-btn:hover {
+  border-color: var(--accent);
+}
+
+.share-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 #record-toggle.recording {
   color: var(--danger);
   border-color: var(--danger);
