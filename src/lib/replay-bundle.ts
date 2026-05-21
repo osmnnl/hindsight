@@ -67,6 +67,7 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
     <section class="toolbar" aria-label="Event filters">
       <div class="chips">
         <button class="chip" data-filter="failed">Failed</button>
+        <button class="chip" data-filter="api" title="Hide static assets and framework internals">API</button>
         <button class="chip active" data-filter="all">All</button>
       </div>
       <input id="search-input" type="search" placeholder="Search URLs, methods, messages…" aria-label="Search events" />
@@ -255,6 +256,30 @@ const VIEWER_JS = `
     var s = e.data.response.status;
     return s === 0 || s >= 400 || e.data.error != null;
   }
+  // Inline mirror of src/types/events.ts isApiRequest. Bundle stays
+  // self-contained — no import path at viewer runtime.
+  var ASSET_EXTS_BUNDLE = { js:1, mjs:1, cjs:1, jsx:1, ts:1, tsx:1, css:1, scss:1, sass:1, less:1, png:1, jpg:1, jpeg:1, gif:1, svg:1, webp:1, avif:1, ico:1, bmp:1, woff:1, woff2:1, ttf:1, eot:1, otf:1, map:1, wasm:1, mp4:1, webm:1, mp3:1, ogg:1 };
+  function isApiRequest(e) {
+    if (e.type !== 'network.fetch' && e.type !== 'network.xhr') return false;
+    var url = e.data.request.url;
+    if (url.indexOf('/_next/') >= 0) return false;
+    if (url.indexOf('/__webpack') >= 0 || url.indexOf('/__vite') >= 0 || url.indexOf('/_hot/') >= 0) return false;
+    if (url.indexOf('/__nextjs') >= 0 || url.indexOf('/sockjs-node') >= 0) return false;
+    var clean = (url.split('?')[0] || '').split('#')[0].toLowerCase();
+    var lastSeg = clean.split('/').pop() || '';
+    var dot = lastSeg.lastIndexOf('.');
+    var ext = dot >= 0 ? lastSeg.slice(dot + 1) : '';
+    if (ASSET_EXTS_BUNDLE[ext]) return false;
+    var ct = (e.data.response.headers['content-type'] || e.data.response.headers['Content-Type'] || '').toLowerCase();
+    if (ct) {
+      if (ct.indexOf('text/css') === 0) return false;
+      if (ct.indexOf('image/') === 0) return false;
+      if (ct.indexOf('font/') === 0) return false;
+      if (ct.indexOf('javascript') >= 0) return false;
+      if (ct.indexOf('video/') === 0 || ct.indexOf('audio/') === 0) return false;
+    }
+    return true;
+  }
 
   function row(e) {
     if (e.type === 'network.fetch' || e.type === 'network.xhr') {
@@ -300,6 +325,8 @@ const VIEWER_JS = `
       if (filter === 'failed') {
         var failed = isFailedNetwork(e) || e.type === 'console.error' || e.type === 'console.unhandled';
         if (!failed) return false;
+      } else if (filter === 'api') {
+        if (!isApiRequest(e)) return false;
       }
       return eventMatchesSearch(e, q);
     });

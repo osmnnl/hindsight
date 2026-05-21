@@ -13,7 +13,7 @@ import type {
   NetworkXhrEvent,
   Redaction,
 } from '@/types/events';
-import { isErrorEvent, isFailedNetwork } from '@/types/events';
+import { isApiRequest, isErrorEvent, isFailedNetwork } from '@/types/events';
 import {
   type ClearArchiveRuntimeMessage,
   type ClearEventsRuntimeMessage,
@@ -54,7 +54,15 @@ const SENSITIVE_HEADERS = new Set([
 // and trigger a JSON download so the receiver gets both pieces.
 const SLACK_SAFE_THRESHOLD = 3000;
 
-type FilterMode = 'failed' | 'all';
+type FilterMode = 'failed' | 'api' | 'all';
+
+/** Applies the active filter to an event list. Centralised so the
+ *  list, bulk bar, empty state, and Esc-back path stay in sync. */
+function filteredEvents(all: CapturedEvent[], mode: FilterMode): CapturedEvent[] {
+  if (mode === 'failed') return all.filter(isErrorEvent);
+  if (mode === 'api') return all.filter(isApiRequest);
+  return all;
+}
 
 function isRequestLike(e: CapturedEvent): e is NetworkRequestEvent {
   return e.type === 'network.fetch' || e.type === 'network.xhr';
@@ -313,7 +321,7 @@ async function init(): Promise<void> {
     if (!detail || detail.classList.contains('hidden')) return;
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+    const data = filteredEvents(events, filterMode);
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
 
@@ -438,7 +446,10 @@ async function consumePopupFocus(): Promise<void> {
     const stored = await chrome.storage.local.get([FOCUS_EVENT_KEY, FOCUS_FILTER_KEY]);
     const filter = stored[FOCUS_FILTER_KEY];
     const eventId = stored[FOCUS_EVENT_KEY];
-    if (typeof filter === 'string' && (filter === 'failed' || filter === 'all')) {
+    if (
+      typeof filter === 'string' &&
+      (filter === 'failed' || filter === 'api' || filter === 'all')
+    ) {
       filterMode = filter;
     }
     if (typeof eventId === 'string' && eventId.length > 0) {
@@ -478,7 +489,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (!filterChange && !eventChange) return;
 
   const nextFilter = filterChange?.newValue;
-  if (typeof nextFilter === 'string' && (nextFilter === 'failed' || nextFilter === 'all')) {
+  if (
+    typeof nextFilter === 'string' &&
+    (nextFilter === 'failed' || nextFilter === 'api' || nextFilter === 'all')
+  ) {
     setFilter(nextFilter);
   }
   const nextEventId = eventChange?.newValue;
@@ -624,15 +638,27 @@ function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
-  const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+  const data = filteredEvents(events, filterMode);
 
   renderScrubber(data);
 
   if (data.length === 0) {
+    const emptyTitle =
+      filterMode === 'failed'
+        ? 'No errors yet'
+        : filterMode === 'api'
+          ? 'No API calls yet'
+          : 'No events yet';
+    const emptySub =
+      filterMode === 'failed'
+        ? 'Switch to "All" to see every captured event.'
+        : filterMode === 'api'
+          ? 'Framework chunks, static assets, and prefetches are hidden — browse the page and trigger a data fetch.'
+          : 'Browse the page — clicks, requests, navigations, console errors appear here.';
     list.innerHTML = `
       <div class="empty">
-        <div class="empty-title">${filterMode === 'failed' ? 'No errors yet' : 'No events yet'}</div>
-        <div class="empty-sub">${filterMode === 'failed' ? 'Switch to "All" to see every captured event.' : 'Browse the page — clicks, requests, navigations, console errors appear here.'}</div>
+        <div class="empty-title">${emptyTitle}</div>
+        <div class="empty-sub">${emptySub}</div>
       </div>`;
     bulkBar.classList.add('hidden');
     return;
@@ -1115,10 +1141,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
       btn.textContent = 'Copy failed';
     }
     btn.classList.add('copied');
-    setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
-      2200
-    );
+    setTimeout(() => renderBulkBar(filteredEvents(events, filterMode)), 2200);
   });
 
   document.getElementById('download-all')?.addEventListener('click', (clickEvent) => {
@@ -1126,10 +1149,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
     downloadEventsAsJson(data);
     btn.textContent = '✓ Downloaded';
     btn.classList.add('copied');
-    setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
-      1800
-    );
+    setTimeout(() => renderBulkBar(filteredEvents(events, filterMode)), 1800);
   });
 
   document.getElementById('download-har')?.addEventListener('click', (clickEvent) => {
@@ -1142,10 +1162,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
     } catch {
       btn.textContent = 'No requests';
     }
-    setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
-      1800
-    );
+    setTimeout(() => renderBulkBar(filteredEvents(events, filterMode)), 1800);
   });
 
   document.getElementById('download-bundle')?.addEventListener('click', (clickEvent) => {
@@ -1153,10 +1170,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
     downloadAsBundle(data);
     btn.textContent = '✓ Bundle ⤓';
     btn.classList.add('copied');
-    setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
-      1800
-    );
+    setTimeout(() => renderBulkBar(filteredEvents(events, filterMode)), 1800);
   });
 
   document.getElementById('download-zip')?.addEventListener('click', (clickEvent) => {
@@ -1169,10 +1183,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
     } catch {
       btn.textContent = 'ZIP failed';
     }
-    setTimeout(
-      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
-      1800
-    );
+    setTimeout(() => renderBulkBar(filteredEvents(events, filterMode)), 1800);
   });
 }
 
@@ -1557,7 +1568,7 @@ function showSimpleDetail(e: CapturedEvent): void {
   document.getElementById('back')?.addEventListener('click', () => {
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+    const data = filteredEvents(events, filterMode);
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
   document.getElementById('bulk-bar')?.classList.add('hidden');
@@ -1710,7 +1721,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   document.getElementById('back')?.addEventListener('click', () => {
     detail.classList.add('hidden');
     detail.innerHTML = '';
-    const data = filterMode === 'failed' ? events.filter(isErrorEvent) : events;
+    const data = filteredEvents(events, filterMode);
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
 

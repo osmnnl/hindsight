@@ -379,6 +379,94 @@ export function isErrorEvent(e: CapturedEvent): boolean {
   return isFailedNetwork(e);
 }
 
+/**
+ * Heuristic: "is this a real API/data fetch as opposed to framework
+ * plumbing or a static asset?". Used by the side panel + replay
+ * bundle viewer's `API` filter — Next.js (and any modern SPA framework)
+ * generates tens-to-hundreds of internal requests per page load
+ * (chunked JS, prefetched data, image optimizer, fonts) that drown
+ * out the actual API calls the user wants to debug.
+ *
+ * Decision tree:
+ *   1. Must be network.fetch / network.xhr.
+ *   2. Reject framework internals: /_next/, /__webpack, /__vite, /_hot/, /__nextjs.
+ *   3. Reject by URL extension (.js, .css, .png, .woff, .map, ...).
+ *   4. Reject by response content-type (text/css, image/*, font/*, *javascript*).
+ *   5. Otherwise keep — missing content-type defaults to "kept" so we
+ *      don't lose CORS preflights, streaming endpoints, or odd backends.
+ *
+ * False negatives (real APIs we skip) are worse than false positives
+ * (noise we let through), so the heuristic is conservative.
+ */
+export function isApiRequest(e: CapturedEvent): boolean {
+  if (e.type !== 'network.fetch' && e.type !== 'network.xhr') return false;
+
+  const url = e.data.request.url;
+
+  // Framework internals — most extensions never want to see these.
+  if (url.includes('/_next/')) return false;
+  if (url.includes('/__webpack') || url.includes('/__vite') || url.includes('/_hot/')) return false;
+  if (url.includes('/__nextjs')) return false;
+  if (url.includes('/sockjs-node')) return false;
+
+  // Strip query + fragment, take final segment's extension.
+  const clean = url.split('?')[0]?.split('#')[0]?.toLowerCase() ?? '';
+  const lastSeg = clean.split('/').pop() ?? '';
+  const dot = lastSeg.lastIndexOf('.');
+  const ext = dot >= 0 ? lastSeg.slice(dot + 1) : '';
+  const ASSET_EXTS = new Set([
+    'js',
+    'mjs',
+    'cjs',
+    'jsx',
+    'ts',
+    'tsx',
+    'css',
+    'scss',
+    'sass',
+    'less',
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'svg',
+    'webp',
+    'avif',
+    'ico',
+    'bmp',
+    'woff',
+    'woff2',
+    'ttf',
+    'eot',
+    'otf',
+    'map',
+    'wasm',
+    'mp4',
+    'webm',
+    'mp3',
+    'ogg',
+  ]);
+  if (ASSET_EXTS.has(ext)) return false;
+
+  // Content-type based reject. Header lookup is case-insensitive in
+  // HTTP but our captured map preserves the original case, so check
+  // both common spellings.
+  const ct = (
+    e.data.response.headers['content-type'] ??
+    e.data.response.headers['Content-Type'] ??
+    ''
+  ).toLowerCase();
+  if (ct) {
+    if (ct.startsWith('text/css')) return false;
+    if (ct.startsWith('image/')) return false;
+    if (ct.startsWith('font/')) return false;
+    if (ct.includes('javascript')) return false;
+    if (ct.startsWith('video/') || ct.startsWith('audio/')) return false;
+  }
+
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Session envelope
 // ---------------------------------------------------------------------------
