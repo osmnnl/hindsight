@@ -63,6 +63,13 @@ export function formatWebhookPayload(
   };
 }
 
+/** Hard timeout for a single webhook POST. A misconfigured URL
+ *  (typo, localhost:9999, internal-only host) would otherwise leave
+ *  the sidepanel UI in "… sending" forever. PRD §13.1 doesn't gate
+ *  user-initiated network calls, but the UX commitment is that no
+ *  share button hangs indefinitely. */
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
 /**
  * Posts the formatted payload to the destination webhook. Returns
  * a result object instead of throwing so callers can render a
@@ -72,18 +79,27 @@ export async function sendWebhook(
   url: string,
   payload: Record<string, unknown>
 ): Promise<WebhookSendResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
     if (!res.ok) {
       return { ok: false, status: res.status, error: `HTTP ${res.status}` };
     }
     return { ok: true, status: res.status };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    const err = e as Error;
+    if (err.name === 'AbortError') {
+      return { ok: false, error: `timeout after ${WEBHOOK_TIMEOUT_MS / 1000}s` };
+    }
+    return { ok: false, error: err.message };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

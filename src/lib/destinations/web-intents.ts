@@ -70,14 +70,26 @@ function buildIntent(
   let url = composeUrl(baseUrl, titleParam, title, bodyParam, body);
   if (url.length > URL_LENGTH_SAFE_MAX) {
     let detail = Math.max(1, Math.floor(events.length / 2));
+    let bestFit: string | null = null;
     while (detail >= 1) {
       body = toMarkdownReport(events, { title, maxDetailEvents: detail });
       url = composeUrl(baseUrl, titleParam, title, bodyParam, body);
-      if (url.length <= URL_LENGTH_SAFE_MAX) break;
+      if (url.length <= URL_LENGTH_SAFE_MAX) {
+        bestFit = url;
+        break;
+      }
       if (detail === 1) break;
       detail = Math.max(1, Math.floor(detail / 2));
     }
     truncated = true;
+    // Even the leanest body (one event, no narrative) overflows — fall
+    // back to a stub that explains the situation so the URL still fits
+    // the browser's hard cap. The recipient can ask for the ZIP / HAR
+    // export instead.
+    if (!bestFit) {
+      const stub = `# ${title}\n\n_Bug report exceeded the URL length limit (${url.length.toLocaleString()} chars). Ask the reporter for the .zip or .har export instead — they contain the full session._`;
+      url = composeUrl(baseUrl, titleParam, title, bodyParam, stub);
+    }
   }
   return { url, truncated };
 }
