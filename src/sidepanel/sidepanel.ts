@@ -413,32 +413,22 @@ function render(): void {
   }
 
   renderedById.clear();
-  // Newest first — same order as before. Each row gets a data-event-id
-  // so the delegated click handler on the list container can resolve it.
-  const html = data
-    .slice()
-    .reverse()
-    .map((e) => {
-      renderedById.set(e.id, e);
-      const row = formatRow(e);
-      return `<div class="item ${row.className}" data-event-id="${escapeHtml(e.id)}">
-        <div class="status">${escapeHtml(row.statusBadge)}</div>
-        <div class="method">${escapeHtml(row.method)}</div>
-        <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
-        <div class="time">${fmtTime(row.timestamp)}</div>
-        <div class="duration">${escapeHtml(row.duration)}</div>
-      </div>`;
-    })
-    .join('');
-  list.innerHTML = html;
+  list.innerHTML = renderListHtml(data);
 
   // One delegated click listener on the list — independent of how many
-  // rows are in the DOM. Avoids the 1000-listener footprint that the
-  // per-row addEventListener pattern accumulated for power users.
+  // rows are in the DOM. Also handles cluster expand/collapse via
+  // [data-cluster-head] toggle.
   if (!listDelegationWired) {
     list.addEventListener('click', (clickEvent) => {
       const target = clickEvent.target;
-      const row = target instanceof Element ? target.closest<HTMLElement>('[data-event-id]') : null;
+      if (!(target instanceof Element)) return;
+      const clusterToggle = target.closest<HTMLElement>('[data-cluster-toggle]');
+      if (clusterToggle) {
+        const headId = clusterToggle.dataset.clusterToggle;
+        if (headId) toggleCluster(headId);
+        return;
+      }
+      const row = target.closest<HTMLElement>('[data-event-id]');
       if (!row) return;
       const id = row.dataset.eventId;
       if (!id) return;
@@ -449,6 +439,91 @@ function render(): void {
   }
 
   renderBulkBar(data);
+}
+
+// Set of cluster heads currently expanded. Persists across renders.
+const expandedClusters = new Set<string>();
+
+function toggleCluster(headId: string): void {
+  if (expandedClusters.has(headId)) expandedClusters.delete(headId);
+  else expandedClusters.add(headId);
+  render();
+}
+
+/** Returns the HTML for the visible event list. Newest-first, with
+ *  cascade clusters collapsed under their head (PRD §6.2.3). */
+function renderListHtml(data: CapturedEvent[]): string {
+  // Build cluster index: headId → members (excluding head itself).
+  const membersByHead = new Map<string, CapturedEvent[]>();
+  for (const e of data) {
+    const head = e.meta?.cascadeOf;
+    if (!head) continue;
+    const arr = membersByHead.get(head) ?? [];
+    arr.push(e);
+    membersByHead.set(head, arr);
+  }
+
+  const headIds = new Set(membersByHead.keys());
+  const memberIds = new Set<string>();
+  for (const arr of membersByHead.values()) {
+    for (const e of arr) memberIds.add(e.id);
+  }
+
+  const reversed = data.slice().reverse();
+  const parts: string[] = [];
+
+  for (const e of reversed) {
+    // Skip members — they render inside their cluster head's expansion.
+    if (memberIds.has(e.id)) continue;
+    renderedById.set(e.id, e);
+
+    if (headIds.has(e.id)) {
+      const members = membersByHead.get(e.id) ?? [];
+      // Register members so click → detail still works when expanded.
+      for (const m of members) renderedById.set(m.id, m);
+      const expanded = expandedClusters.has(e.id);
+      parts.push(renderClusterHead(e, members, expanded));
+      if (expanded) {
+        for (const m of [...members].reverse()) parts.push(renderEventRow(m, true));
+      }
+    } else {
+      parts.push(renderEventRow(e, false));
+    }
+  }
+  return parts.join('');
+}
+
+function renderEventRow(e: CapturedEvent, indented: boolean): string {
+  const row = formatRow(e);
+  return `<div class="item ${row.className}${indented ? ' cluster-member' : ''}" data-event-id="${escapeHtml(e.id)}">
+    <div class="status">${escapeHtml(row.statusBadge)}</div>
+    <div class="method">${escapeHtml(row.method)}</div>
+    <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
+    <div class="time">${fmtTime(row.timestamp)}</div>
+    <div class="duration">${escapeHtml(row.duration)}</div>
+  </div>`;
+}
+
+function renderClusterHead(
+  head: CapturedEvent,
+  members: CapturedEvent[],
+  expanded: boolean
+): string {
+  const row = formatRow(head);
+  const arrow = expanded ? '▾' : '▸';
+  const memberCount = members.length;
+  const label = `cluster · ${memberCount} more`;
+  return `<div class="item cluster-head ${row.className}" data-event-id="${escapeHtml(head.id)}">
+    <div class="status">${escapeHtml(row.statusBadge)}</div>
+    <div class="method">${escapeHtml(row.method)}</div>
+    <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
+    <div class="time">${fmtTime(row.timestamp)}</div>
+    <div class="duration">
+      <button class="cluster-toggle" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}">
+        <span aria-hidden="true">${arrow}</span> ${escapeHtml(label)}
+      </button>
+    </div>
+  </div>`;
 }
 
 // ---------------------------------------------------------------------------

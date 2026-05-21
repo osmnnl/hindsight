@@ -353,6 +353,33 @@ button:hover {
   border-left-color: #ec4899;
 }
 
+/* Cluster collapse (PRD §6.2.3) — heads carry a toggle button; members
+   indent one column when expanded so the grouping reads visually. */
+.item.cluster-head .duration {
+  text-align: right;
+}
+
+.item.cluster-member {
+  padding-left: 28px;
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.cluster-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cluster-toggle:hover {
+  border-color: var(--accent);
+}
+
 .item.failed .status {
   color: var(--danger);
   background: rgba(239, 68, 68, 0.12);
