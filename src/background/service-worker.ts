@@ -7,8 +7,7 @@
 // keys from PRD §6.1.3. Also runs the action-badge state machine.
 
 import {
-  appendEvent,
-  bumpSessionSequence,
+  queueEvent,
   clearSession,
   DEFAULT_MAX_EVENTS_PER_TAB,
   getOrCreateSession,
@@ -201,8 +200,7 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
     }
   }
 
-  const buffer = await appendEvent(tabId, event, DEFAULT_MAX_EVENTS_PER_TAB);
-  await bumpSessionSequence(tabId, sequenceNumber);
+  const buffer = await queueEvent(tabId, event, sequenceNumber, DEFAULT_MAX_EVENTS_PER_TAB);
   await renderBadge(tabId, buffer);
 }
 
@@ -365,7 +363,6 @@ async function emitNavigationEvent(
     data,
   };
 
-  const buffer = await appendEvent(tabId, event, DEFAULT_MAX_EVENTS_PER_TAB);
-  await bumpSessionSequence(tabId, sequenceNumber);
+  const buffer = await queueEvent(tabId, event, sequenceNumber, DEFAULT_MAX_EVENTS_PER_TAB);
   await renderBadge(tabId, buffer);
 }
