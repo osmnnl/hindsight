@@ -119,12 +119,22 @@ const TIER_2_TYPES: ReadonlySet<EventType> = new Set([
 
 const TIER_3_TYPES: ReadonlySet<EventType> = new Set(['performance.longtask', 'performance.cls']);
 
+/** Tier 4 recording-only event types (PRD §6.1.1). Page-world emits
+ *  these always (cheap throttled listeners), the SW drops them unless
+ *  the tab is in recording mode. Avoids needing a state-sync channel
+ *  back to page-world. */
+const TIER_4_TYPES: ReadonlySet<EventType> = new Set(['cursor', 'action.scroll']);
+
 function isTier2(type: EventType): boolean {
   return TIER_2_TYPES.has(type);
 }
 
 function isTier3(type: EventType): boolean {
   return TIER_3_TYPES.has(type);
+}
+
+function isTier4(type: EventType): boolean {
+  return TIER_4_TYPES.has(type);
 }
 
 function loadPrivacyConfig(): Promise<PrivacyConfig> {
@@ -232,18 +242,72 @@ function getRecordingState(tabId: number): RecordingState {
   return entry ? { recording: true, startedAt: entry.startedAt } : { recording: false };
 }
 
+/** Periodic screenshot timers active per recording tab (PRD §6.5.1
+ *  "Periodic screenshots every 2 seconds"). Stored as numbers because
+ *  chrome service worker setInterval returns a number, not a Timer
+ *  object. */
+const recordingScreenshotTimers = new Map<number, ReturnType<typeof setInterval>>();
+
+/** PRD §6.5.1 Tier 4 recording-tick cadence. */
+const RECORDING_SHOT_INTERVAL_MS = 2000;
+
 async function toggleRecording(tabId: number): Promise<RecordingState> {
   const current = recordingByTab.get(tabId);
   if (current) {
     recordingByTab.delete(tabId);
+    const existingTimer = recordingScreenshotTimers.get(tabId);
+    if (existingTimer != null) {
+      clearInterval(existingTimer);
+      recordingScreenshotTimers.delete(tabId);
+    }
     const durationMs = Date.now() - current.startedAt;
     await emitRecordingEvent(tabId, 'recording.stop', { durationMs });
     return { recording: false };
   }
   const startedAt = Date.now();
   recordingByTab.set(tabId, { startedAt });
+  const timer = setInterval(() => {
+    void captureRecordingTickScreenshot(tabId).catch(() => {});
+  }, RECORDING_SHOT_INTERVAL_MS);
+  recordingScreenshotTimers.set(tabId, timer);
   await emitRecordingEvent(tabId, 'recording.start', { startedAt });
   return { recording: true, startedAt };
+}
+
+/** Fires every RECORDING_SHOT_INTERVAL_MS while a tab is recording.
+ *  Same captureVisibleTab + queueEvent path as maybeCaptureScreenshot,
+ *  but tagged trigger='recording-tick' so the side panel and replay
+ *  bundle can distinguish a cadence shot from an error shot. */
+async function captureRecordingTickScreenshot(tabId: number): Promise<void> {
+  if (!recordingByTab.has(tabId)) return;
+  let dataUrl: string;
+  try {
+    dataUrl = await chrome.tabs.captureVisibleTab({ format: 'jpeg', quality: 70 });
+  } catch {
+    return; // tab inactive in its window; we'll try again on the next tick.
+  }
+  if (!dataUrl) return;
+  const captureCfg = await loadCaptureConfig();
+  const url = lastUrlPerTab.get(tabId) ?? '';
+  const session = await getOrCreateSession(tabId, safeOrigin(url));
+  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
+  const event: CapturedEvent = {
+    id: crypto.randomUUID(),
+    type: 'screenshot',
+    timestamp: Date.now(),
+    sessionId: session.sessionId,
+    sequenceNumber,
+    tabId,
+    url,
+    data: {
+      storageRef: `screenshots/${session.sessionId}/${crypto.randomUUID()}.jpg`,
+      dataUrl,
+      trigger: 'recording-tick',
+      width: 0,
+      height: 0,
+    },
+  };
+  await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
 }
 
 async function emitRecordingEvent(
@@ -295,6 +359,11 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   // capture stays on because it's triggered server-side from the error
   // path, not from a page-world observer.
   if (!captureCfg.tier3Enabled && isTier3(msg.capture.type)) return;
+
+  // Tier 4 — recording-only. Page-world emits cursor / scroll always;
+  // the SW drops them when not recording so non-recording sessions
+  // never pay the storage cost.
+  if (!recordingByTab.has(tabId) && isTier4(msg.capture.type)) return;
 
   // Apply capture-time masking before envelope construction. The result
   // is a new RawCapture variant with masked data and a redaction list.
@@ -371,6 +440,17 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
         data: capture.data,
         ...withMeta(meta),
       };
+      break;
+    case 'action.scroll':
+      event = {
+        ...baseEnvelope,
+        type: 'action.scroll',
+        data: capture.data,
+        ...withMeta(meta),
+      };
+      break;
+    case 'cursor':
+      event = { ...baseEnvelope, type: 'cursor', data: capture.data, ...withMeta(meta) };
       break;
     default: {
       const _exhaustive: never = capture;

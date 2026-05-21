@@ -11,7 +11,9 @@
 import type {
   ActionClickData,
   ActionInputData,
+  ActionScrollData,
   ConsoleData,
+  CursorData,
   NavigationData,
   NetworkFetchData,
   NetworkSseData,
@@ -49,7 +51,9 @@ export type RawCapture =
   | { type: 'action.input'; data: ActionInputData }
   | { type: 'navigation'; data: NavigationData }
   | { type: 'performance.longtask'; data: PerformanceLongTaskData }
-  | { type: 'performance.cls'; data: PerformanceClsData };
+  | { type: 'performance.cls'; data: PerformanceClsData }
+  | { type: 'action.scroll'; data: ActionScrollData }
+  | { type: 'cursor'; data: CursorData };
 
 export interface PageBridgeMessage {
   source: typeof CAPTURE_BRIDGE_TAG;

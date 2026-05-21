@@ -16,7 +16,9 @@ import { MASKED, shouldMaskFormField } from '@/lib/masking';
 import type {
   ActionClickData,
   ActionInputData,
+  ActionScrollData,
   ConsoleData,
+  CursorData,
   NavigationData,
   Redaction,
 } from '@/types/events';
@@ -330,4 +332,40 @@ import type {
       /* layout-shift not supported (Firefox) — silent */
     }
   }
+
+  // ---------- Cursor trail + scroll (Tier 4 — recording-only) ----------
+  // We always run these listeners (cost is one timestamp compare per
+  // event) and let the SW drop them when the tab isn't recording.
+  // PRD §6.1.1 Tier 4: mousemove throttled to 10 Hz; scroll throttled.
+  const CURSOR_INTERVAL_MS = 100; // 10 Hz
+  const SCROLL_INTERVAL_MS = 100;
+  let lastCursorAt = 0;
+  let lastScrollAt = 0;
+
+  window.addEventListener(
+    'mousemove',
+    (e) => {
+      const now = Date.now();
+      if (now - lastCursorAt < CURSOR_INTERVAL_MS) return;
+      lastCursorAt = now;
+      const data: CursorData = { x: e.clientX, y: e.clientY };
+      post({ type: 'cursor', data });
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    'scroll',
+    () => {
+      const now = Date.now();
+      if (now - lastScrollAt < SCROLL_INTERVAL_MS) return;
+      lastScrollAt = now;
+      const data: ActionScrollData = {
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+      };
+      post({ type: 'action.scroll', data });
+    },
+    { passive: true }
+  );
 })();
