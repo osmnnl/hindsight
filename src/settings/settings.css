@@ -12,7 +12,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme='dark']) {
     --bg: #f7f8fc;
     --bg-elev: #ffffff;
     --text: #0b1020;
@@ -22,6 +22,17 @@
     --accent-text: #ffffff;
     --success: #16a34a;
   }
+}
+
+:root[data-theme='light'] {
+  --bg: #f7f8fc;
+  --bg-elev: #ffffff;
+  --text: #0b1020;
+  --text-muted: #5b6478;
+  --border: #d6dae6;
+  --accent: #4f46e5;
+  --accent-text: #ffffff;
+  --success: #16a34a;
 }
 
 * {

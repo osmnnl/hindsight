@@ -20,12 +20,15 @@ import {
   tryCompilePattern,
   type BodyPatternRule,
 } from '@/lib/masking';
+import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 const SAVE_FLASH_MS = 1400;
 
 void init();
 
 async function init(): Promise<void> {
+  await applyTheme();
+  listenForThemeChanges();
   setupSectionNav();
   await initGeneral();
   await initPrivacy();

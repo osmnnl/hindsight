@@ -12,23 +12,26 @@
           <span class="dot"></span>
           <span class="brand-name">Hindsight</span>
         </div>
-        <div class="filters">
-          <button class="filter active" data-filter="failed">Failed</button>
-          <button class="filter" data-filter="all">All</button>
-          <button class="ghost" id="clear">Clear</button>
-        </div>
       </header>
 
-      <div id="list" class="list">
-        <div class="empty">
-          <div class="empty-title">No requests yet</div>
-          <div class="empty-sub">Reproduce the bug on this tab — requests will appear here.</div>
+      <main>
+        <div id="summary" class="summary">
+          <div class="counts">
+            <span class="count-total"><strong>0</strong> events</span>
+            <span class="count-errors hidden"></span>
+          </div>
+          <div id="latest-error" class="latest-error hidden"></div>
         </div>
-      </div>
 
-      <div id="bulk-bar" class="bulk-bar hidden"></div>
+        <div class="actions">
+          <button id="open-panel" class="primary">Open side panel</button>
+          <button id="quick-report" class="secondary" disabled>Send quick report</button>
+        </div>
 
-      <section id="detail" class="detail hidden"></section>
+        <footer class="popup-footer">
+          <a id="open-settings" href="#" tabindex="0">Settings</a>
+        </footer>
+      </main>
     </div>
     <script type="module" src="./popup.ts"></script>
   </body>

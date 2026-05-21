@@ -414,3 +414,22 @@ async function emitNavigationEvent(
   const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
   await renderBadge(tabId, buffer);
 }
+
+// ---------------------------------------------------------------------------
+// Keyboard commands (manifest.commands — PRD §9.2).
+// ---------------------------------------------------------------------------
+
+chrome.commands?.onCommand?.addListener?.((command) => {
+  if (command === 'open-side-panel') {
+    void openSidePanelForActiveTab().catch(() => {});
+  }
+  // capture-last-moment and toggle-recording land in M4 alongside
+  // recording mode (PRD §6.5).
+});
+
+async function openSidePanelForActiveTab(): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.id != null) {
+    await chrome.sidePanel.open({ tabId: tab.id });
+  }
+}
