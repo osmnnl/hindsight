@@ -23,6 +23,7 @@ import {
 import { toHar } from '@/lib/har';
 import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
 import { narrate } from '@/lib/narrative';
+import { generateBundle } from '@/lib/replay-bundle';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
@@ -859,6 +860,7 @@ function renderBulkBar(data: CapturedEvent[]): void {
       ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">📋 Copy network</button>` : ''}
       <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
       <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
+      <button id="download-bundle" title="Download as a self-contained HTML replay bundle (PRD §5)">⤓ Bundle</button>
     </div>
   `;
 
@@ -914,6 +916,43 @@ function renderBulkBar(data: CapturedEvent[]): void {
       1800
     );
   });
+
+  document.getElementById('download-bundle')?.addEventListener('click', (clickEvent) => {
+    const btn = clickEvent.currentTarget as HTMLButtonElement;
+    downloadAsBundle(data);
+    btn.textContent = '✓ Bundle ⤓';
+    btn.classList.add('copied');
+    setTimeout(
+      () => renderBulkBar(filterMode === 'failed' ? events.filter(isErrorEvent) : events),
+      1800
+    );
+  });
+}
+
+/** Generates and downloads a standalone HTML replay bundle (PRD §5).
+ *  Works on the full mixed event list; the viewer inside the bundle
+ *  handles per-type rendering itself. */
+function downloadAsBundle(items: CapturedEvent[]): void {
+  const html = generateBundle(items, { appVersion: __APP_VERSION__ });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const host = (() => {
+    try {
+      return new URL(items[0]?.url ?? '').host || 'session';
+    } catch {
+      return 'session';
+    }
+  })();
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hindsight-${host}-${ts}.html`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 }
 
 /** Downloads every event currently in scope as a single JSON file.
