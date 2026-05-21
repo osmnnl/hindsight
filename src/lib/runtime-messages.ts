@@ -17,6 +17,8 @@ import type {
   NetworkSseData,
   NetworkWebSocketData,
   NetworkXhrData,
+  PerformanceClsData,
+  PerformanceLongTaskData,
   Redaction,
 } from '@/types/events';
 
@@ -45,7 +47,9 @@ export type RawCapture =
   | { type: 'console.unhandled'; data: ConsoleData }
   | { type: 'action.click'; data: ActionClickData }
   | { type: 'action.input'; data: ActionInputData }
-  | { type: 'navigation'; data: NavigationData };
+  | { type: 'navigation'; data: NavigationData }
+  | { type: 'performance.longtask'; data: PerformanceLongTaskData }
+  | { type: 'performance.cls'; data: PerformanceClsData };
 
 export interface PageBridgeMessage {
   source: typeof CAPTURE_BRIDGE_TAG;

@@ -248,6 +248,22 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
     case 'navigation':
       event = { ...baseEnvelope, type: 'navigation', data: capture.data, ...withMeta(meta) };
       break;
+    case 'performance.longtask':
+      event = {
+        ...baseEnvelope,
+        type: 'performance.longtask',
+        data: capture.data,
+        ...withMeta(meta),
+      };
+      break;
+    case 'performance.cls':
+      event = {
+        ...baseEnvelope,
+        type: 'performance.cls',
+        data: capture.data,
+        ...withMeta(meta),
+      };
+      break;
     default: {
       const _exhaustive: never = capture;
       void _exhaustive;

@@ -255,4 +255,42 @@ import type {
     },
     true
   );
+
+  // ---------- Performance long-task + CLS (Tier 3) ----------
+  // PRD §6.1.1 Tier 3 "Conditional (triggered, not continuous)" — these
+  // observers don't fire on idle pages. Long-task threshold mirrors the
+  // PRD §6.2.1 badge rule (> 100 ms).
+  const LONG_TASK_MIN_MS = 100;
+  if (typeof PerformanceObserver !== 'undefined') {
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration <= LONG_TASK_MIN_MS) continue;
+          post({
+            type: 'performance.longtask',
+            data: { durationMs: Math.round(entry.duration), attribution: entry.name || undefined },
+          });
+        }
+      }).observe({ type: 'longtask', buffered: true });
+    } catch {
+      /* environment doesn't support longtask — silent */
+    }
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as PerformanceEntry & { value?: number; hadRecentInput?: boolean };
+          if (typeof shift.value !== 'number') continue;
+          post({
+            type: 'performance.cls',
+            data: {
+              value: Math.round(shift.value * 10_000) / 10_000,
+              hadRecentInput: shift.hadRecentInput === true,
+            },
+          });
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    } catch {
+      /* layout-shift not supported (Firefox) — silent */
+    }
+  }
 })();
