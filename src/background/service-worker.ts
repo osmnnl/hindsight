@@ -8,15 +8,19 @@
 
 import {
   archiveSession,
+  clearArchive,
   clearSession,
   getOrCreateSession,
   queueEvent,
+  readArchive,
   readEvents,
   sweepArchive,
 } from '@/lib/storage';
 import {
   isCaptureMessage,
+  isClearArchiveMessage,
   isClearEventsMessage,
+  isGetArchiveMessage,
   isGetEventsMessage,
   type CaptureRuntimeMessage,
   type RuntimeMessage,
@@ -156,6 +160,16 @@ chrome.runtime.onMessage.addListener(
       void clearSession(msg.tabId)
         .then(() => clearBadge(msg.tabId))
         .then(() => sendResponse(true));
+      return true;
+    }
+
+    if (isGetArchiveMessage(msg)) {
+      void readArchive().then(sendResponse);
+      return true;
+    }
+
+    if (isClearArchiveMessage(msg)) {
+      void clearArchive().then(() => sendResponse(true));
       return true;
     }
   }

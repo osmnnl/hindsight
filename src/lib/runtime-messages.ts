@@ -81,10 +81,20 @@ export interface ClearEventsRuntimeMessage {
   tabId: number;
 }
 
+export interface GetArchiveRuntimeMessage {
+  kind: 'GET_ARCHIVE';
+}
+
+export interface ClearArchiveRuntimeMessage {
+  kind: 'CLEAR_ARCHIVE';
+}
+
 export type RuntimeMessage =
   | CaptureRuntimeMessage
   | GetEventsRuntimeMessage
-  | ClearEventsRuntimeMessage;
+  | ClearEventsRuntimeMessage
+  | GetArchiveRuntimeMessage
+  | ClearArchiveRuntimeMessage;
 
 // ---------------------------------------------------------------------------
 // Type guards — used by the service worker dispatch switch.
@@ -100,4 +110,12 @@ export function isGetEventsMessage(m: RuntimeMessage): m is GetEventsRuntimeMess
 
 export function isClearEventsMessage(m: RuntimeMessage): m is ClearEventsRuntimeMessage {
   return m.kind === 'CLEAR_EVENTS';
+}
+
+export function isGetArchiveMessage(m: RuntimeMessage): m is GetArchiveRuntimeMessage {
+  return m.kind === 'GET_ARCHIVE';
+}
+
+export function isClearArchiveMessage(m: RuntimeMessage): m is ClearArchiveRuntimeMessage {
+  return m.kind === 'CLEAR_ARCHIVE';
 }

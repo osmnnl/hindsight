@@ -6,10 +6,18 @@
 // HAR-export actions. The popup is now a minimal launcher; sustained
 // inspection happens here.
 
-import type { CapturedEvent, NetworkFetchEvent, NetworkXhrEvent, Redaction } from '@/types/events';
+import type {
+  ArchivedSession,
+  CapturedEvent,
+  NetworkFetchEvent,
+  NetworkXhrEvent,
+  Redaction,
+} from '@/types/events';
 import { isErrorEvent, isFailedNetwork } from '@/types/events';
 import {
+  type ClearArchiveRuntimeMessage,
   type ClearEventsRuntimeMessage,
+  type GetArchiveRuntimeMessage,
   type GetEventsRuntimeMessage,
 } from '@/lib/runtime-messages';
 import { toHar } from '@/lib/har';
@@ -249,8 +257,13 @@ async function init(): Promise<void> {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
   });
   document.getElementById('clear')?.addEventListener('click', () => void clearAll());
+  document.getElementById('archive-clear')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void clearArchiveAndRefresh();
+  });
 
   await refresh();
+  await refreshArchive();
   pollTimer = setInterval(() => void refresh(), 1500);
   window.addEventListener('unload', () => {
     if (pollTimer) clearInterval(pollTimer);
@@ -267,6 +280,95 @@ async function refresh(): Promise<void> {
   } catch {
     /* service worker briefly inactive */
   }
+}
+
+// ---------------------------------------------------------------------------
+// Archive viewer (PRD §6.1.3 archives/recent — populated by tab close).
+// ---------------------------------------------------------------------------
+
+async function refreshArchive(): Promise<void> {
+  let archive: ArchivedSession[] = [];
+  try {
+    const message: GetArchiveRuntimeMessage = { kind: 'GET_ARCHIVE' };
+    const result = await chrome.runtime.sendMessage(message);
+    archive = Array.isArray(result) ? (result as ArchivedSession[]) : [];
+  } catch {
+    return;
+  }
+  renderArchive(archive);
+}
+
+function renderArchive(archive: ArchivedSession[]): void {
+  const panel = document.getElementById('archive-panel');
+  const countEl = document.getElementById('archive-count');
+  const listEl = document.getElementById('archive-list');
+  const clearLink = document.getElementById('archive-clear');
+  if (!panel || !countEl || !listEl || !clearLink) return;
+
+  if (archive.length === 0) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  clearLink.classList.remove('hidden');
+  countEl.textContent = `${archive.length} closed session${archive.length === 1 ? '' : 's'}`;
+
+  listEl.innerHTML = archive
+    .map((a, i) => {
+      const host = (() => {
+        try {
+          return new URL(a.meta.origin).host;
+        } catch {
+          return a.meta.origin;
+        }
+      })();
+      const when = new Date(a.archivedAt).toLocaleString();
+      return `
+        <details class="archive-entry" data-archive-idx="${i}">
+          <summary>
+            <strong>${escapeHtml(host)}</strong>
+            <span class="muted">· ${a.events.length} event${a.events.length === 1 ? '' : 's'}</span>
+            <span class="muted">· ${escapeHtml(when)}</span>
+          </summary>
+          <div class="archive-events"></div>
+        </details>
+      `;
+    })
+    .join('');
+
+  // Lazy-render the inner event list when an entry expands — avoids
+  // building thousands of rows up front for users with a full archive.
+  listEl.querySelectorAll<HTMLDetailsElement>('details.archive-entry').forEach((details, i) => {
+    details.addEventListener('toggle', () => {
+      if (!details.open) return;
+      const inner = details.querySelector('.archive-events');
+      if (!inner || inner.childNodes.length > 0) return;
+      const session = archive[i];
+      if (!session) return;
+      inner.innerHTML = session.events
+        .map((e) => {
+          const row = formatRow(e);
+          return `<div class="item ${row.className}">
+            <div class="status">${escapeHtml(row.statusBadge)}</div>
+            <div class="method">${escapeHtml(row.method)}</div>
+            <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
+            <div class="time">${fmtTime(row.timestamp)}</div>
+            <div class="duration">${escapeHtml(row.duration)}</div>
+          </div>`;
+        })
+        .join('');
+    });
+  });
+}
+
+async function clearArchiveAndRefresh(): Promise<void> {
+  const message: ClearArchiveRuntimeMessage = { kind: 'CLEAR_ARCHIVE' };
+  try {
+    await chrome.runtime.sendMessage(message);
+  } catch {
+    /* swallow */
+  }
+  await refreshArchive();
 }
 
 function setFilter(mode: FilterMode): void {

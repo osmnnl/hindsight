@@ -232,6 +232,22 @@ export async function archiveSession(tabId: number): Promise<void> {
 }
 
 /**
+ * Reads the archive (newest first). Returns an empty array when nothing
+ * has landed yet.
+ */
+export async function readArchive(): Promise<ArchivedSession[]> {
+  const stored = await chrome.storage.local.get(StorageKeys.archives);
+  const list = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
+  return [...list].sort((a, b) => b.archivedAt - a.archivedAt);
+}
+
+/** Drops every archived session. Used by the sidepanel's "Clear
+ *  archive" link — explicit user action. */
+export async function clearArchive(): Promise<void> {
+  await chrome.storage.local.remove(StorageKeys.archives);
+}
+
+/**
  * TTL sweep of the archive. Idempotent: no-op when nothing is past the
  * cutoff. Intended for lazy invocation on service-worker start; future
  * archive surfaces (settings "Clear archive", side panel list) can call
