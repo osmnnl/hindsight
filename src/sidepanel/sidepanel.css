@@ -314,6 +314,95 @@ select:focus-visible {
   border-color: var(--accent);
 }
 
+/* ---------- query bar (search + host filter) ---------- */
+.query-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.query-bar.hidden {
+  display: none;
+}
+
+.query-bar input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.query-bar input[type='search']:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.host-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.host-picker-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10.5px;
+}
+
+.host-picker select {
+  font: inherit;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 180px;
+}
+
+.host-picker select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.host-clear {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  padding: 0 6px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.host-clear:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.host-clear.hidden {
+  display: none;
+}
+
+.result-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* ---------- visual timeline scrubber (PRD §6.3.3) ---------- */
 .scrubber {
   padding: 8px 14px 6px;

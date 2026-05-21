@@ -56,12 +56,58 @@ const SLACK_SAFE_THRESHOLD = 3000;
 
 type FilterMode = 'failed' | 'api' | 'all';
 
-/** Applies the active filter to an event list. Centralised so the
- *  list, bulk bar, empty state, and Esc-back path stay in sync. */
-function filteredEvents(all: CapturedEvent[], mode: FilterMode): CapturedEvent[] {
-  if (mode === 'failed') return all.filter(isErrorEvent);
-  if (mode === 'api') return all.filter(isApiRequest);
-  return all;
+interface UiState {
+  filterMode: FilterMode;
+  activeHost: string | null;
+}
+
+const UI_STATE_KEY = 'sidepanel/ui-state';
+const DEFAULT_UI_STATE: UiState = { filterMode: 'failed', activeHost: null };
+
+/** Page-URL host for non-network events, request-URL host for network.
+ *  Lets the host picker filter both 3rd-party analytics requests and
+ *  user actions on a given page with one selection. */
+function eventHost(e: CapturedEvent): string {
+  try {
+    if (e.type === 'network.fetch' || e.type === 'network.xhr') {
+      return new URL(e.data.request.url).host;
+    }
+    if (e.type === 'network.websocket' || e.type === 'network.sse') {
+      return new URL(e.data.url).host;
+    }
+  } catch {
+    /* fall through to page URL */
+  }
+  try {
+    return new URL(e.url).host;
+  } catch {
+    return '';
+  }
+}
+
+let searchQuery = '';
+
+/** Centralised filter pipeline used by render, bulk bar, scrubber,
+ *  Esc-back and refresh. Order: mode → host → free-text search. */
+function filteredEvents(
+  all: CapturedEvent[],
+  mode: FilterMode,
+  host: string | null = activeHost,
+  query: string = searchQuery
+): CapturedEvent[] {
+  let out: CapturedEvent[];
+  if (mode === 'failed') out = all.filter(isErrorEvent);
+  else if (mode === 'api') out = all.filter(isApiRequest);
+  else out = all;
+  if (host) out = out.filter((e) => eventHost(e) === host);
+  const q = query.trim().toLowerCase();
+  if (q) {
+    out = out.filter((e) => {
+      const hay = e.type + ' ' + (e.url || '') + ' ' + JSON.stringify(e.data || {});
+      return hay.toLowerCase().includes(q);
+    });
+  }
+  return out;
 }
 
 function isRequestLike(e: CapturedEvent): e is NetworkRequestEvent {
@@ -259,7 +305,38 @@ async function writeTextAndImage(
 let tabId: number | undefined;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
+let activeHost: string | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function loadUiState(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(UI_STATE_KEY);
+    const value = stored[UI_STATE_KEY] as Partial<UiState> | undefined;
+    if (!value) return;
+    if (value.filterMode === 'failed' || value.filterMode === 'api' || value.filterMode === 'all') {
+      filterMode = value.filterMode;
+    }
+    if (typeof value.activeHost === 'string' && value.activeHost.length > 0) {
+      activeHost = value.activeHost;
+    }
+  } catch {
+    /* defaults remain */
+  }
+}
+
+let uiStatePersistTimer: ReturnType<typeof setTimeout> | null = null;
+function persistUiState(): void {
+  // Debounce to avoid hitting storage on every keystroke; UI state is
+  // a comfort feature, not a correctness one.
+  if (uiStatePersistTimer) clearTimeout(uiStatePersistTimer);
+  uiStatePersistTimer = setTimeout(() => {
+    void chrome.storage.local
+      .set({
+        [UI_STATE_KEY]: { filterMode, activeHost } as UiState,
+      })
+      .catch(() => {});
+  }, 200);
+}
 
 void init();
 
@@ -269,6 +346,9 @@ async function init(): Promise<void> {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
+
+  await loadUiState();
+  syncFilterChipsToState();
 
   document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
@@ -280,6 +360,37 @@ async function init(): Promise<void> {
   });
   document.getElementById('record-toggle')?.addEventListener('click', () => {
     void toggleRecording();
+  });
+
+  // Search bar — debounce 120 ms so each keystroke doesn't rebuild the
+  // entire 1000-event list. Search state is intentionally not persisted.
+  const searchEl = document.getElementById('search-input');
+  if (searchEl instanceof HTMLInputElement) {
+    let searchTimer: ReturnType<typeof setTimeout> | null = null;
+    searchEl.addEventListener('input', () => {
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQuery = searchEl.value;
+        render();
+      }, 120);
+    });
+  }
+
+  // Host filter — picker is rebuilt on every render() because the
+  // distinct-host set grows as new events arrive. Wire change + clear
+  // here so the handlers persist across rebuilds.
+  const hostSelect = document.getElementById('host-select');
+  if (hostSelect instanceof HTMLSelectElement) {
+    hostSelect.addEventListener('change', () => {
+      activeHost = hostSelect.value || null;
+      persistUiState();
+      render();
+    });
+  }
+  document.getElementById('host-clear')?.addEventListener('click', () => {
+    activeHost = null;
+    persistUiState();
+    render();
   });
 
   // M4·W15-extra: popup may have planted a focus-event / focus-filter
@@ -459,7 +570,13 @@ async function consumePopupFocus(): Promise<void> {
   } catch {
     /* swallow — handoff is best-effort */
   }
-  // Sync the filter chip state to whatever consumePopupFocus picked.
+  syncFilterChipsToState();
+}
+
+/** Reflects the in-memory filterMode onto the toolbar chip DOM. Shared
+ *  by init (load-from-storage), consumePopupFocus, and the storage.
+ *  onChanged listener so all three converge on the same UI. */
+function syncFilterChipsToState(): void {
   document.querySelectorAll<HTMLElement>('.filter').forEach((b) => {
     const isActive = b.dataset.filter === filterMode;
     b.classList.toggle('active', isActive);
@@ -611,11 +728,8 @@ async function clearArchiveAndRefresh(): Promise<void> {
 
 function setFilter(mode: FilterMode): void {
   filterMode = mode;
-  document.querySelectorAll<HTMLElement>('.filter').forEach((b) => {
-    const isActive = b.dataset.filter === mode;
-    b.classList.toggle('active', isActive);
-    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
+  syncFilterChipsToState();
+  persistUiState();
   render();
 }
 
@@ -634,31 +748,93 @@ async function clearAll(): Promise<void> {
 const renderedById = new Map<string, CapturedEvent>();
 let listDelegationWired = false;
 
+/** Rebuilds the host-picker option list (preserving the active
+ *  selection across refreshes), the result-count hint, and the
+ *  clear-host button visibility. The query bar itself is hidden until
+ *  at least 2 events have arrived so the empty-state stays clean. */
+function renderQueryBar(): void {
+  const bar = document.getElementById('query-bar');
+  const hostSelect = document.getElementById('host-select');
+  const hostClear = document.getElementById('host-clear');
+  const resultCount = document.getElementById('result-count');
+  if (!bar || !(hostSelect instanceof HTMLSelectElement) || !hostClear || !resultCount) return;
+
+  if (events.length < 2) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+
+  // Distinct hosts across the current buffer, alphabetized for stable
+  // ordering. activeHost is preserved even if no events from it are
+  // currently captured, so the user can switch tabs without losing the
+  // pin.
+  const distinct = new Set<string>();
+  for (const e of events) {
+    const h = eventHost(e);
+    if (h) distinct.add(h);
+  }
+  const hosts = [...distinct].sort();
+  if (activeHost && !distinct.has(activeHost)) hosts.unshift(activeHost);
+
+  const prev = hostSelect.value;
+  hostSelect.innerHTML =
+    `<option value="">Any</option>` +
+    hosts.map((h) => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join('');
+  hostSelect.value = activeHost ?? '';
+  // Restore prev only when activeHost is empty AND the prev option
+  // still exists — covers select-blur races during refresh.
+  if (!activeHost && prev && hosts.includes(prev)) hostSelect.value = prev;
+
+  hostClear.classList.toggle('hidden', !activeHost);
+
+  const filteredCount = filteredEvents(events, filterMode).length;
+  resultCount.textContent = `${filteredCount} / ${events.length}`;
+}
+
 function render(): void {
   const list = document.getElementById('list');
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
+
+  // Query bar visible whenever we have at least 2 events — same gate
+  // as the scrubber. Avoids the awkward "empty panel + search box"
+  // first impression.
+  renderQueryBar();
+
   const data = filteredEvents(events, filterMode);
 
   renderScrubber(data);
 
   if (data.length === 0) {
-    const emptyTitle =
-      filterMode === 'failed'
-        ? 'No errors yet'
-        : filterMode === 'api'
-          ? 'No API calls yet'
-          : 'No events yet';
-    const emptySub =
-      filterMode === 'failed'
-        ? 'Switch to "All" to see every captured event.'
-        : filterMode === 'api'
-          ? 'Framework chunks, static assets, and prefetches are hidden — browse the page and trigger a data fetch.'
-          : 'Browse the page — clicks, requests, navigations, console errors appear here.';
+    const reason = searchQuery.trim() ? 'search' : activeHost ? 'host' : filterMode;
+    const empties: Record<string, { title: string; sub: string }> = {
+      failed: {
+        title: 'No errors yet',
+        sub: 'Switch to "All" to see every captured event.',
+      },
+      api: {
+        title: 'No API calls yet',
+        sub: 'Framework chunks, static assets, and prefetches are hidden — browse the page and trigger a data fetch.',
+      },
+      all: {
+        title: 'No events yet',
+        sub: 'Browse the page — clicks, requests, navigations, console errors appear here.',
+      },
+      search: {
+        title: 'No matches',
+        sub: 'Nothing in the current filter matches your search. Try clearing it or switch to "All".',
+      },
+      host: {
+        title: 'No events from that host',
+        sub: `Clear the host filter (× next to the picker) to see events from other origins.`,
+      },
+    };
+    const e = empties[reason] ?? empties.all;
     list.innerHTML = `
       <div class="empty">
-        <div class="empty-title">${emptyTitle}</div>
-        <div class="empty-sub">${emptySub}</div>
+        <div class="empty-title">${escapeHtml(e!.title)}</div>
+        <div class="empty-sub">${escapeHtml(e!.sub)}</div>
       </div>`;
     bulkBar.classList.add('hidden');
     return;

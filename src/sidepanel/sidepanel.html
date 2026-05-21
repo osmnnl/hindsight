@@ -50,6 +50,34 @@
         </div>
       </header>
 
+      <div id="query-bar" class="query-bar hidden">
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Search URLs, messages, payloads…"
+          aria-label="Search captured events"
+        />
+        <label
+          class="host-picker"
+          title="Filter by host (request URL for network, page URL otherwise)"
+        >
+          <span class="host-picker-label">Host</span>
+          <select id="host-select" aria-label="Filter by host">
+            <option value="">Any</option>
+          </select>
+          <button
+            id="host-clear"
+            class="host-clear hidden"
+            type="button"
+            aria-label="Clear host filter"
+            title="Clear host filter"
+          >
+            ×
+          </button>
+        </label>
+        <span id="result-count" class="result-count" aria-live="polite"></span>
+      </div>
+
       <div id="scrubber" class="scrubber hidden" aria-label="Timeline scrubber">
         <div id="scrubber-bars" class="scrubber-bars" aria-hidden="true"></div>
         <input
