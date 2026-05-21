@@ -12,11 +12,16 @@ import {
   type PageBridgeMessage,
   type RawCapture,
 } from '@/lib/runtime-messages';
-import type { ActionClickData } from '@/types/events';
+import { MASKED, shouldMaskFormField } from '@/lib/masking';
+import type { ActionClickData, ActionInputData, Redaction } from '@/types/events';
 
 (() => {
-  function post(capture: RawCapture): void {
-    const message: PageBridgeMessage = { source: CAPTURE_BRIDGE_TAG, capture };
+  function post(capture: RawCapture, redactions?: Redaction[]): void {
+    const message: PageBridgeMessage = {
+      source: CAPTURE_BRIDGE_TAG,
+      capture,
+      ...(redactions && redactions.length > 0 ? { redactions } : {}),
+    };
     try {
       window.postMessage(message, '*');
     } catch {
@@ -61,4 +66,47 @@ import type { ActionClickData } from '@/types/events';
     if (b === 2) return 2;
     return 0;
   }
+
+  // ---------- Form input (Tier 2) ----------
+  // `input` events fire on every keystroke; we accept that volume since
+  // PRD §6.1.1 lists this in Tier 2 default-on. Masking happens here in
+  // page-world because FormFieldMeta is only visible from the DOM —
+  // the service worker can't see <input type="password"> attributes.
+  document.addEventListener(
+    'input',
+    (e) => {
+      try {
+        const el = e.target;
+        if (
+          !(el instanceof HTMLInputElement) &&
+          !(el instanceof HTMLTextAreaElement) &&
+          !(el instanceof HTMLSelectElement)
+        ) {
+          return;
+        }
+        const field = {
+          name: el.getAttribute('name') ?? undefined,
+          id: el.id || undefined,
+          type: el instanceof HTMLInputElement ? el.type : undefined,
+          autocomplete: el.getAttribute('autocomplete') ?? undefined,
+        };
+        const { masked, rule } = shouldMaskFormField(field);
+        const value = masked ? MASKED : el.value;
+
+        const data: ActionInputData = {
+          target: buildTargetDescriptor(el),
+          value,
+          ...(el instanceof HTMLInputElement ? { inputType: el.type } : {}),
+        };
+        const redactions: Redaction[] | undefined =
+          masked && rule
+            ? [{ scope: 'form.value', path: field.name ?? field.id ?? el.tagName, rule: rule.id }]
+            : undefined;
+        post({ type: 'action.input', data }, redactions);
+      } catch {
+        /* never break the page */
+      }
+    },
+    true
+  );
 })();

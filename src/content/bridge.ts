@@ -21,6 +21,7 @@ window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
     capture: data.capture,
     pageUrl: window.location.href,
     pageTitle: document.title,
+    ...(data.redactions ? { redactions: data.redactions } : {}),
   };
 
   try {

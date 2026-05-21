@@ -17,6 +17,7 @@ import type {
   NetworkSseData,
   NetworkWebSocketData,
   NetworkXhrData,
+  Redaction,
 } from '@/types/events';
 
 /** Bridge tag — checked by the ISOLATED-world bridge to filter out
@@ -49,6 +50,11 @@ export type RawCapture =
 export interface PageBridgeMessage {
   source: typeof CAPTURE_BRIDGE_TAG;
   capture: RawCapture;
+  /** Page-world-applied redactions — e.g. form-field masking happens at
+   *  the DOM site because that's where the field metadata is visible.
+   *  The service worker merges these with its own header / body
+   *  redactions before persisting EventMeta. */
+  redactions?: Redaction[];
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +66,9 @@ export interface CaptureRuntimeMessage {
   capture: RawCapture;
   pageUrl: string;
   pageTitle: string;
+  /** Page-world-applied redactions; the service worker concatenates
+   *  these with its own to form the final EventMeta.redactions list. */
+  redactions?: Redaction[];
 }
 
 export interface GetEventsRuntimeMessage {

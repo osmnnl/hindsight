@@ -134,7 +134,11 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 
   // Apply capture-time masking before envelope construction. The result
   // is a new RawCapture variant with masked data and a redaction list.
-  const { capture, redactions } = applyMasking(msg.capture, privacy.bodyRules);
+  const { capture, redactions: swRedactions } = applyMasking(msg.capture, privacy.bodyRules);
+  // Merge with redactions the page-world already applied (form-field
+  // masking, for instance, lives at the DOM site because that's where
+  // FormFieldMeta is visible).
+  const allRedactions = [...(msg.redactions ?? []), ...swRedactions];
 
   const session = await getOrCreateSession(tabId, origin);
   const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
@@ -147,7 +151,8 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
     tabId,
     url: msg.pageUrl,
   };
-  const meta: EventMeta | undefined = redactions.length > 0 ? { redactions } : undefined;
+  const meta: EventMeta | undefined =
+    allRedactions.length > 0 ? { redactions: allRedactions } : undefined;
 
   // CapturedEvent is a discriminated union over `type`. Building each
   // variant explicitly preserves TS's narrowing — the alternative (a
