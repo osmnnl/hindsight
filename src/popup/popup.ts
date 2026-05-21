@@ -13,6 +13,7 @@ import {
 } from '@/lib/runtime-messages';
 import { toHar } from '@/lib/har';
 import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import { narrate } from '@/lib/narrative';
 
 declare const __APP_VERSION__: string;
 
@@ -431,7 +432,9 @@ function renderBulkBar(data: CapturedEvent[]): void {
   if (!bulkBar) return;
   const networkItems = data.filter(isRequestLike);
   const failedCount = data.filter(isErrorEvent).length;
-  const networkReport = buildBulkReport(networkItems);
+  const narrative = data.length >= 2 ? narrate(data) : '';
+  const networkBody = buildBulkReport(networkItems);
+  const networkReport = narrative ? `${narrative}\n\n---\n\n${networkBody}` : networkBody;
   const isOversize = networkReport.length > SLACK_SAFE_THRESHOLD;
   const hasNetwork = networkItems.length > 0;
 
@@ -509,10 +512,14 @@ function renderBulkBar(data: CapturedEvent[]): void {
  *  as a defense-in-depth net; non-network events ship as-is (already
  *  meta.redactions-annotated where applicable). */
 function downloadEventsAsJson(items: CapturedEvent[]): void {
-  const payload = items.map((e) => {
+  const events = items.map((e) => {
     if (isRequestLike(e)) return maskedEventForExport(e);
     return e;
   });
+  const narrative = narrate(items);
+  // Narrative under a `_narrative` key so JSON consumers can spot the
+  // synthetic field by convention; events stays the canonical payload.
+  const payload = narrative ? { _narrative: narrative, events } : { events };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
