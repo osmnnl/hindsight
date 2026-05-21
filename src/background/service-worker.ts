@@ -482,15 +482,30 @@ function nextSequence(sessionId: string, persistedFloor: number): number {
 }
 
 async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void> {
-  // PRD §6.2.1: failed requests AND console.error / console.unhandled
-  // both feed the badge. isErrorEvent unifies both predicates.
+  // PRD §6.2.2: "Color reflects severity (green = none, yellow =
+  // warnings, red = errors)." Empty badge ("") collapses the bubble
+  // entirely so healthy pages stay visually quiet — green is implicit.
   const failedCount = buffer.reduce((n, e) => n + (isErrorEvent(e) ? 1 : 0), 0);
+  const hasWarn = buffer.some(
+    (e) =>
+      e.meta?.flags?.includes('slow') === true ||
+      e.type === 'performance.longtask' ||
+      e.type === 'performance.cls'
+  );
+
+  let text = '';
+  let color = '#22c55e'; // green — only visible if we ever surface a "captures alive" pulse.
+  if (failedCount > 0) {
+    text = String(failedCount);
+    color = '#dc2626';
+  } else if (hasWarn) {
+    text = '!';
+    color = '#f59e0b';
+  }
+
   try {
-    await chrome.action.setBadgeText({
-      tabId,
-      text: failedCount > 0 ? String(failedCount) : '',
-    });
-    await chrome.action.setBadgeBackgroundColor({ tabId, color: '#dc2626' });
+    await chrome.action.setBadgeText({ tabId, text });
+    await chrome.action.setBadgeBackgroundColor({ tabId, color });
   } catch {
     /* tab might be gone */
   }
