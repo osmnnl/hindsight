@@ -482,9 +482,12 @@ function renderListHtml(data: CapturedEvent[]): string {
       // Register members so click → detail still works when expanded.
       for (const m of members) renderedById.set(m.id, m);
       const expanded = expandedClusters.has(e.id);
-      parts.push(renderClusterHead(e, members, expanded));
+      parts.push(renderClusterBanner(e, members, expanded));
       if (expanded) {
-        for (const m of [...members].reverse()) parts.push(renderEventRow(m, true));
+        // Render every member of the cluster (newest-first) plus the
+        // head itself, all indented. The banner stays at the top.
+        const all = [e, ...members].sort((a, b) => b.timestamp - a.timestamp);
+        for (const m of all) parts.push(renderEventRow(m, true));
       }
     } else {
       parts.push(renderEventRow(e, false));
@@ -504,27 +507,110 @@ function renderEventRow(e: CapturedEvent, indented: boolean): string {
   </div>`;
 }
 
-function renderClusterHead(
+/** Renders one banner per cluster summarizing all members at a glance
+ *  (PRD §6.2.3 example: "🔴 401 cascade — POST /Token/auth — 3 failures
+ *  in 5s [expand 3 →]"). The banner is itself the toggle target. */
+function renderClusterBanner(
   head: CapturedEvent,
   members: CapturedEvent[],
   expanded: boolean
 ): string {
-  const row = formatRow(head);
+  const all = [head, ...members];
+  const summary = summarizeCluster(all);
   const arrow = expanded ? '▾' : '▸';
-  const memberCount = members.length;
-  const label = `cluster · ${memberCount} more`;
-  return `<div class="item cluster-head ${row.className}" data-event-id="${escapeHtml(head.id)}">
-    <div class="status">${escapeHtml(row.statusBadge)}</div>
-    <div class="method">${escapeHtml(row.method)}</div>
-    <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
-    <div class="time">${fmtTime(row.timestamp)}</div>
-    <div class="duration">
-      <button class="cluster-toggle" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}">
-        <span aria-hidden="true">${arrow}</span> ${escapeHtml(label)}
-      </button>
-    </div>
+  const totalCount = all.length;
+  return `<div class="cluster-banner ${summary.severity}" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}" role="button" tabindex="0">
+    <span class="cluster-banner-icon" aria-hidden="true">${summary.icon}</span>
+    <span class="cluster-banner-title"><strong>${escapeHtml(summary.title)}</strong></span>
+    <span class="cluster-banner-meta">${escapeHtml(summary.subtitle)}</span>
+    <span class="cluster-banner-toggle"><span aria-hidden="true">${arrow}</span> ${totalCount}</span>
   </div>`;
 }
+
+interface ClusterSummary {
+  title: string;
+  subtitle: string;
+  icon: string;
+  severity: 'severity-error' | 'severity-warn' | 'severity-info';
+}
+
+function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
+  const networkMembers = all.filter(isRequestLike);
+  const failingMembers = all.filter(isErrorEvent);
+  const consoleMembers = all.filter(
+    (e): e is CapturedEvent => e.type === 'console.error' || e.type === 'console.unhandled'
+  );
+
+  const earliest = Math.min(...all.map((e) => e.timestamp));
+  const latest = Math.max(...all.map((e) => e.timestamp));
+  const spanSec = Math.max(1, Math.round((latest - earliest) / 1000));
+
+  // Network-dominant cascade: pull origin + dominant status/method/path.
+  if (networkMembers.length > 0) {
+    const dominantStatus = mode(networkMembers.map((e) => e.data.response.status || 0));
+    const dominantMethod = mode(networkMembers.map((e) => e.data.request.method));
+    const samePath = networkMembers.every(
+      (e) => safePath(e.data.request.url) === safePath(networkMembers[0]!.data.request.url)
+    );
+    const pathLabel = samePath ? safePath(networkMembers[0]!.data.request.url) : 'various';
+    const host = (() => {
+      try {
+        return new URL(networkMembers[0]!.data.request.url).host;
+      } catch {
+        return '';
+      }
+    })();
+    return {
+      title: `${dominantStatus} cascade — ${dominantMethod} ${pathLabel}`,
+      subtitle: `${failingMembers.length} failure${failingMembers.length === 1 ? '' : 's'} in ${spanSec}s${host ? ` · ${host}` : ''}`,
+      icon: '🔴',
+      severity: 'severity-error',
+    };
+  }
+
+  // Console-only cluster.
+  if (consoleMembers.length > 0) {
+    return {
+      title: `console cluster — ${consoleMembers.length} error${consoleMembers.length === 1 ? '' : 's'}`,
+      subtitle: `${consoleMembers.length} in ${spanSec}s`,
+      icon: '🔴',
+      severity: 'severity-error',
+    };
+  }
+
+  return {
+    title: `cluster — ${all.length} events`,
+    subtitle: `${all.length} in ${spanSec}s`,
+    icon: '⚠️',
+    severity: 'severity-warn',
+  };
+}
+
+function mode<T>(values: T[]): T | string {
+  if (values.length === 0) return '?';
+  const counts = new Map<T, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: T = values[0]!;
+  let bestN = 0;
+  for (const [v, n] of counts) {
+    if (n > bestN) {
+      best = v;
+      bestN = n;
+    }
+  }
+  return best;
+}
+
+function safePath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+// (legacy renderClusterHead removed in M3·W11-2 — renderClusterBanner
+// is the successor surface; M2's per-row toggle is gone.)
 
 // ---------------------------------------------------------------------------
 // Visual timeline scrubber (PRD §6.3.3)
