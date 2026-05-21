@@ -22,7 +22,10 @@ import {
   isClearEventsMessage,
   isGetArchiveMessage,
   isGetEventsMessage,
+  isGetRecordingMessage,
+  isToggleRecordingMessage,
   type CaptureRuntimeMessage,
+  type RecordingState,
   type RuntimeMessage,
 } from '@/lib/runtime-messages';
 import {
@@ -202,8 +205,78 @@ chrome.runtime.onMessage.addListener(
       void clearArchive().then(() => sendResponse(true));
       return true;
     }
+
+    if (isToggleRecordingMessage(msg)) {
+      void toggleRecording(msg.tabId).then(sendResponse);
+      return true;
+    }
+
+    if (isGetRecordingMessage(msg)) {
+      sendResponse(getRecordingState(msg.tabId));
+      return;
+    }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Recording mode (PRD §6.5). Tier 4 captures (DOM mutations, cursor
+// trail, periodic screenshots) wire in alongside this in M4·W13; this
+// commit ships the start/stop state machine + recording.* envelope
+// minting so the side panel UI works end-to-end.
+// ---------------------------------------------------------------------------
+
+const recordingByTab = new Map<number, { startedAt: number }>();
+
+function getRecordingState(tabId: number): RecordingState {
+  const entry = recordingByTab.get(tabId);
+  return entry ? { recording: true, startedAt: entry.startedAt } : { recording: false };
+}
+
+async function toggleRecording(tabId: number): Promise<RecordingState> {
+  const current = recordingByTab.get(tabId);
+  if (current) {
+    recordingByTab.delete(tabId);
+    const durationMs = Date.now() - current.startedAt;
+    await emitRecordingEvent(tabId, 'recording.stop', { durationMs });
+    return { recording: false };
+  }
+  const startedAt = Date.now();
+  recordingByTab.set(tabId, { startedAt });
+  await emitRecordingEvent(tabId, 'recording.start', { startedAt });
+  return { recording: true, startedAt };
+}
+
+async function emitRecordingEvent(
+  tabId: number,
+  type: 'recording.start' | 'recording.stop',
+  payload: { startedAt?: number; durationMs?: number }
+): Promise<void> {
+  const captureCfg = await loadCaptureConfig();
+  const url = lastUrlPerTab.get(tabId) ?? '';
+  const origin = safeOrigin(url);
+  const session = await getOrCreateSession(tabId, origin);
+  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
+  const base = {
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    sessionId: session.sessionId,
+    sequenceNumber,
+    tabId,
+    url,
+  };
+  const event: CapturedEvent =
+    type === 'recording.start'
+      ? { ...base, type: 'recording.start', data: {} }
+      : { ...base, type: 'recording.stop', data: { durationMs: payload.durationMs ?? 0 } };
+  const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
+  await renderBadge(tabId, buffer);
+}
+
+// Clean up recording state when its tab closes — same lifecycle as
+// the navigation lastUrl map.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  recordingByTab.delete(tabId);
+});
 
 async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise<void> {
   const origin = safeOrigin(msg.pageUrl);

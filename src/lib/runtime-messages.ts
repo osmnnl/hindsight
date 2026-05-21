@@ -93,12 +93,32 @@ export interface ClearArchiveRuntimeMessage {
   kind: 'CLEAR_ARCHIVE';
 }
 
+/** Toggle recording mode for the given tab (PRD §6.5). Returns the
+ *  new state in the response so the sidepanel doesn't need a follow-up
+ *  GET_RECORDING round-trip. */
+export interface ToggleRecordingRuntimeMessage {
+  kind: 'TOGGLE_RECORDING';
+  tabId: number;
+}
+
+export interface GetRecordingRuntimeMessage {
+  kind: 'GET_RECORDING';
+  tabId: number;
+}
+
+export interface RecordingState {
+  recording: boolean;
+  startedAt?: number;
+}
+
 export type RuntimeMessage =
   | CaptureRuntimeMessage
   | GetEventsRuntimeMessage
   | ClearEventsRuntimeMessage
   | GetArchiveRuntimeMessage
-  | ClearArchiveRuntimeMessage;
+  | ClearArchiveRuntimeMessage
+  | ToggleRecordingRuntimeMessage
+  | GetRecordingRuntimeMessage;
 
 // ---------------------------------------------------------------------------
 // Type guards — used by the service worker dispatch switch.
@@ -122,4 +142,12 @@ export function isGetArchiveMessage(m: RuntimeMessage): m is GetArchiveRuntimeMe
 
 export function isClearArchiveMessage(m: RuntimeMessage): m is ClearArchiveRuntimeMessage {
   return m.kind === 'CLEAR_ARCHIVE';
+}
+
+export function isToggleRecordingMessage(m: RuntimeMessage): m is ToggleRecordingRuntimeMessage {
+  return m.kind === 'TOGGLE_RECORDING';
+}
+
+export function isGetRecordingMessage(m: RuntimeMessage): m is GetRecordingRuntimeMessage {
+  return m.kind === 'GET_RECORDING';
 }

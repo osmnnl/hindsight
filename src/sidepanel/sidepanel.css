@@ -129,6 +129,22 @@ button:hover {
   color: var(--text);
 }
 
+#record-toggle.recording {
+  color: var(--danger);
+  border-color: var(--danger);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /* ---------- closed-tab archive (PRD §6.1.3) ---------- */
 .archive-panel {
   border-bottom: 1px solid var(--border);

@@ -19,6 +19,9 @@ import {
   type ClearEventsRuntimeMessage,
   type GetArchiveRuntimeMessage,
   type GetEventsRuntimeMessage,
+  type GetRecordingRuntimeMessage,
+  type RecordingState,
+  type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
 import { toHar } from '@/lib/har';
 import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
@@ -262,13 +265,87 @@ async function init(): Promise<void> {
     e.preventDefault();
     void clearArchiveAndRefresh();
   });
+  document.getElementById('record-toggle')?.addEventListener('click', () => {
+    void toggleRecording();
+  });
 
   await refresh();
   await refreshArchive();
-  pollTimer = setInterval(() => void refresh(), 1500);
+  await refreshRecordingState();
+  pollTimer = setInterval(() => {
+    void refresh();
+    updateRecordTimer();
+  }, 1000);
   window.addEventListener('unload', () => {
     if (pollTimer) clearInterval(pollTimer);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Recording mode (PRD §6.5)
+// ---------------------------------------------------------------------------
+
+let recordingState: RecordingState = { recording: false };
+
+async function refreshRecordingState(): Promise<void> {
+  if (tabId == null) return;
+  try {
+    const msg: GetRecordingRuntimeMessage = { kind: 'GET_RECORDING', tabId };
+    const result = await chrome.runtime.sendMessage(msg);
+    if (result && typeof result === 'object') {
+      recordingState = result as RecordingState;
+      renderRecordingButton();
+    }
+  } catch {
+    /* SW briefly inactive */
+  }
+}
+
+async function toggleRecording(): Promise<void> {
+  if (tabId == null) return;
+  try {
+    const msg: ToggleRecordingRuntimeMessage = { kind: 'TOGGLE_RECORDING', tabId };
+    const result = await chrome.runtime.sendMessage(msg);
+    const next = (result as RecordingState | undefined) ?? { recording: false };
+    const wasRecording = recordingState.recording;
+    recordingState = next;
+    renderRecordingButton();
+    if (wasRecording && !next.recording) {
+      // Stop fired — download the bundle. Wired in C55 (W12-3).
+      await onRecordingStopped();
+    }
+  } catch {
+    /* swallow — sidepanel is best-effort */
+  }
+}
+
+function renderRecordingButton(): void {
+  const btn = document.getElementById('record-toggle');
+  if (!(btn instanceof HTMLButtonElement)) return;
+  if (recordingState.recording) {
+    btn.classList.add('recording');
+    btn.textContent = '■ Stop · 00:00';
+    updateRecordTimer();
+  } else {
+    btn.classList.remove('recording');
+    btn.textContent = '● Record';
+  }
+}
+
+function updateRecordTimer(): void {
+  if (!recordingState.recording || !recordingState.startedAt) return;
+  const btn = document.getElementById('record-toggle');
+  if (!(btn instanceof HTMLButtonElement)) return;
+  const elapsed = Math.floor((Date.now() - recordingState.startedAt) / 1000);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
+  btn.textContent = `■ Stop · ${mm}:${ss}`;
+}
+
+/** Called when toggleRecording observes the transition true → false.
+ *  Wired in C55 to generate + download the replay bundle. */
+async function onRecordingStopped(): Promise<void> {
+  /* W12-3 wires the bundle download here. */
 }
 
 async function refresh(): Promise<void> {
