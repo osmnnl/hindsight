@@ -62,7 +62,6 @@ interface UiState {
 }
 
 const UI_STATE_KEY = 'sidepanel/ui-state';
-const DEFAULT_UI_STATE: UiState = { filterMode: 'failed', activeHost: null };
 
 /** Page-URL host for non-network events, request-URL host for network.
  *  Lets the host picker filter both 3rd-party analytics requests and
@@ -371,6 +370,7 @@ async function init(): Promise<void> {
       if (searchTimer) clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         searchQuery = searchEl.value;
+        invalidateRenderCache();
         render();
       }, 120);
     });
@@ -384,12 +384,14 @@ async function init(): Promise<void> {
     hostSelect.addEventListener('change', () => {
       activeHost = hostSelect.value || null;
       persistUiState();
+      invalidateRenderCache();
       render();
     });
   }
   document.getElementById('host-clear')?.addEventListener('click', () => {
     activeHost = null;
     persistUiState();
+    invalidateRenderCache();
     render();
   });
 
@@ -625,12 +627,36 @@ chrome.storage.onChanged.addListener((changes, area) => {
   void chrome.storage.local.remove([FOCUS_EVENT_KEY, FOCUS_FILTER_KEY]).catch(() => {});
 });
 
+// Signature of the last events array we rendered. Cheap stamp — length
+// + last id + last timestamp catches every meaningful mutation without
+// walking the whole buffer. Used to skip render() on poll cycles where
+// nothing changed, which is the common case once the user stops
+// interacting with the page. Pre-fix, every 1 s poll re-built the bulk
+// bar's innerHTML and triggered a visible flicker on the buttons.
+let lastEventsSignature = '';
+
+function eventsSignature(list: CapturedEvent[]): string {
+  if (list.length === 0) return '0';
+  const last = list[list.length - 1]!;
+  return `${list.length}|${last.id}|${last.timestamp}`;
+}
+
+/** Forces the next render() to run even if the events signature is
+ *  stable — used when filter, host, or search inputs change because
+ *  those affect rendering without touching the events array. */
+function invalidateRenderCache(): void {
+  lastEventsSignature = '';
+}
+
 async function refresh(): Promise<void> {
   if (tabId == null) return;
   try {
     const message: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
     const result = await chrome.runtime.sendMessage(message);
     events = Array.isArray(result) ? (result as CapturedEvent[]) : [];
+    const sig = eventsSignature(events);
+    if (sig === lastEventsSignature) return;
+    lastEventsSignature = sig;
     render();
   } catch {
     /* service worker briefly inactive */
@@ -730,6 +756,7 @@ function setFilter(mode: FilterMode): void {
   filterMode = mode;
   syncFilterChipsToState();
   persistUiState();
+  invalidateRenderCache();
   render();
 }
 
@@ -875,6 +902,7 @@ const expandedClusters = new Set<string>();
 function toggleCluster(headId: string): void {
   if (expandedClusters.has(headId)) expandedClusters.delete(headId);
   else expandedClusters.add(headId);
+  invalidateRenderCache();
   render();
 }
 
