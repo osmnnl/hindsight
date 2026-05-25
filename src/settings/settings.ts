@@ -205,7 +205,12 @@ function renderPatternEditor(p: CustomPatternSetting, idx: number): string {
 }
 
 function bindPatternEditor(patternId: string, idx: number): void {
-  const card = document.querySelector<HTMLElement>(`[data-pattern-id="${patternId}"]`);
+  // Defense in depth: patternId is currently always a crypto.randomUUID()
+  // generated at "Add pattern" time, so this selector is safe by
+  // construction today. Wrap in CSS.escape so a future import-settings
+  // path or a manually edited chrome.storage entry can't break the
+  // selector (or match an unintended sibling).
+  const card = document.querySelector<HTMLElement>(`[data-pattern-id="${CSS.escape(patternId)}"]`);
   if (!card) return;
 
   const inputLabel = card.querySelector<HTMLInputElement>('[data-bind="label"]');
