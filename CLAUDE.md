@@ -186,6 +186,12 @@ If a request would build any of the above, say so and stop.
 
 ## 9. Where we are now (M5 in flight)
 
+**v0.4.3** (2026-05-25) — M5 W8-W9 SW robustness: `readArchive()`
+TTL-filters at read time (covers a wake-up race against the lazy
+sweep), and all async `chrome.runtime.onMessage` handlers now have
+matched `.catch` fallbacks so popup/sidepanel callers never hang
+waiting on a storage failure.
+
 **v0.4.2** (2026-05-25) — M5 W1-W7 foundation pass: a11y, perf,
 and three real production bugs that survived from M3. Privacy
 preview modal upgraded to a full ARIA dialog with `inert`

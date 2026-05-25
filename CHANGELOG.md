@@ -4,6 +4,39 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.3] — 2026-05-25 — M5 W8-W9 SW robustness
+
+Two small service-worker correctness fixes on top of v0.4.2. Both
+are defensive — under happy-path use neither was visible — but
+both close real failure modes that would have been hard to
+diagnose in the wild.
+
+### Fixed
+
+- **readArchive() now TTL-filters at read time** (W8). The 7-day
+  archive TTL (PRD §6.1.3) is normally enforced by `archiveSession()`
+  on every write and by `sweepArchive()` lazily on SW boot. If the
+  sidepanel requests the archive list immediately after a SW wake-
+  up, the message handler can read raw storage before
+  `sweepArchive()`'s async write lands — surfacing entries older
+  than the TTL for one render cycle. Filtering at read time covers
+  the race without removing the sweep.
+- **chrome.runtime.onMessage handlers now catch rejections** (W9).
+  The async branches (`GET_EVENTS`, `CLEAR_EVENTS`, `GET_ARCHIVE`,
+  `CLEAR_ARCHIVE`, `TOGGLE_RECORDING`) paired `.then(sendResponse)`
+  with no `.catch`. If storage threw (quota, corruption, mid-
+  teardown), `sendResponse` never fired and the popup / sidepanel
+  caller hung waiting until Chrome timed out the channel. Each
+  branch now has a `.catch` that calls `sendResponse` with a safe-
+  default fallback matching the expected shape (`[]`, `false`,
+  `{ recording: false }`).
+
+123 tests, all four perf gates green. Doc-only delta in CLAUDE.md.
+
+[0.4.3]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.3
+
+---
+
 ## [0.4.2] — 2026-05-25 — M5 W1-W7 foundation: a11y · perf · real bugs
 
 Pre-launch hygiene pass on top of v0.4.1. Seven small landings;
