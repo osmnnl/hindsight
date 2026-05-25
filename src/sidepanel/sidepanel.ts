@@ -2344,13 +2344,20 @@ function shortUrl(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Privacy preview modal — PRD §6.4.4.
+// Privacy preview modal — PRD §6.4.4 + M5 a11y pass.
 //
 // Replaces the M4·W12 confirm() with an in-panel overlay that surfaces
 // exactly what's about to leave the user's machine: event count,
-// per-rule redaction summary, and the destination identity. OQ-M4-L
-// resolution: simple overlay + Esc, no focus trap (full ARIA dialog
-// lands in M5's a11y pass).
+// per-rule redaction summary, and the destination identity.
+//
+// Full ARIA dialog contract (M5 OQ-M4-L closeout):
+//   - role="dialog" + aria-modal="true"
+//   - aria-labelledby (title) + aria-describedby (summary block)
+//   - Focus trap cycling Cancel / Continue on Tab / Shift+Tab
+//   - Esc cancels; Enter commits (when focus is not on a button)
+//   - #app is `inert` while the dialog is open so screen readers and
+//     keyboard navigation cannot reach the background side-panel UI
+//   - Focus is restored to the element that opened the dialog on close
 // ---------------------------------------------------------------------------
 
 interface PrivacyPreviewOptions {
@@ -2362,6 +2369,7 @@ interface PrivacyPreviewOptions {
 function showPrivacyPreview(opts: PrivacyPreviewOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
+    const appRoot = document.getElementById('app');
     const overlay = document.createElement('div');
     overlay.className = 'privacy-modal-overlay';
 
@@ -2374,26 +2382,34 @@ function showPrivacyPreview(opts: PrivacyPreviewOptions): Promise<boolean> {
       : '';
 
     overlay.innerHTML = `
-      <div class="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+      <div
+        class="privacy-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="privacy-modal-title"
+        aria-describedby="privacy-modal-body"
+      >
         <h2 id="privacy-modal-title">Send to ${escapeHtml(opts.destinationLabel)}?</h2>
-        <ul class="privacy-modal-summary">
-          <li><strong>${opts.events.length}</strong> event${opts.events.length === 1 ? '' : 's'}${failedCount > 0 ? ` · <span class="muted">${failedCount} error${failedCount === 1 ? '' : 's'}</span>` : ''}</li>
-          ${detailShort ? `<li class="muted"><code>${escapeHtml(detailShort)}</code></li>` : ''}
-        </ul>
-        ${
-          redactionGroups.total > 0
-            ? `<div class="privacy-modal-redactions">
-                <strong>${redactionGroups.total} field${redactionGroups.total === 1 ? '' : 's'} masked at capture time</strong>
-                <ul>${redactionGroups.rows
-                  .map(
-                    (g) =>
-                      `<li><strong>${escapeHtml(g.label)}</strong> <span class="muted">— ${g.count}×</span></li>`
-                  )
-                  .join('')}</ul>
-                <p class="muted">Masked values were never written to storage (PRD §11.2) — they leave masked.</p>
-              </div>`
-            : `<p class="privacy-modal-noredactions muted">No fields matched a masking rule in this session.</p>`
-        }
+        <div id="privacy-modal-body">
+          <ul class="privacy-modal-summary">
+            <li><strong>${opts.events.length}</strong> event${opts.events.length === 1 ? '' : 's'}${failedCount > 0 ? ` · <span class="muted">${failedCount} error${failedCount === 1 ? '' : 's'}</span>` : ''}</li>
+            ${detailShort ? `<li class="muted"><code>${escapeHtml(detailShort)}</code></li>` : ''}
+          </ul>
+          ${
+            redactionGroups.total > 0
+              ? `<div class="privacy-modal-redactions">
+                  <strong>${redactionGroups.total} field${redactionGroups.total === 1 ? '' : 's'} masked at capture time</strong>
+                  <ul>${redactionGroups.rows
+                    .map(
+                      (g) =>
+                        `<li><strong>${escapeHtml(g.label)}</strong> <span class="muted">— ${g.count}×</span></li>`
+                    )
+                    .join('')}</ul>
+                  <p class="muted">Masked values were never written to storage (PRD §11.2) — they leave masked.</p>
+                </div>`
+              : `<p class="privacy-modal-noredactions muted">No fields matched a masking rule in this session.</p>`
+          }
+        </div>
         <div class="privacy-modal-actions">
           <button data-action="cancel" class="secondary">Cancel</button>
           <button data-action="continue" class="primary">Continue</button>
@@ -2401,17 +2417,20 @@ function showPrivacyPreview(opts: PrivacyPreviewOptions): Promise<boolean> {
       </div>
     `;
 
+    // Background goes inert: keyboard focus + a11y tree skip #app while
+    // the dialog is up. Restored on cleanup.
+    appRoot?.setAttribute('inert', '');
     document.body.appendChild(overlay);
 
     const cleanup = (result: boolean): void => {
       document.removeEventListener('keydown', onKey);
       overlay.remove();
+      appRoot?.removeAttribute('inert');
       previouslyFocused?.focus?.();
       resolve(result);
     };
     // Focus trap: cycle Tab / Shift+Tab between Cancel and Continue so
     // keyboard users can't escape into the surrounding side-panel UI.
-    // PRD §11.4 + M5 W18 a11y obligation: dialog role + focus trap.
     const focusables = (): HTMLButtonElement[] =>
       Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
     const onKey = (e: KeyboardEvent): void => {
@@ -2452,10 +2471,10 @@ function showPrivacyPreview(opts: PrivacyPreviewOptions): Promise<boolean> {
       if (e.target === overlay) cleanup(false);
     });
 
-    // Focus continue button so Enter immediately commits.
-    setTimeout(() => {
-      overlay.querySelector<HTMLButtonElement>('[data-action="continue"]')?.focus();
-    }, 10);
+    // Focus the Continue button so Enter immediately commits. Synchronous
+    // — the overlay is already in the DOM after appendChild, so no
+    // timer is needed (the old 10 ms setTimeout was a leftover guess).
+    overlay.querySelector<HTMLButtonElement>('[data-action="continue"]')?.focus();
   });
 }
 

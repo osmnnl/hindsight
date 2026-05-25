@@ -341,3 +341,17 @@ main {
 .hidden {
   display: none;
 }
+
+/* A11y: respect user's reduced-motion preference — kill the recording
+   pulse animation and shrink all transitions to a near-zero duration
+   so motion-sensitive users don't get a flashing dot. */
+@media (prefers-reduced-motion: reduce) {
+  .recording-dot {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
