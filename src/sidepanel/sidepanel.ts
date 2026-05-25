@@ -1941,15 +1941,16 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
         Copy bug report · ${fmtSize(bugReportText.length)}${isOversize ? ' ⚠' : ''}
       </button>
       <button data-action="download" class="${isOversize ? '' : 'secondary'}">⤓ Download JSON</button>
-      <button data-copy="curl" class="secondary">cURL · ${fmtSize(curlText.length)}</button>
-      <button data-copy="response" class="secondary">Response · ${fmtSize(respText.length)}</button>
       <button data-action="replay" class="secondary" title="Re-fire this request from the extension context (PRD §6.3.5)">↻ Replay</button>
     </div>
-    <div class="copy-row copy-row-atoms" aria-label="Copy a specific slice">
-      <button data-copy="url" class="secondary small" title="Just the request URL">URL</button>
-      <button data-copy="request" class="secondary small" title="Method + URL + headers + body, plain text">Request</button>
-      <button data-copy="req-resp" class="secondary small" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
-      <button data-copy="token" class="secondary small" title="Access token from the Authorization header (Bearer prefix stripped). Only works if Authorization masking is disabled in Settings → Privacy.">Token</button>
+    <div class="copy-slices" aria-label="Copy a specific slice">
+      <span class="copy-slices-label">Copy:</span>
+      <button data-copy="url" class="slice" title="Just the request URL">URL</button>
+      <button data-copy="request" class="slice" title="Method + URL + headers + body, plain text">Request</button>
+      <button data-copy="response" class="slice" title="Response body · ${fmtSize(respText.length)}">Response</button>
+      <button data-copy="req-resp" class="slice" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
+      <button data-copy="curl" class="slice" title="cURL command · ${fmtSize(curlText.length)}">cURL</button>
+      <button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>
     </div>
     <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
