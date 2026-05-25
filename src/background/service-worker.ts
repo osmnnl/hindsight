@@ -427,11 +427,13 @@ async function emitRecordingEvent(
   await renderBadge(tabId, buffer);
 }
 
-// Clean up recording state when its tab closes — same lifecycle as
-// the navigation lastUrl map. Also clears the screenshot interval so
-// captureVisibleTab doesn't keep firing against a dead tab id, and
-// drops the per-session notification dedup entry so the Map doesn't
-// leak across long-running browser instances.
+// Clean up SW in-memory state when a tab closes. There are two
+// classes of leak we close here:
+//   - tabId-keyed Maps: drop the entry synchronously.
+//   - sessionId-keyed Maps: look up the sessionId from chrome.storage
+//     (fire-and-forget) before dropping the entry. notifiedThisSession
+//     used to delete a synthetic `session-for-tab-${tabId}` key that
+//     never existed, leaking one entry per closed tab forever.
 chrome.tabs.onRemoved.addListener((tabId) => {
   const wasRecording = recordingByTab.delete(tabId);
   const timer = recordingScreenshotTimers.get(tabId);
@@ -439,17 +441,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     clearInterval(timer);
     recordingScreenshotTimers.delete(tabId);
   }
-  // Look up the real sessionId before deleting — notifiedThisSession is
-  // keyed by sessionId, not tabId. The previous implementation deleted a
-  // synthetic `session-for-tab-${tabId}` key that never existed, so the
-  // Map leaked one entry per closed tab forever. Fire-and-forget: the
-  // listener can't be async itself and the storage read is harmless if
-  // the tab had no session.
+  // Tab-keyed cleanups.
+  screenshotLastShotAt.delete(tabId);
+  // Session-keyed cleanups — async lookup, fire-and-forget.
   void chrome.storage.local
     .get(`sessions/${tabId}`)
     .then((stored) => {
       const meta = stored[`sessions/${tabId}`] as { sessionId?: string } | undefined;
-      if (meta?.sessionId) notifiedThisSession.delete(meta.sessionId);
+      if (meta?.sessionId) {
+        notifiedThisSession.delete(meta.sessionId);
+        sequenceCursor.delete(meta.sessionId);
+      }
     })
     .catch(() => {
       /* storage unavailable during teardown — accept the tiny leak */
