@@ -233,12 +233,17 @@ export async function archiveSession(tabId: number): Promise<void> {
 
 /**
  * Reads the archive (newest first). Returns an empty array when nothing
- * has landed yet.
+ * has landed yet. TTL-filters at read time so a stale on-disk entry
+ * never reaches the UI — the lazy `sweepArchive()` on SW start
+ * eventually cleans the disk too, but a race between SW wake-up and a
+ * sidepanel archive request can otherwise surface expired sessions
+ * for the duration of one render cycle.
  */
 export async function readArchive(): Promise<ArchivedSession[]> {
   const stored = await chrome.storage.local.get(StorageKeys.archives);
   const list = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
-  return [...list].sort((a, b) => b.archivedAt - a.archivedAt);
+  const cutoff = Date.now() - ARCHIVE_TTL_MS;
+  return list.filter((a) => a.archivedAt >= cutoff).sort((a, b) => b.archivedAt - a.archivedAt);
 }
 
 /** Drops every archived session. Used by the sidepanel's "Clear
