@@ -184,17 +184,31 @@ If a request would build any of the above, say so and stop.
 
 ---
 
-## 9. Where we are now (post-M4)
+## 9. Where we are now (M5 in flight)
 
-**M4 closed at v0.4.0** (2026-05-21), then **v0.4.1 post-closeout
-polish** (2026-05-21) shipped three sidepanel triage-noise killers
-on the same branch: API-only filter chip (hides framework chunks +
-static assets via `isApiRequest()` heuristic in `src/types/events.ts`,
-mirrored into the replay-bundle viewer), persistent filter + free-text
-search + host picker (UI state survives reload via
-`chrome.storage.local['sidepanel/ui-state']`), and a render-cache
-fix that stops bulk bar / share chip flicker on the 1 s polling
-refresh.
+**v0.4.2** (2026-05-25) — M5 W1-W7 foundation pass: a11y, perf,
+and three real production bugs that survived from M3. Privacy
+preview modal upgraded to a full ARIA dialog with `inert`
+background (OQ-M4-L closed). Popup honors `prefers-reduced-motion`.
+Two new perf benchmarks (`masking-cost`, `filter-1000`) wired
+into `npm run bench`; `isApiRequest()` runs 41% faster after
+hoisting the ASSET_EXTS Set to module scope. The cascade-head
+EventFlag now actually fires (it was dead code — SW cascade
+desktop notification + sidepanel cluster banner both keyed off
+a flag that was never set). Three in-memory SW Maps no longer
+leak on tab close (`notifiedThisSession`, `screenshotLastShotAt`,
+`sequenceCursor`). 123 unit tests, four perf gates green.
+
+**v0.4.1** (2026-05-21) — M4 post-closeout polish: three sidepanel
+triage-noise killers — API-only filter chip (hides framework
+chunks + static assets via `isApiRequest()` heuristic in
+`src/types/events.ts`, mirrored into the replay-bundle viewer),
+persistent filter + free-text search + host picker (UI state
+survives reload via `chrome.storage.local['sidepanel/ui-state']`),
+and a render-cache fix that stops bulk bar / share chip flicker on
+the 1 s polling refresh.
+
+**v0.4.0** (2026-05-21) — M4 closeout:
 
 The killer-differentiator standalone HTML replay bundle ships; the
 sharing hub covers Slack / Discord / Teams webhooks (size-aware
@@ -215,21 +229,28 @@ p95 ~0.012 ms, XHR p95 ~0.001 ms).
 **M5 axis: pre-launch polish.** Expected scope:
 
 - Perf audit + benchmark expansion (memory leak harness, sidepanel
-  stress test 1000+ events, real-world site smoke).
+  stress test 1000+ events, real-world site smoke). _W2/W4 done:
+  masking-cost + filter-1000 benches landed. Memory leak harness
+  partly done — three SW Maps fixed in W6/W7. Sidepanel render
+  stress test (needs jsdom infra) still pending._
 - Accessibility audit — axe-core CI integration, WCAG AA compliance,
   manual NVDA / VoiceOver pass, full ARIA dialog with focus trap for
   the privacy preview modal (W14-3 ships a simple overlay; OQ-M4-L
-  defers the focus trap to here).
+  defers the focus trap to here). _OQ-M4-L closed in W1 (`inert`
+  background, aria-describedby, dropped setTimeout hack). Popup
+  reduced-motion added in W1. axe-core CI + manual SR pass still
+  pending._
 - Security audit — CSP review, dependency audit, input validation
-  sweep at all system boundaries.
+  sweep at all system boundaries. _W3 done: CSP + innerHTML +
+  npm audit reviewed, `CSS.escape()` added at the one dynamic
+  selector site. Dev-dep upgrade (vitest 3 + @crxjs downgrade)
+  still pending._
 - Documentation site (hindsight.dev) + landing page + demo video
   (out-of-repo).
 - CWS public submission + Edge Add-ons submission → `v1.0.0` tag.
 
-**Branch state:** all M4 + v0.4.1 polish landed on
-`feature/m4-foundation` (20 commits ahead of `main`). Rebase-merge to
-`main` at v0.4.1 tag, then start M5 sprints from fresh
-`feature/m5-*` branches.
+**Branch state:** all M4 + v0.4.1 + v0.4.2 work on `main`. M5
+sprints continue from fresh `feature/m5-*` branches.
 
 ---
 

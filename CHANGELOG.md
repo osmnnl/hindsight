@@ -4,6 +4,100 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.2] — 2026-05-25 — M5 W1-W7 foundation: a11y · perf · real bugs
+
+Pre-launch hygiene pass on top of v0.4.1. Seven small landings;
+three of them are real production bug fixes that survived from M3
+because nothing tested them. The other four are an a11y polish,
+two new perf benchmarks, and one defense-in-depth security tweak.
+
+### Fixed
+
+- **Cascade detection one-shot signal was dead code** (W5). The
+  `cascade-head` EventFlag was never stamped on any event because
+  `detectCascade()` returned `isHead: false` in both branches. The
+  SW desktop notification at service-worker.ts:585 and the
+  sidepanel cluster banner at sidepanel.ts:1084 both keyed off
+  this flag — neither actually fired before. Fix is a one-literal
+  change in the no-inherited-head branch; new tests guard both
+  the fire and the don't-re-fire-on-4th-failure paths.
+- **SW Map leaks on tab close** (W6 + W7). Three in-memory Maps
+  in the service worker grew unbounded over a browsing day:
+  `notifiedThisSession` (synthetic key cleanup that never matched
+  a real key), `screenshotLastShotAt` (no cleanup at all), and
+  `sequenceCursor` (no cleanup at all). All three now flush on
+  `chrome.tabs.onRemoved` — tabId-keyed maps drop synchronously,
+  sessionId-keyed maps share one async lookup.
+
+### Added
+
+- **Full ARIA dialog for the privacy preview modal** (W1) —
+  resolves OQ-M4-L. Adds `aria-describedby` pointing at a new
+  summary wrapper, sets `inert` on `#app` while the dialog is
+  open so screen readers and keyboard nav cannot reach the
+  background side-panel UI. Drops the 10 ms setTimeout focus
+  hack — the overlay is in the DOM after `appendChild`, focus
+  works synchronously.
+- **Reduced-motion support in the popup** (W1). The
+  `recording-dot` pulse animation now honors
+  `prefers-reduced-motion: reduce`. Sidepanel already had this;
+  popup was missing it.
+- **masking-cost benchmark** (W2) — `bench/masking-cost.bench.ts`
+  guards a sub-slice of the PRD §13.1 fetch/XHR budget so a
+  future PII rule addition can't silently eat the headroom.
+  Budgets: header walk p95 < 0.05 ms, body scan p95 < 0.20 ms.
+  Local measurement: ~3.6% and ~1.4% of budget respectively.
+- **filter-1000 benchmark** (W4) — `bench/filter-1000.bench.ts`
+  exercises `isApiRequest` / `isErrorEvent` over a synthetic
+  1000-event session. Budget p95 < 2 ms (well under the 200 ms
+  PRD §13.1 row 3 render budget). Both predicates in the gate.
+- **`npm run bench:masking` + `npm run bench:filter`** standalone
+  scripts. `npm run bench` chains all four benches.
+
+### Changed
+
+- **`isApiRequest()` is ~41% faster** (W4). Hoisted the
+  `ASSET_EXTS` set from inside the function body to module scope —
+  the per-call allocation was the dominant cost in the 1000-event
+  filter pass (p95 0.42 ms → 0.25 ms).
+- **`bindPatternEditor` uses `CSS.escape()`** (W3). Defense in
+  depth: pattern ids are crypto.randomUUID() today, but a future
+  import-settings flow or manually edited chrome.storage entry
+  could otherwise break the selector or match an unintended
+  sibling.
+
+### Audited (no change needed)
+
+- **innerHTML call sites** — 27 reviewed, every user-controlled
+  value funnels through `escapeHtml` / `escapeAttr`. Two raw
+  interpolations verified safe (numeric height in scrubber bars,
+  literal-string WebhookDestination in popup quick-share).
+- **CSP** — `script-src 'self'; object-src 'self'` (PRD §9.2
+  baseline). Unchanged.
+- **`npm audit`** — 7 vulnerabilities in dev-dep transitive chain
+  (rollup, vite, vitest, vite-node, @crxjs/vite-plugin). Build-
+  time only; none ship to the user. Fix requires breaking
+  upgrades, deferred to the next M5 dep-bump sprint.
+
+### Commits (7 on `main`)
+
+```
+feat(a11y):       privacy modal full ARIA dialog + popup reduced-motion — W1
+perf(bench):      masking-cost benchmark — PRD §11.2 + §13.1 sub-budget — W2
+chore(security):  CSS.escape dynamic selector — settings — W3
+perf(filter):     hoist ASSET_EXTS + 1000-event filter bench — W4
+fix(detection):   cascade-head fires on threshold-tripping event — W5
+fix(sw):          notifiedThisSession leak on tab close — W6
+fix(sw):          screenshotLastShotAt + sequenceCursor leak on tab close — W7
+```
+
+123 unit tests (121 → 123 via the two new cascade-head assertions),
+all four perf gates green.
+
+[0.4.2]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.2
+
+---
+
 ## [0.4.1] — 2026-05-21 — M4 post-closeout polish
 
 Three sidepanel triage-noise killers landed on the M4 branch after
