@@ -106,7 +106,7 @@ npm run dev        # Vite + CRXJS with HMR for the popup / settings UIs
 npm run lint
 npm run format:check
 npm run typecheck
-npm test           # Vitest — currently 42 unit tests
+npm test           # Vitest — currently 121 unit tests
 npm run bench      # PRD §13.1 fetch overhead gate (CI-blocking)
 ```
 

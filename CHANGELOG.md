@@ -4,6 +4,72 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-05-21 — M4 post-closeout polish
+
+Three sidepanel triage-noise killers landed on the M4 branch after
+the v0.4.0 closeout commit. No new milestone, no PRD scope change —
+just compounding quality-of-life wins on the surfaces shipped in M4.
+
+### Added
+
+- **API-only filter chip** alongside Failed / All. Reason: modern
+  SPA frameworks (Next.js especially) emit tens-to-hundreds of
+  internal requests per page — chunked JS, prefetched data, image
+  optimizer, fonts — that drown out the actual API calls a user is
+  debugging. `isApiRequest()` in `src/types/events.ts` is the shared
+  heuristic: keeps `network.fetch` / `network.xhr` only, rejects
+  framework internals (`/_next/`, `/__webpack`, `/__vite`, `/_hot/`,
+  `/__nextjs`, `/sockjs-node`), rejects by URL extension and
+  response content-type. Mirrored verbatim into the replay-bundle
+  viewer so the bundle stays self-contained.
+- **Persistent filter + host picker.** Last-used `filterMode` +
+  `activeHost` survive reload via
+  `chrome.storage.local['sidepanel/ui-state']` with a 200 ms
+  write-side debounce. Default still `failed`; previous selection
+  wins after the first run.
+- **Free-text search bar** above the event list — case-insensitive
+  substring across `event.type` + `url` + stringified `data`,
+  debounced 120 ms. Intentionally transient (not persisted).
+- **Host filter `<select>`** harvested from the current buffer.
+  `eventHost()` picks request-URL host for network events, page-URL
+  host for everything else.
+- **17 new `isApiRequest` unit tests** covering the full matrix.
+  **121 unit tests total**, both perf gates green
+  (fetch p95 ~0.012 ms, XHR p95 ~0.001 ms).
+
+### Fixed
+
+- **Sidepanel bulk-bar flicker on poll** — the 1 s polling
+  `refresh()` was calling `render()` unconditionally, so bulk bar
+  buttons + share chips were rebuilt every cycle, causing visible
+  flicker on the bottom action bar. `refresh()` now stamps an
+  events signature (length | last id | last timestamp) and skips
+  `render()` when it matches. `invalidateRenderCache()` clears the
+  stamp so filter / host / search / cluster-toggle changes still
+  force a fresh render.
+
+### Changed
+
+- Render pipeline reads `filteredEvents(all, mode, host, query)`
+  with a single fixed order: filter mode → host pin → free-text
+  search. Result count chip ("12 / 384") shows the narrowing live.
+- Empty-state copy branches by which dimension is empty (search
+  match vs host mismatch vs filter selection).
+- Popup focus handshake validates `'api'` alongside `'failed'` /
+  `'all'`.
+
+### Commits (3 on `feature/m4-foundation`, on top of v0.4.0)
+
+```
+feat(filter):    API-only filter chip — hide framework chunks and static assets
+feat(sidepanel): persistent filter + search bar + host picker
+fix(sidepanel):  skip render when events haven't changed — stop bulk bar flicker
+```
+
+[0.4.1]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.1
+
+---
+
 ## [0.4.0] — 2026-05-21 — M4: Replay bundle + sharing hub
 
 Fourth milestone. The PRD's killer-differentiator feature lands: a
