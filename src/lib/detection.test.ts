@@ -101,6 +101,34 @@ describe('detect — cascade rule', () => {
     expect(r.flags).toContain('cascade-member');
   });
 
+  it('marks the threshold-tripping event as cascade-head (one-shot signal)', () => {
+    // The 3rd failure within the window is what SW desktop notifications
+    // and the sidepanel cluster banner key off — without cascade-head
+    // on this exact event, the one-shot notification never fires.
+    const buffer: CapturedEvent[] = [
+      fetchEvt({ id: 'a', ts: BASE_TS, status: 500 }),
+      fetchEvt({ id: 'b', ts: BASE_TS + 1000, status: 500 }),
+    ];
+    const r = detect(fetchEvt({ id: 'c', ts: BASE_TS + 2000, status: 500 }), buffer);
+    expect(r.flags).toContain('cascade-head');
+    expect(r.flags).toContain('cascade-member');
+  });
+
+  it('does NOT re-fire cascade-head on the 4th failure (inherits cluster)', () => {
+    // The 4th failure joins the cluster as a plain member. cascade-head
+    // is a one-shot flag — if it fired again, SW notifications would
+    // spam the user every additional in-window failure.
+    const buffer: CapturedEvent[] = [
+      fetchEvt({ id: 'a', ts: BASE_TS, status: 500 }),
+      fetchEvt({ id: 'b', ts: BASE_TS + 1000, status: 500 }),
+      fetchEvt({ id: 'c', ts: BASE_TS + 2000, status: 500, cascadeOf: 'a' }),
+    ];
+    const r = detect(fetchEvt({ id: 'd', ts: BASE_TS + 3000, status: 500 }), buffer);
+    expect(r.cascadeOf).toBe('a');
+    expect(r.flags).toContain('cascade-member');
+    expect(r.flags).not.toContain('cascade-head');
+  });
+
   it('does not cascade across different origins', () => {
     const buffer: CapturedEvent[] = [
       fetchEvt({ id: 'a', ts: BASE_TS, status: 500, url: 'https://api.a.com/x' }),

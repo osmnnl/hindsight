@@ -114,11 +114,15 @@ function detectCascade(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): C
 
   const oldest = recentSameOriginFailures[0];
   if (!oldest) return null;
-  // First time the threshold trips: mark `oldest` as the head; this
-  // event becomes a member referencing oldest.id. (The events earlier
-  // than `oldest` are already persisted without a cascade flag; the
-  // side panel groups by cascadeOf forward only, which is acceptable.)
-  return { headId: oldest.id, isHead: false };
+  // First time the threshold trips: `oldest` is the cluster anchor
+  // (cascadeOf points back at it), but the *triggering* event — the
+  // one we're stamping right now — is what callers treat as the
+  // cascade head. That's what fires the one-shot SW desktop
+  // notification (background/service-worker.ts) and renders the
+  // initial cluster banner (sidepanel). Subsequent in-window failures
+  // hit the inheritedHead branch above with isHead:false and just
+  // join the cluster.
+  return { headId: oldest.id, isHead: true };
 }
 
 function countIdenticalFailures(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): number {
