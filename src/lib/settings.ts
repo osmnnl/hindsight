@@ -1,10 +1,13 @@
-// User-facing settings — chrome.storage.sync owner (PRD §6.6.2).
+// User-facing settings — chrome.storage.local owner.
 //
-// Settings are tiny and stable, so they live on chrome.storage.sync
-// (102 KB quota, synced across the user's Chrome profiles per the same
-// Google account — encrypted in transit; Hindsight has no server). They
-// are intentionally not co-located with the per-tab capture buffer,
-// which is large and stays on chrome.storage.local.
+// Originally on chrome.storage.sync (cross-device, 102 KB quota) but
+// switched to local because sync silently fails when the user's
+// Chrome doesn't have profile sync turned on — write returns no
+// error but nothing persists, so the W12 per-rule mask disable
+// wasn't being honoured in the wild. Local has 5 MB quota, no rate
+// limit, no profile dependency. The trade-off is settings no longer
+// follow the user across devices — acceptable for a privacy-first
+// tool where the user is configuring their local environment.
 //
 // Sections follow PRD §6.6.1 — General / Capture / Detection / Sharing /
 // Privacy / Advanced. This module ships General + Privacy today; Capture
@@ -211,7 +214,7 @@ export const SettingsKeys = {
 // ---------------------------------------------------------------------------
 
 export async function readGeneralSettings(): Promise<GeneralSettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.general);
+  const stored = await chrome.storage.local.get(SettingsKeys.general);
   const value = stored[SettingsKeys.general] as Partial<GeneralSettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_GENERAL_SETTINGS };
@@ -226,11 +229,11 @@ export async function writeGeneralSettings(patch: Partial<GeneralSettings>): Pro
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.general]: next });
+  await chrome.storage.local.set({ [SettingsKeys.general]: next });
 }
 
 export async function readPrivacySettings(): Promise<PrivacySettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.privacy);
+  const stored = await chrome.storage.local.get(SettingsKeys.privacy);
   const value = stored[SettingsKeys.privacy] as Partial<PrivacySettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_PRIVACY_SETTINGS };
@@ -253,11 +256,11 @@ export async function writePrivacySettings(patch: Partial<PrivacySettings>): Pro
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.privacy]: next });
+  await chrome.storage.local.set({ [SettingsKeys.privacy]: next });
 }
 
 export async function readCaptureSettings(): Promise<CaptureSettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.capture);
+  const stored = await chrome.storage.local.get(SettingsKeys.capture);
   const value = stored[SettingsKeys.capture] as Partial<CaptureSettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_CAPTURE_SETTINGS };
@@ -272,11 +275,11 @@ export async function writeCaptureSettings(patch: Partial<CaptureSettings>): Pro
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.capture]: next });
+  await chrome.storage.local.set({ [SettingsKeys.capture]: next });
 }
 
 export async function readDetectionSettings(): Promise<DetectionSettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.detection);
+  const stored = await chrome.storage.local.get(SettingsKeys.detection);
   const value = stored[SettingsKeys.detection] as Partial<DetectionSettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_DETECTION_SETTINGS };
@@ -291,11 +294,11 @@ export async function writeDetectionSettings(patch: Partial<DetectionSettings>):
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.detection]: next });
+  await chrome.storage.local.set({ [SettingsKeys.detection]: next });
 }
 
 export async function readSharingSettings(): Promise<SharingSettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.sharing);
+  const stored = await chrome.storage.local.get(SettingsKeys.sharing);
   const value = stored[SettingsKeys.sharing] as Partial<SharingSettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_SHARING_SETTINGS };
@@ -310,11 +313,11 @@ export async function writeSharingSettings(patch: Partial<SharingSettings>): Pro
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.sharing]: next });
+  await chrome.storage.local.set({ [SettingsKeys.sharing]: next });
 }
 
 export async function readAdvancedSettings(): Promise<AdvancedSettings> {
-  const stored = await chrome.storage.sync.get(SettingsKeys.advanced);
+  const stored = await chrome.storage.local.get(SettingsKeys.advanced);
   const value = stored[SettingsKeys.advanced] as Partial<AdvancedSettings> | undefined;
   if (!value || value.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return { ...DEFAULT_ADVANCED_SETTINGS };
@@ -329,5 +332,5 @@ export async function writeAdvancedSettings(patch: Partial<AdvancedSettings>): P
     ...patch,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
   };
-  await chrome.storage.sync.set({ [SettingsKeys.advanced]: next });
+  await chrome.storage.local.set({ [SettingsKeys.advanced]: next });
 }

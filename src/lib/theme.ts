@@ -21,7 +21,7 @@ export async function applyTheme(): Promise<void> {
 
 export function listenForThemeChanges(): void {
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && SettingsKeys.general in changes) {
+    if (area === 'local' && SettingsKeys.general in changes) {
       void applyTheme();
     }
   });

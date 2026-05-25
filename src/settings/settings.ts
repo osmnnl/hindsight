@@ -689,10 +689,9 @@ async function refreshStorageStats(): Promise<void> {
   if (!out) return;
   try {
     const local = await chrome.storage.local.getBytesInUse?.(null);
-    const sync = await chrome.storage.sync.getBytesInUse?.(null);
     const formatKb = (n: number | undefined): string =>
       n == null ? '—' : `${(n / 1024).toFixed(1)} KB`;
-    out.textContent = `local: ${formatKb(local)} · sync: ${formatKb(sync)}`;
+    out.textContent = `local: ${formatKb(local)}`;
   } catch (e) {
     out.textContent = `Unable to read storage: ${(e as Error).message ?? e}`;
   }
@@ -704,8 +703,12 @@ async function resetEverything(): Promise<void> {
   );
   if (!confirmed) return;
   try {
+    // Both areas cleared even though settings live on local now — old
+    // installs may still have sync entries from before W14; sweep them.
     await chrome.storage.local.clear();
-    await chrome.storage.sync.clear();
+    await chrome.storage.sync.clear().catch(() => {
+      /* sync may be unavailable; not fatal */
+    });
   } catch (e) {
     alert(`Reset failed: ${(e as Error).message ?? e}`);
     return;

@@ -177,15 +177,16 @@ function compileCustomPatterns(patterns: CustomPatternSetting[]): BodyPatternRul
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && SettingsKeys.privacy in changes) {
-    privacyConfigPromise = null;
-  }
-  if (area === 'sync' && SettingsKeys.capture in changes) {
-    captureConfigPromise = null;
-  }
-  if (area === 'sync' && SettingsKeys.detection in changes) {
-    detectionConfigPromise = null;
-  }
+  // Settings moved from sync → local in W14 (sync silently fails when
+  // the user's Chrome doesn't have profile sync turned on). The
+  // capture buffer was already on local, so this listener now
+  // dispatches off a single area; the key-in-changes check still
+  // discriminates between settings slices and unrelated event-buffer
+  // writes.
+  if (area !== 'local') return;
+  if (SettingsKeys.privacy in changes) privacyConfigPromise = null;
+  if (SettingsKeys.capture in changes) captureConfigPromise = null;
+  if (SettingsKeys.detection in changes) detectionConfigPromise = null;
 });
 
 // ---------------------------------------------------------------------------
