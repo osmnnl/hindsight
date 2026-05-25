@@ -8,6 +8,9 @@ dist/
 .vite/
 *.tsbuildinfo
 
+# Packaged release artifacts (CWS / Edge Add-ons upload zips)
+release/
+
 # Editor
 .vscode/
 .idea/
