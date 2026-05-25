@@ -429,7 +429,9 @@ async function emitRecordingEvent(
 
 // Clean up recording state when its tab closes — same lifecycle as
 // the navigation lastUrl map. Also clears the screenshot interval so
-// captureVisibleTab doesn't keep firing against a dead tab id.
+// captureVisibleTab doesn't keep firing against a dead tab id, and
+// drops the per-session notification dedup entry so the Map doesn't
+// leak across long-running browser instances.
 chrome.tabs.onRemoved.addListener((tabId) => {
   const wasRecording = recordingByTab.delete(tabId);
   const timer = recordingScreenshotTimers.get(tabId);
@@ -437,7 +439,21 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     clearInterval(timer);
     recordingScreenshotTimers.delete(tabId);
   }
-  notifiedThisSession.delete(`session-for-tab-${tabId}`);
+  // Look up the real sessionId before deleting — notifiedThisSession is
+  // keyed by sessionId, not tabId. The previous implementation deleted a
+  // synthetic `session-for-tab-${tabId}` key that never existed, so the
+  // Map leaked one entry per closed tab forever. Fire-and-forget: the
+  // listener can't be async itself and the storage read is harmless if
+  // the tab had no session.
+  void chrome.storage.local
+    .get(`sessions/${tabId}`)
+    .then((stored) => {
+      const meta = stored[`sessions/${tabId}`] as { sessionId?: string } | undefined;
+      if (meta?.sessionId) notifiedThisSession.delete(meta.sessionId);
+    })
+    .catch(() => {
+      /* storage unavailable during teardown — accept the tiny leak */
+    });
   if (wasRecording) {
     void persistRecordingState().catch(() => {});
   }
