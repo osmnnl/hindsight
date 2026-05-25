@@ -398,6 +398,43 @@ export function isErrorEvent(e: CapturedEvent): boolean {
  * False negatives (real APIs we skip) are worse than false positives
  * (noise we let through), so the heuristic is conservative.
  */
+// Hoisted to module scope so the Set isn't reconstructed on every
+// call. The sidepanel re-runs isApiRequest across the full buffer
+// on each render — at 1000 events × N renders, the per-call Set
+// allocation was the dominant cost (see bench/filter-1000.bench.ts).
+const ASSET_EXTS = new Set([
+  'js',
+  'mjs',
+  'cjs',
+  'jsx',
+  'ts',
+  'tsx',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'svg',
+  'webp',
+  'avif',
+  'ico',
+  'bmp',
+  'woff',
+  'woff2',
+  'ttf',
+  'eot',
+  'otf',
+  'map',
+  'wasm',
+  'mp4',
+  'webm',
+  'mp3',
+  'ogg',
+]);
+
 export function isApiRequest(e: CapturedEvent): boolean {
   if (e.type !== 'network.fetch' && e.type !== 'network.xhr') return false;
 
@@ -414,38 +451,6 @@ export function isApiRequest(e: CapturedEvent): boolean {
   const lastSeg = clean.split('/').pop() ?? '';
   const dot = lastSeg.lastIndexOf('.');
   const ext = dot >= 0 ? lastSeg.slice(dot + 1) : '';
-  const ASSET_EXTS = new Set([
-    'js',
-    'mjs',
-    'cjs',
-    'jsx',
-    'ts',
-    'tsx',
-    'css',
-    'scss',
-    'sass',
-    'less',
-    'png',
-    'jpg',
-    'jpeg',
-    'gif',
-    'svg',
-    'webp',
-    'avif',
-    'ico',
-    'bmp',
-    'woff',
-    'woff2',
-    'ttf',
-    'eot',
-    'otf',
-    'map',
-    'wasm',
-    'mp4',
-    'webm',
-    'mp3',
-    'ogg',
-  ]);
   if (ASSET_EXTS.has(ext)) return false;
 
   // Content-type based reject. Header lookup is case-insensitive in

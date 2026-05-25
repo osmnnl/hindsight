@@ -19,10 +19,11 @@
     "format:check": "prettier --check .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "bench": "tsx bench/fetch-overhead.bench.ts && tsx bench/xhr-overhead.bench.ts && tsx bench/masking-cost.bench.ts",
+    "bench": "tsx bench/fetch-overhead.bench.ts && tsx bench/xhr-overhead.bench.ts && tsx bench/masking-cost.bench.ts && tsx bench/filter-1000.bench.ts",
     "bench:fetch": "tsx bench/fetch-overhead.bench.ts",
     "bench:xhr": "tsx bench/xhr-overhead.bench.ts",
     "bench:masking": "tsx bench/masking-cost.bench.ts",
+    "bench:filter": "tsx bench/filter-1000.bench.ts",
     "prepare": "husky"
   },
   "devDependencies": {
