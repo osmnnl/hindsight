@@ -1,380 +1,254 @@
 # CLAUDE.md — Hindsight
 
-Working guidance for Claude (and humans) contributing to this repo.
+Behavioral guidelines + Hindsight-specific rules. Inspired by
+[Karpathy's observations](https://x.com/karpathy/status/2015883857489522876)
+on LLM coding pitfalls.
 
 > **Source of truth:** [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md).
-> When the PRD and this file disagree, the PRD wins. Update both in the
-> same PR when the disagreement is real.
+> When the PRD and this file disagree, the PRD wins. Update both
+> in the same PR when the disagreement is real.
+
+**Tradeoff:** these guidelines bias toward caution over speed. For
+trivial tasks, use judgment.
 
 ---
 
-## 1. What this project is
+## 1. Think before coding
 
-Hindsight is a privacy-first, open-source Chrome MV3 extension that
-passively records browser activity (network, console, actions,
-screenshots) so users can scrub back through time and export a
-shareable bug report. No backend, no telemetry, no signup. See PRD §0.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-**Killer differentiator** (PRD §5): single self-contained HTML replay
-bundle — works offline, no recipient setup.
+Before implementing:
 
-**Three brand promises** (PRD §4) — every architectural choice must
-defend these:
-
-1. **No information loss** — never silently truncate, denoise, or
-   "smart summarize" captures in storage.
-2. **Your data does not leave your machine unless you choose** — no
-   outbound traffic from the extension except user-initiated.
-3. **Zero setup, useful from minute one** — defaults work, settings
-   are for power users.
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+- Read the PRD section that governs the area you're touching
+  before proposing a change.
 
 ---
 
-## 2. Stack
+## 2. Simplicity first
 
-- **Language:** TypeScript (strict)
-- **Bundler:** Vite + [`@crxjs/vite-plugin`](https://crxjs.dev/vite-plugin) for MV3 HMR
-- **Lint/format:** ESLint flat config + Prettier
-- **Git hooks:** Husky + lint-staged (pre-commit lint + type-check)
-- **CI:** GitHub Actions — build, lint, type-check on every PR
-- **Target browsers (v1):** Chromium (Chrome, Edge). Firefox post-launch.
-- **No frameworks in capture path.** Popup/side panel UI is currently
-  vanilla DOM; React/Vue adoption is a deliberate later decision, not
-  a default.
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios. Trust internal
+  invariants; validate only at system boundaries.
+- If you write 200 lines and it could be 50, rewrite it.
+
+**The test:** would a senior engineer say this is overcomplicated?
+If yes, simplify.
 
 ---
 
-## 3. Repo layout
+## 3. Surgical changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+**The test:** every changed line should trace directly to the
+user's request or to the PRD anchor that justifies it.
+
+---
+
+## 4. Goal-driven execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add masking rule" → "Write a masking test that fails, then
+  make it pass."
+- "Fix the cascade banner" → "Write a detection test that
+  asserts the new flag, then make it pass."
+- "Refactor X" → "All 125+ tests still pass; bench gates still
+  green."
+
+For any multi-step task, state a brief plan before code:
 
 ```
-/                              repo root
-├── Hindsight-PRD-v0.1.md      product spec (read this first)
-├── CLAUDE.md                  this file
-├── manifest.json              MV3 manifest (PRD §9.2 baseline)
-├── package.json
-├── tsconfig.json
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+```
+
+CI gates that count as verification:
+
+```
+npm run typecheck    npm run lint         npm run format:check
+npm test             npm run build        npm run bench
+```
+
+All six must pass before a merge. `npm run bench` is the hard
+PRD §13.1 perf gate (fetch + XHR + masking + filter, p95 budgets).
+
+---
+
+## 5. Hindsight-specific rules
+
+### 5.1 Privacy is architectural, not aspirational
+
+- **Zero outbound network requests** except ones the user
+  explicitly initiated (webhook POST, web intent navigation,
+  file download). See PRD §4.2, §11.1, §19.1.
+- **No telemetry. Ever.** Not even "anonymous usage stats."
+- **PII masking happens at capture time**, not export time
+  (PRD §11.2). The masked value is never written to storage.
+
+### 5.2 No information loss in storage
+
+Truncation may happen at _export time_ for hard destination
+limits (e.g. Slack 3000 chars). The local capture is always
+faithful and recoverable. Don't "clean up" payloads on the
+way in.
+
+### 5.3 MV3 best practices
+
+- Service worker is event-driven — never assume it's alive
+  between events. Persist state to `chrome.storage`, not
+  module globals.
+- Strict CSP — no `eval`, no `Function()`, no inline scripts,
+  no remote code, no `innerHTML` with untrusted data (use
+  `textContent` or the existing `escapeHtml` / `escapeAttr`
+  helpers).
+- Permissions are progressive. Only `storage`,
+  `unlimitedStorage`, `activeTab`, `scripting`, `sidePanel`
+  are install-time required. Everything else goes in
+  `optional_permissions` / `optional_host_permissions` and
+  is requested at feature activation.
+- Content scripts: page-world (`MAIN`) does the patching;
+  isolated-world (`ISOLATED`) is the bridge to the service
+  worker. They communicate via `window.postMessage` with a
+  namespaced source tag.
+
+### 5.4 Performance is a release criterion
+
+PRD §13.1 sets hard targets (fetch overhead p95 < 0.5 ms,
+1000-event side-panel render < 200 ms, etc.). Benches block
+merge. Don't add allocations on the capture hot path without
+re-running `npm run bench:fetch` + `bench:xhr` + `bench:masking`.
+
+### 5.5 No Datasoft references
+
+The codebase was forked from a Datasoft-internal QA tool. **All
+Datasoft branding, copy, hostnames, and HR-specific examples
+were removed.** Do not re-introduce them — not in code,
+strings, comments, test fixtures, or commit messages.
+
+If you grep `datasoft` / `Datasoft` / `DATASOFT` and find a
+hit, it's a bug.
+
+---
+
+## 6. Stack at a glance
+
+- **Language:** TypeScript (strict). No `any` without a
+  `// reason:` comment. Discriminated unions over enums.
+- **Bundler:** Vite + [`@crxjs/vite-plugin`](https://crxjs.dev/vite-plugin)
+  for MV3 HMR.
+- **Tests:** Vitest 4. **Benches:** tsx-driven scripts under
+  `bench/` (CI-gated).
+- **Lint/format:** ESLint flat config + Prettier; Husky +
+  lint-staged on pre-commit.
+- **Target browsers (v1):** Chromium (Chrome, Edge). Firefox
+  post-launch.
+- **No frameworks in the capture path.** Popup / side panel UI
+  is vanilla DOM; React/Vue adoption is a deliberate later
+  decision, not a default.
+
+---
+
+## 7. Repo layout
+
+```
+/                            repo root
+├── Hindsight-PRD-v0.1.md    product spec — read this first
+├── CLAUDE.md                this file
+├── CHANGELOG.md             release-by-release history
+├── manifest.json            MV3 manifest (PRD §9.2 baseline)
 ├── vite.config.ts
-├── .github/workflows/         CI pipelines
+├── .github/workflows/       CI pipelines
+├── bench/                   tsx perf benches (CI gates)
 ├── src/
-│   ├── types/                 shared type definitions
-│   │   └── events.ts          CapturedEvent + EventType (PRD §6.1.2)
-│   ├── background/            MV3 service worker
-│   ├── content/               content scripts (MAIN + ISOLATED)
-│   ├── popup/                 toolbar popup UI
-│   └── sidepanel/             chrome.sidePanel UI (added in M3)
-└── dist/                      build output — load-unpacked target
+│   ├── types/events.ts      CapturedEvent + EventType (PRD §6.1.2)
+│   ├── background/          MV3 service worker
+│   ├── content/             MAIN + ISOLATED content scripts
+│   ├── lib/                 storage, masking, detection,
+│   │                        narrative, formatters/, destinations/
+│   ├── popup/               toolbar popup UI
+│   ├── settings/            options page
+│   └── sidepanel/           chrome.sidePanel UI
+└── dist/                    build output — load-unpacked target
 ```
 
 ---
 
-## 4. PRD anchors — the load-bearing references
+## 8. PRD anchors — load-bearing references
 
 When in doubt, open these:
 
-| Topic                                                              | Anchor         |
-| ------------------------------------------------------------------ | -------------- |
-| Unified event model (`CapturedEvent`, `EventType`)                 | PRD **§6.1.2** |
-| MV3 manifest baseline (permissions, optional perms, CSP, commands) | PRD **§9.2**   |
-| Capture tiers (what's default-on vs opt-in vs recording-only)      | PRD §6.1.1     |
-| Per-tab storage model (keys, eviction, batching)                   | PRD §6.1.3     |
-| Privacy & PII redaction (capture-time, not export-time)            | PRD §11.2      |
-| Performance budget (must pass in CI)                               | PRD §13.1      |
-| Roadmap (M1–M5)                                                    | PRD §18        |
+| Topic                                                | Anchor         |
+| ---------------------------------------------------- | -------------- |
+| Unified event model (`CapturedEvent`, `EventType`)   | PRD **§6.1.2** |
+| MV3 manifest baseline                                | PRD **§9.2**   |
+| Capture tiers (default-on / opt-in / recording-only) | PRD §6.1.1     |
+| Per-tab storage model                                | PRD §6.1.3     |
+| Privacy & PII redaction (capture-time)               | PRD §11.2      |
+| Performance budget (CI-gated)                        | PRD §13.1      |
+| Roadmap (M1–M5)                                      | PRD §18        |
 
 `src/types/events.ts` is the canonical implementation of §6.1.2.
-`manifest.json` is the canonical implementation of §9.2. Both files
-should cite the section in a header comment.
+`manifest.json` is the canonical implementation of §9.2. Both
+files should cite the section in a header comment.
 
 ---
 
-## 5. House rules (non-negotiable)
+## 9. Git workflow
 
-### 5.1 Do NOT introduce Datasoft references
-
-The codebase was forked from a Datasoft-internal QA tool. **All
-Datasoft branding, copy, hostnames, and HR-specific examples are
-being removed.** Do not re-introduce them — not in code, not in
-strings, not in comments, not in test fixtures, not in commit
-messages. Brand name is **Hindsight**. UI copy is generic.
-
-If you grep for `datasoft`, `Datasoft`, `DATASOFT`, or `HR` in a
-domain-specific sense and find a hit, it's a bug.
-
-### 5.2 Privacy is architectural, not aspirational
-
-- The extension makes **zero** outbound network requests except
-  ones the user explicitly initiated (webhook POST, web intent
-  navigation, file download).
-- No telemetry. Ever. Not even "anonymous usage stats." See PRD §4.2,
-  §11.1, §19.1.
-- PII masking happens at **capture time**, not export time
-  (PRD §11.2). The masked value is never written to storage.
-
-### 5.3 No information loss in storage
-
-Truncation may happen at _export time_ for hard destination limits
-(Slack paste), but the local capture is always faithful and
-recoverable. Don't "clean up" payloads on the way in.
-
-### 5.4 MV3 best practices
-
-- Service worker is event-driven — never assume it's alive between
-  events. Persist state to `chrome.storage`, not module globals.
-- Strict CSP — no `eval`, no `Function()`, no inline scripts, no
-  remote code, no `innerHTML` with untrusted data (use
-  `textContent` or a vetted escaper).
-- Permissions are progressive. Only `storage`, `unlimitedStorage`,
-  `activeTab`, `scripting`, `sidePanel` are install-time required.
-  Everything else is in `optional_permissions` /
-  `optional_host_permissions` and requested at feature activation.
-- Content scripts: page-world (MAIN) does the patching;
-  isolated-world (ISOLATED) is the bridge to the service worker via
-  `chrome.runtime.sendMessage`. They communicate via
-  `window.postMessage` with a namespaced source tag.
-
-### 5.5 Performance is a release criterion
-
-PRD §13.1 sets hard targets (fetch overhead < 0.5ms, side-panel
-render with 1000 events < 200ms, etc.). Failing perf benchmarks
-block merge once the benchmark suite lands.
-
----
-
-## 6. Coding conventions
-
-- TypeScript strict mode on. No `any` without a `// reason:`
-  comment. Prefer discriminated unions over enums for event types.
-- File naming: `kebab-case.ts` for modules, `PascalCase.ts` only
-  if the file's default export is a class/component.
-- Imports: relative within a feature folder, alias-rooted across
-  features once the path alias is set up (`@/types/events`).
-- Don't add comments that restate the code. Do add a one-line
-  _why_ when a non-obvious constraint, workaround, or PRD anchor
-  is involved. Reference sections like `// PRD §6.1.2`.
-- Error handling: at system boundaries only. Trust internal
-  invariants; don't defensively wrap your own code.
-
----
-
-## 7. Git workflow
-
-- Branch from `main`, never commit to `main` directly during M1.
+- Branch from `main`. Never commit to `main` directly.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`,
   `chore:`, `build:`, `ci:`, `test:`, `perf:`.
-- One logical change per commit. Big-bang refactors are forbidden.
-- PRs reference the milestone (e.g. `[M1]`) and the PRD sections
-  touched.
-- Repo stays **private** through M2; first public push is the
-  M2-end unlisted CWS beta (per OQ-3).
+- One logical change per commit. Big-bang refactors are
+  forbidden.
+- PR / commit body references the milestone (e.g. `M5 W11`)
+  and the PRD sections touched.
 
 ---
 
-## 8. What's deferred (don't build these in M1)
+## 10. What's deferred
 
 Per PRD §8 (Non-Goals) and §18 (Roadmap):
 
-- AI/LLM features — deferred to v2 entirely.
+- AI/LLM features — v2+.
 - Backend, cloud sync, user accounts — never.
-- Side panel UI — arrives in M3.
-- Recording mode + Tier 4 captures — arrives in M4.
-- Replay bundle generator — arrives in M4.
 - Plugin marketplace UI — v3+.
 
 If a request would build any of the above, say so and stop.
 
 ---
 
-## 9. Where we are now (M5 in flight)
+## 11. Where we are now
 
-**v0.4.4** (2026-05-25) — M5 W10 dep audit closure. `npm audit`
-went 7 → 0 via vitest 2.1.9 → 4.1.7, @crxjs/vite-plugin beta.34 →
-2.4.0 stable, and an `overrides` block forcing rollup ≥ 2.80.0
-through the @crxjs transitive chain. All dev-deps; no runtime
-delta. Tests faster on vitest 4 (197 ms vs ~280 ms).
-
-**v0.4.3** (2026-05-25) — M5 W8-W9 SW robustness: `readArchive()`
-TTL-filters at read time (covers a wake-up race against the lazy
-sweep), and all async `chrome.runtime.onMessage` handlers now have
-matched `.catch` fallbacks so popup/sidepanel callers never hang
-waiting on a storage failure.
-
-**v0.4.2** (2026-05-25) — M5 W1-W7 foundation pass: a11y, perf,
-and three real production bugs that survived from M3. Privacy
-preview modal upgraded to a full ARIA dialog with `inert`
-background (OQ-M4-L closed). Popup honors `prefers-reduced-motion`.
-Two new perf benchmarks (`masking-cost`, `filter-1000`) wired
-into `npm run bench`; `isApiRequest()` runs 41% faster after
-hoisting the ASSET_EXTS Set to module scope. The cascade-head
-EventFlag now actually fires (it was dead code — SW cascade
-desktop notification + sidepanel cluster banner both keyed off
-a flag that was never set). Three in-memory SW Maps no longer
-leak on tab close (`notifiedThisSession`, `screenshotLastShotAt`,
-`sequenceCursor`). 123 unit tests, four perf gates green.
-
-**v0.4.1** (2026-05-21) — M4 post-closeout polish: three sidepanel
-triage-noise killers — API-only filter chip (hides framework
-chunks + static assets via `isApiRequest()` heuristic in
-`src/types/events.ts`, mirrored into the replay-bundle viewer),
-persistent filter + free-text search + host picker (UI state
-survives reload via `chrome.storage.local['sidepanel/ui-state']`),
-and a render-cache fix that stops bulk bar / share chip flicker on
-the 1 s polling refresh.
-
-**v0.4.0** (2026-05-21) — M4 closeout:
-
-The killer-differentiator standalone HTML replay bundle ships; the
-sharing hub covers Slack / Discord / Teams webhooks (size-aware
-step-down halving), GitHub Issue and mailto web intents,
-ZIP-everything export (`src/lib/zip.ts`, vanilla writer, zero deps),
-and a unified markdown bug-report formatter. Recording mode + Tier 4
-captures (cursor 10 Hz, scroll throttled, periodic 2 s screenshots)
-land behind a ● Record / ■ Stop toggle in the sidepanel and a
-recording banner in the popup. The sidepanel network detail gains a
-"Replay this request" button with destructive-method confirms. The
-privacy preview modal replaces the M4·W12 `confirm()` — surfaces
-event count, per-rule redactions and destination identity before the
-user commits. Settings → Advanced section is live (debug logging
-toggle, perf budget threshold, storage usage stats, reset-everything).
-**121 unit tests** across 10 files, both perf gates green (fetch
-p95 ~0.012 ms, XHR p95 ~0.001 ms).
-
-**M5 axis: pre-launch polish.** Expected scope:
-
-- Perf audit + benchmark expansion (memory leak harness, sidepanel
-  stress test 1000+ events, real-world site smoke). _W2/W4 done:
-  masking-cost + filter-1000 benches landed. Memory leak harness
-  partly done — three SW Maps fixed in W6/W7. Sidepanel render
-  stress test (needs jsdom infra) still pending._
-- Accessibility audit — axe-core CI integration, WCAG AA compliance,
-  manual NVDA / VoiceOver pass, full ARIA dialog with focus trap for
-  the privacy preview modal (W14-3 ships a simple overlay; OQ-M4-L
-  defers the focus trap to here). _OQ-M4-L closed in W1 (`inert`
-  background, aria-describedby, dropped setTimeout hack). Popup
-  reduced-motion added in W1. axe-core CI + manual SR pass still
-  pending._
-- Security audit — CSP review, dependency audit, input validation
-  sweep at all system boundaries. _W3 + W10 done: CSP + innerHTML +
-  `CSS.escape()` defense-in-depth landed in W3. Dep audit closed
-  in W10 (vitest 2 → 4, @crxjs 2.4.0, rollup override) — `npm
-audit` is now clean. CWS submission no longer blocked on audit
-  findings._
-- Documentation site (hindsight.dev) + landing page + demo video
-  (out-of-repo).
-- CWS public submission + Edge Add-ons submission → `v1.0.0` tag.
-
-**Branch state:** all M4 + v0.4.1 + v0.4.2 work on `main`. M5
-sprints continue from fresh `feature/m5-*` branches.
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
+Current state: **v0.4.4** + M5 W11 untagged on `main`. M5
+(pre-launch polish) in flight; next milestone is CWS public
+submission → `v1.0.0`.
 
 ---
 
-## 10. Earlier — post-M3 (kept for reference)
-
-## 10b. Earlier — post-M3 (kept for reference)
-
-**M3 closed at v0.3.0** (2026-05-21). The side panel is the primary
-inspection surface; the popup is a 130-line launcher. Visual
-scrubber + event delegation handle 1000-event sessions at 60 fps.
-Detection engine stamps meta.flags / cascadeOf in the SW; cluster
-banner collapses members under a single summary row. Screenshots
-fire on errors via chrome.tabs.captureVisibleTab. Performance
-long-task + layout-shift observers capture (Tier 3 toggleable).
-White-screen heuristic emits a synthetic error 5 s after page load.
-Detection notifications fire for cascade-head + anomaly with
-per-session de-dup. Severity-tiered badge (green / yellow / red).
-Recent-archive viewer surfaces closed-tab sessions inline. Theme
-preference syncs across popup + side panel + settings. 65 unit
-tests; both fetch + XHR perf gates green.
-
-**M4 axis: replay bundle + sharing hub.** Expected scope:
-
-- Standalone HTML replay bundle generator (PRD §5) — the
-  killer-differentiator feature. Single `.html` file that contains
-  the whole session + an embedded viewer; works offline, no
-  recipient setup.
-- Recording mode (PRD §6.5) — explicit user start/stop, Tier 4
-  captures (periodic screenshots, cursor trail, DOM mutations,
-  scroll, focus).
-- Multi-destination sharing hub (PRD §6.4) — webhooks
-  (Slack / Discord / Teams), web intents (GitHub / GitLab /
-  Linear / Notion / email), clipboard / download formats.
-- Per-destination size-aware formatters (PRD §6.4.3).
-- Replay request feature (PRD §6.3.5) — "Replay this request"
-  button in the network detail view.
-
-**Branch state:** all M3 work landed on `feature/m3-foundation`.
-Rebase-merge to `main` at v0.3.0 tag, then start M4 sprints from
-fresh `feature/m4-*` branches.
-
----
-
-## 10. Earlier — post-M2 (kept for reference)
-
-**M2 closed at v0.2.0** (2026-05-21). Context capture eksen genişledi:
-all Tier 1 + Tier 2 event families capture, mixed timeline in popup,
-SPA route detection, closed-tab archive (7-day TTL), batched 250 ms
-storage writes, narrative engine v1, Settings → Capture section live,
-XHR perf bench. 53 unit tests, both fetch + XHR p95 gates green.
-
-**M3 axis (delivered): side panel + visual timeline.**
-
-- `chrome.sidePanel` migration — primary surface for sustained
-  inspection. PRD §6.3.
-- Visual scrubber with event density histogram. PRD §6.3.3.
-- Synchronized panels (network / console / actions / screenshot
-  preview). PRD §6.3.1.
-- Page screenshot capture on error / explicit triggers. PRD §6.1.1
-  Tier 3.
-- Detection rule engine — surfaces "moments of interest" via the
-  badge + side panel highlights. PRD §6.2.
-- Cluster grouping (cascade detection). PRD §6.2.3.
-- Recent-archive viewer — surfaces the `archives/recent` entries
-  the M2 closed-tab archive has been collecting.
-- Theme application (current Settings → Theme value drives popup +
-  side panel styling end-to-end).
-
-**Branch state:** all M2 work landed on `feature/m2-week-5` (the
-branch name predates the multi-week scope). Rebase-merge to `main`
-at v0.2.0 tag, then start M3 sprints from fresh `feature/m3-*`
-branches.
-
----
-
-## 10. Earlier — post-M1 (kept for reference)
-
-**M1 closed at v0.1.0** (2026-05-18). Foundation is in:
-
-- TypeScript + Vite + CRXJS toolchain, ESLint 9 flat config, Prettier 3,
-  Husky 9, Vitest 2, tsx 4. CI gates: lint / format / typecheck / test
-  (42 unit tests across masking + HAR) / build / **perf bench**
-  (`bench/fetch-overhead.bench.ts`, PRD §13.1 — p95 < 0.5 ms hard cap).
-- `src/types/events.ts` is the canonical PRD §6.1.2 implementation.
-  `src/lib/storage.ts` owns PRD §6.1.3 keys + `SessionMetadata.lastSequence`
-  persistence. `src/lib/masking.ts` is PRD §11.2 (default header / body /
-  form rules + custom-pattern compilation). `src/lib/har.ts` is PRD §6.4.2.
-- Service worker applies masking before storage, drops blocklisted
-  origins, mints CapturedEvent envelopes, writes via `appendEvent`.
-- Popup: filtered list + detail view + Privacy panel (PRD §11.4) +
-  Copy / JSON / HAR / cURL.
-- Settings: General (theme) + Privacy (default chips, custom CRUD,
-  origin blocklist, test sandbox). Four other sections are stubbed
-  with milestone badges (Capture M1·W4 — actually deferred to M2,
-  Detection M3, Sharing M4, Advanced M2+).
-
-**M2 axis: context capture growth.** Expected scope (subject to
-sprint-by-sprint planning):
-
-- Tier 2 events come online — `action.click`, `action.input` with
-  capture-time form-field masking, `console.warn/info`, `navigation`,
-  `network.websocket` frame metadata.
-- Narrative engine v1 (template-based, no LLM — PRD §22.1 stays
-  deferred to v2).
-- Batched storage writes (PRD §13.1 perf strategy) once Tier 2 traffic
-  makes per-event writes a measurable cost.
-- Closed-tab archive (PRD §6.1.3 `archives/recent`, TTL 7 days).
-- XHR perf bench (PRD §13.1 row 2 — fetch is gated, XHR pending).
-- M2-end: unlisted CWS submission for closed-beta testers (OQ-3).
-  Repo stays **private until then**.
-
-**Branch state:** all M1 work landed on `feature/m1-foundation` and
-will rebase-merge to `main` at the v0.1.0 tag. After M1 closeout new
-sprints branch fresh from `main` (e.g. `feature/m2-week-1`).
+**These guidelines are working if:** diffs are surgical, fewer
+rewrites due to overcomplication, and clarifying questions come
+before implementation rather than after mistakes.
