@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hindsight",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "DevTools you didn't open. Privacy-first passive capture for bug reports.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting", "sidePanel"],
   "optional_permissions": ["notifications", "downloads", "tabs", "webNavigation"],

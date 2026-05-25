@@ -4,6 +4,65 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-05-25 — M5 W11-W12: scrubber range + mask opt-out
+
+First minor bump in M5. Two user-facing capabilities land alongside
+a markdown-render fix and the CLAUDE.md refactor.
+
+### Added
+
+- **Dual-handle timeline scrubber.** Two range inputs stacked over
+  a shared track let the user clip both the left and right edges of
+  the timeline. Bars outside the selected window dim to ~18%
+  opacity. A "↺ reset" pill in the axis row appears whenever the
+  range is non-default. Time labels show the SELECTED window's
+  start/end (was: session boundaries). The range is a zoom on the
+  current post-base-filter set — switching filter mode rebases the
+  slider; handles enforce a 1% minimum gap so they can't swap.
+- **Per-rule disable for built-in masking** (Settings → Privacy).
+  Default header + body rule chips become clickable toggles. Click
+  a chip to disable that rule for _future_ captures; disabled chips
+  render with a dashed red border and a strikethrough label. A
+  danger banner makes the trade-off explicit: "Captures recorded
+  with a rule disabled will store the matched value verbatim on
+  your machine and include it verbatim in any bug report you
+  share." Form-field rules stay read-only — the page-world capture
+  path doesn't yet honour `disabledDefaultRules`, and disabling
+  password-input masking is a much bigger footgun.
+  `PrivacySettings` gains `disabledDefaultRules: string[]`;
+  `loadPrivacyConfig()` filters defaults before handing them to
+  `applyMasking`. The existing `chrome.storage.onChanged` listener
+  picks up the toggle without an SW restart.
+
+### Fixed
+
+- **`escapeMd()` now escapes `_`, `*`, `[`, `]`** (W11). Real
+  captured paths like `/api/_internal/health` and titles like
+  `failed: [POST] /api/orders` would otherwise render as italics
+  or broken links on GitHub Issue / Slack / Discord destinations.
+  Two new tests pin the escape contract. 125 tests total.
+
+### Changed
+
+- **CLAUDE.md adopts the Karpathy four-principle structure.**
+  Behavioral guidelines (Think before coding · Simplicity first ·
+  Surgical changes · Goal-driven execution) move to the top of the
+  file; Hindsight-specific rules consolidate under §5; the multi-
+  section status/release history collapses to a one-line pointer at
+  this CHANGELOG. 380 → 254 lines, 14.5 kB → 8.6 kB.
+
+### Why a minor bump
+
+Two new user-facing capabilities (range filter + mask opt-out)
+plus an architectural privacy contract addition
+(`disabledDefaultRules`) is over the threshold for a patch tag.
+v0.5.0 also gives v1.0.0 (CWS submission) some breathing room for
+genuinely-major changes between now and then.
+
+[0.5.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.5.0
+
+---
+
 ## [0.4.4] — 2026-05-25 — M5 W10 dep audit closure
 
 Closes the `npm audit` finding deferred from v0.4.2. 7 advisories
