@@ -215,7 +215,16 @@ function formatJson(str: string): string {
 }
 
 function escapeMd(s: string): string {
-  // Light escape for markdown — backticks and pipes are the
-  // ones that most often confuse rendering inside tables / code spans.
-  return s.replace(/[`|]/g, (c) => `\\${c}`);
+  // Escape the markdown specials that show up in real captured data:
+  //   `       — would open a code span mid-text
+  //   |       — confuses table rendering
+  //   *  _    — turn `/api/_internal/` paths into italics; URLs with
+  //             query params containing * also misrender on some
+  //             renderers (GitHub, Slack)
+  //   [ ]     — link syntax; an unbalanced bracket in a path or
+  //             query value otherwise eats following text
+  // Other specials (`#`, `>`) are positional — only meaningful at
+  // line start — so we leave them alone to avoid over-escaping
+  // strings used as inline labels.
+  return s.replace(/[`|*_[\]]/g, (c) => `\\${c}`);
 }

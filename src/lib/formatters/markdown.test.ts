@@ -138,4 +138,22 @@ describe('toMarkdownReport', () => {
     const md = toMarkdownReport([netEvt(), clickEvt()], { skipNarrative: true });
     expect(md).not.toContain('Session narrative');
   });
+
+  it('escapes markdown specials in titles (underscores and asterisks)', () => {
+    // A real Next.js path like /api/_test_method_/health would otherwise
+    // turn into "/api/<em>test</em>method<em>/health" on GitHub
+    // renderers. Same hazard for query params containing `*`.
+    const md = toMarkdownReport([netEvt()], {
+      title: 'failed: GET /_test_method_/health *raw*',
+    });
+    const titleLine = md.split('\n')[0]!;
+    expect(titleLine).toContain('\\_test\\_method\\_');
+    expect(titleLine).toContain('\\*raw\\*');
+  });
+
+  it('escapes bracket pairs in titles so links do not collapse text', () => {
+    const md = toMarkdownReport([netEvt()], { title: 'failed: [POST] /api/orders' });
+    const titleLine = md.split('\n')[0]!;
+    expect(titleLine).toContain('\\[POST\\]');
+  });
 });
