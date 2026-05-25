@@ -40,14 +40,6 @@ declare const __APP_VERSION__: string;
 // will broaden to console + actions in M3.
 type NetworkRequestEvent = NetworkFetchEvent | NetworkXhrEvent;
 
-const SENSITIVE_HEADERS = new Set([
-  'authorization',
-  'cookie',
-  'set-cookie',
-  'x-api-key',
-  'x-auth-token',
-]);
-
 // Practical paste limit observed in Slack's rich-text editor. Slack docs
 // quote 40k for messages, but the in-editor paste warning fires far below
 // that (often ~3-4k chars). Above this we put image-only on the clipboard
@@ -2379,22 +2371,25 @@ function lookupRuleLabel(ruleId: string): string {
   return ruleId;
 }
 
+// Pass-through helpers — used at multiple display + export call sites.
+//
+// Originally these re-masked headers a second time at the UI layer
+// against a hardcoded SENSITIVE_HEADERS set. That was defence in depth
+// before the W12 per-rule disable feature existed; afterwards it
+// actively sabotaged the user's opt-out: storage held the real value
+// (because they'd disabled the rule), but the UI still rendered
+// ***MASKED*** because the hardcoded set didn't know about
+// disabledDefaultRules. Removed in W16.
+//
+// Storage is the source of truth (PRD §11.2). The SW capture pipeline
+// already applied masking with the user's configured rules; the side
+// panel just shows what's there.
 function maskedEventForExport(c: NetworkRequestEvent): NetworkRequestEvent {
-  return {
-    ...c,
-    data: {
-      ...c.data,
-      request: { ...c.data.request, headers: maskHeaders(c.data.request.headers) },
-    },
-  } as NetworkRequestEvent;
+  return c;
 }
 
 function maskHeaders(headers: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers)) {
-    out[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? '***MASKED***' : v;
-  }
-  return out;
+  return headers;
 }
 
 function formatJson(str: string): string {
