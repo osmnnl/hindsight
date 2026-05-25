@@ -12,6 +12,7 @@ import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 import type { CapturedEvent } from '@/types/events';
 import { isErrorEvent, isFailedNetwork } from '@/types/events';
 import type {
+  ClearEventsRuntimeMessage,
   GetEventsRuntimeMessage,
   GetRecordingRuntimeMessage,
   RecordingState,
@@ -66,6 +67,30 @@ async function init(): Promise<void> {
   document.getElementById('recording-stop')?.addEventListener('click', () => {
     if (activeTabId == null) return;
     void stopRecording(activeTabId);
+  });
+
+  document.getElementById('reload-page')?.addEventListener('click', () => {
+    if (activeTabId == null) return;
+    const bypass =
+      document.getElementById('reload-bypass-cache') instanceof HTMLInputElement &&
+      (document.getElementById('reload-bypass-cache') as HTMLInputElement).checked;
+    void chrome.tabs.reload(activeTabId, { bypassCache: bypass });
+    // Close the popup after a successful reload kick so the user sees
+    // the fresh page; mirrors Cmd+R behaviour.
+    window.close();
+  });
+
+  document.getElementById('clear-events')?.addEventListener('click', () => {
+    if (activeTabId == null) return;
+    const ok = confirm(
+      `Drop every captured event for this tab? ${latestEvents.length} event${latestEvents.length === 1 ? '' : 's'} will be removed. This cannot be undone.`
+    );
+    if (!ok) return;
+    const msg: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId: activeTabId };
+    void chrome.runtime.sendMessage(msg).then(() => {
+      latestEvents = [];
+      renderSummary([]);
+    });
   });
 
   if (activeTabId == null) return;

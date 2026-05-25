@@ -40,6 +40,25 @@
           <button id="download-bundle" class="secondary" disabled>⤓ Download replay bundle</button>
         </div>
 
+        <div class="page-controls">
+          <button id="reload-page" class="secondary" type="button">↻ Reload page</button>
+          <label
+            class="cache-toggle"
+            title="Force the page to refetch every resource (Cmd+Shift+R equivalent)"
+          >
+            <input type="checkbox" id="reload-bypass-cache" />
+            <span>bypass cache</span>
+          </label>
+          <button
+            id="clear-events"
+            class="secondary danger-btn"
+            type="button"
+            title="Drop every captured event for this tab. Cannot be undone."
+          >
+            🗑 Clear history
+          </button>
+        </div>
+
         <div id="quick-share" class="quick-share hidden">
           <div class="quick-share-label">Send to</div>
           <div class="quick-share-buttons" id="quick-share-buttons"></div>
