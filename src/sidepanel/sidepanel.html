@@ -80,17 +80,39 @@
 
       <div id="scrubber" class="scrubber hidden" aria-label="Timeline scrubber">
         <div id="scrubber-bars" class="scrubber-bars" aria-hidden="true"></div>
-        <input
-          id="scrubber-input"
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          value="100"
-          aria-label="Jump to time"
-        />
+        <div class="scrubber-range">
+          <div class="scrubber-track" aria-hidden="true">
+            <div class="scrubber-track-selected" id="scrubber-track-selected"></div>
+          </div>
+          <input
+            id="scrubber-start-input"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="0"
+            aria-label="Time range start"
+          />
+          <input
+            id="scrubber-end-input"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="100"
+            aria-label="Time range end"
+          />
+        </div>
         <div class="scrubber-axis" aria-hidden="true">
           <span id="scrubber-start"></span>
+          <button
+            type="button"
+            id="scrubber-reset"
+            class="scrubber-reset hidden"
+            aria-label="Reset time range to full session"
+          >
+            ↺ reset
+          </button>
           <span id="scrubber-end"></span>
         </div>
       </div>

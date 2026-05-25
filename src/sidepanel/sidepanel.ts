@@ -85,14 +85,23 @@ function eventHost(e: CapturedEvent): string {
 }
 
 let searchQuery = '';
+/** Time range filter as [start%, end%] over the post-base-filter set's
+ *  min/max timestamps. Default [0, 100] means "no time clipping". The
+ *  range is a zoom on what the user currently sees, not on the full
+ *  session — so changing filter mode rebases the slider. Transient
+ *  (not persisted) like search. */
+let timeRangePct: [number, number] = [0, 100];
 
 /** Centralised filter pipeline used by render, bulk bar, scrubber,
- *  Esc-back and refresh. Order: mode → host → free-text search. */
+ *  Esc-back and refresh. Order: mode → host → free-text search →
+ *  time range. The time range step is last so the scrubber can pass
+ *  rangePct=[0,100] to get the pre-time-range set for its histogram. */
 function filteredEvents(
   all: CapturedEvent[],
   mode: FilterMode,
   host: string | null = activeHost,
-  query: string = searchQuery
+  query: string = searchQuery,
+  rangePct: [number, number] = timeRangePct
 ): CapturedEvent[] {
   let out: CapturedEvent[];
   if (mode === 'failed') out = all.filter(isErrorEvent);
@@ -106,7 +115,27 @@ function filteredEvents(
       return hay.toLowerCase().includes(q);
     });
   }
+  if (rangePct[0] > 0 || rangePct[1] < 100) {
+    const [startMs, endMs] = timeBoundsForPct(out, rangePct);
+    if (endMs > startMs) {
+      out = out.filter((e) => e.timestamp >= startMs && e.timestamp <= endMs);
+    }
+  }
   return out;
+}
+
+/** Convert a [start%, end%] range over `events`' min/max timestamps
+ *  into absolute [startMs, endMs] for direct comparison. */
+function timeBoundsForPct(events: CapturedEvent[], pct: [number, number]): [number, number] {
+  let tFirst = Infinity;
+  let tLast = -Infinity;
+  for (const e of events) {
+    if (e.timestamp < tFirst) tFirst = e.timestamp;
+    if (e.timestamp > tLast) tLast = e.timestamp;
+  }
+  if (!isFinite(tFirst) || !isFinite(tLast) || tLast <= tFirst) return [0, 0];
+  const span = tLast - tFirst;
+  return [tFirst + (span * pct[0]) / 100, tFirst + (span * pct[1]) / 100];
 }
 
 function isRequestLike(e: CapturedEvent): e is NetworkRequestEvent {
@@ -829,9 +858,14 @@ function render(): void {
   // first impression.
   renderQueryBar();
 
+  // beforeTime: filtered by mode/host/search but NOT by the time range
+  // — that's the histogram the scrubber visualises, with bars outside
+  // the [start, end] handles dimmed. `data` is the final view that
+  // honours every filter dimension including the time range.
+  const beforeTime = filteredEvents(events, filterMode, activeHost, searchQuery, [0, 100]);
   const data = filteredEvents(events, filterMode);
 
-  renderScrubber(data);
+  renderScrubber(beforeTime);
 
   if (data.length === 0) {
     const reason = searchQuery.trim() ? 'search' : activeHost ? 'host' : filterMode;
@@ -1087,67 +1121,105 @@ function classNameFromFlags(base: string, e: CapturedEvent): string {
   return [base, ...extras].join(' ');
 }
 
-function renderScrubber(data: CapturedEvent[]): void {
+/** Renders the timeline scrubber from the post-base-filter set (i.e.
+ *  events filtered by mode/host/search but NOT yet by the time range).
+ *  The two range inputs let the user clip a [start, end] sub-window;
+ *  bars whose bucket falls outside the window are dimmed via CSS. */
+function renderScrubber(beforeTime: CapturedEvent[]): void {
   const wrap = document.getElementById('scrubber');
   const bars = document.getElementById('scrubber-bars');
-  const range = document.getElementById('scrubber-input');
+  const startInput = document.getElementById('scrubber-start-input');
+  const endInput = document.getElementById('scrubber-end-input');
+  const trackSelected = document.getElementById('scrubber-track-selected');
   const startLabel = document.getElementById('scrubber-start');
   const endLabel = document.getElementById('scrubber-end');
-  if (!wrap || !bars || !(range instanceof HTMLInputElement) || !startLabel || !endLabel) return;
+  const resetBtn = document.getElementById('scrubber-reset');
+  if (
+    !wrap ||
+    !bars ||
+    !(startInput instanceof HTMLInputElement) ||
+    !(endInput instanceof HTMLInputElement) ||
+    !trackSelected ||
+    !startLabel ||
+    !endLabel ||
+    !(resetBtn instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
 
-  if (data.length < 2) {
+  if (beforeTime.length < 2) {
     wrap.classList.add('hidden');
     return;
   }
   wrap.classList.remove('hidden');
 
-  const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
-  const start = sorted[0]!.timestamp;
-  const end = sorted[sorted.length - 1]!.timestamp;
-  const span = Math.max(1, end - start);
+  const sorted = [...beforeTime].sort((a, b) => a.timestamp - b.timestamp);
+  const tFirst = sorted[0]!.timestamp;
+  const tLast = sorted[sorted.length - 1]!.timestamp;
+  const span = Math.max(1, tLast - tFirst);
 
   // Density histogram — count events per bucket.
   const counts = new Array<number>(SCRUBBER_BUCKETS).fill(0);
   for (const e of sorted) {
     const idx = Math.min(
       SCRUBBER_BUCKETS - 1,
-      Math.floor(((e.timestamp - start) / span) * SCRUBBER_BUCKETS)
+      Math.floor(((e.timestamp - tFirst) / span) * SCRUBBER_BUCKETS)
     );
     counts[idx] = (counts[idx] ?? 0) + 1;
   }
   const peak = Math.max(...counts, 1);
+  const [startPct, endPct] = timeRangePct;
+  const startBucket = Math.floor((startPct / 100) * SCRUBBER_BUCKETS);
+  const endBucket = Math.ceil((endPct / 100) * SCRUBBER_BUCKETS);
 
   bars.innerHTML = counts
-    .map((c) => {
+    .map((c, i) => {
       const h = Math.round((c / peak) * 100);
-      return `<div class="scrubber-bar" style="height:${h}%" aria-hidden="true"></div>`;
+      const dim = i < startBucket || i >= endBucket ? ' out-of-range' : '';
+      return `<div class="scrubber-bar${dim}" style="height:${h}%" aria-hidden="true"></div>`;
     })
     .join('');
 
-  startLabel.textContent = fmtTime(start);
-  endLabel.textContent = fmtTime(end);
+  // Labels show the SELECTED window's start/end — not the session
+  // boundaries — so the user can read off exactly what they're filtering.
+  const startMs = tFirst + (span * startPct) / 100;
+  const endMs = tFirst + (span * endPct) / 100;
+  startLabel.textContent = fmtTime(startMs);
+  endLabel.textContent = fmtTime(endMs);
 
-  if (!range.dataset.wired) {
-    range.addEventListener('input', () => {
-      const pct = Number(range.value);
-      scrollListToTimePercent(pct);
+  // Sync input values to current state on each render (after a non-user
+  // mutation, e.g. switching filter mode, the inputs would otherwise
+  // drift from timeRangePct).
+  startInput.value = String(startPct);
+  endInput.value = String(endPct);
+  trackSelected.style.left = `${startPct}%`;
+  trackSelected.style.right = `${100 - endPct}%`;
+  resetBtn.classList.toggle('hidden', startPct === 0 && endPct === 100);
+
+  if (!startInput.dataset.wired) {
+    const onChange = (): void => {
+      let s = Number(startInput.value);
+      let e = Number(endInput.value);
+      // Enforce a 1% minimum gap so handles can't swap.
+      if (s >= e) {
+        if (document.activeElement === startInput) s = e - 1;
+        else e = s + 1;
+      }
+      s = Math.max(0, Math.min(99, s));
+      e = Math.max(s + 1, Math.min(100, e));
+      timeRangePct = [s, e];
+      invalidateRenderCache();
+      render();
+    };
+    startInput.addEventListener('input', onChange);
+    endInput.addEventListener('input', onChange);
+    resetBtn.addEventListener('click', () => {
+      timeRangePct = [0, 100];
+      invalidateRenderCache();
+      render();
     });
-    range.dataset.wired = '1';
+    startInput.dataset.wired = '1';
   }
-  // Default to fully right (newest) on fresh render.
-  range.value = '100';
-}
-
-function scrollListToTimePercent(pct: number): void {
-  const list = document.getElementById('list');
-  if (!list) return;
-  const items = list.querySelectorAll<HTMLElement>('.item');
-  if (items.length === 0) return;
-  // Items are newest-first in the DOM — pct=0 is oldest (bottom), pct=100
-  // is newest (top). Convert pct → target index from the top.
-  const fromBottom = Math.round(((100 - pct) / 100) * (items.length - 1));
-  const target = items[fromBottom];
-  if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 /** Dispatch on event.type to populate the five-column row layout shared

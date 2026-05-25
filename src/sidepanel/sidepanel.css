@@ -437,23 +437,115 @@ select:focus-visible {
   opacity: 1;
 }
 
-.scrubber input[type='range'] {
-  width: 100%;
-  margin: 0;
-  cursor: grab;
-  accent-color: var(--accent);
+/* Bars outside the selected time range fade so the user can see what's
+   being filtered. Class is toggled per-bar in renderScrubber(). */
+.scrubber-bar.out-of-range {
+  opacity: 0.18;
 }
 
-.scrubber input[type='range']:active {
+/* Dual-handle range — two range inputs stacked, with a track and a
+   highlighted band between the handles. Inputs themselves have
+   pointer-events: none on their track, but their thumbs re-enable
+   pointer-events so both handles stay independently draggable. */
+.scrubber-range {
+  position: relative;
+  height: 22px;
+}
+
+.scrubber-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.scrubber-track-selected {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.scrubber-range input[type='range'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: grab;
+}
+
+.scrubber-range input[type='range']::-webkit-slider-runnable-track,
+.scrubber-range input[type='range']::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+
+.scrubber-range input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.scrubber-range input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--border);
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.scrubber-range input[type='range']:active::-webkit-slider-thumb,
+.scrubber-range input[type='range']:active::-moz-range-thumb {
   cursor: grabbing;
 }
 
 .scrubber-axis {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-family: var(--mono);
   font-size: 10.5px;
   color: var(--muted);
+}
+
+.scrubber-reset {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.scrubber-reset:hover {
+  background: var(--bg);
+}
+
+.scrubber-reset.hidden {
+  visibility: hidden;
 }
 
 /* ---------- list ---------- */
