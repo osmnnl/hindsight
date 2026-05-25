@@ -867,6 +867,30 @@ select:focus-visible {
   border-color: var(--warn);
   font-weight: 600;
 }
+
+/* Secondary row for atomic-slice copy actions (URL only / Request only /
+   Req+Resp / Token). Smaller padding + font so they read as utility
+   chips next to the primary export buttons above. */
+.copy-row-atoms {
+  padding: 0 14px 10px;
+  gap: 4px;
+}
+
+.copy-row-atoms button.small {
+  font-size: 11.5px;
+  padding: 3px 9px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.copy-row-atoms button.small:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.copy-row-atoms button.copied {
+  color: #052013;
+}
 .copy-row button.warning:hover {
   background: rgba(245, 158, 11, 0.08);
 }

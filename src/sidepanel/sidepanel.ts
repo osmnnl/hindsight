@@ -1945,6 +1945,12 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-copy="response" class="secondary">Response · ${fmtSize(respText.length)}</button>
       <button data-action="replay" class="secondary" title="Re-fire this request from the extension context (PRD §6.3.5)">↻ Replay</button>
     </div>
+    <div class="copy-row copy-row-atoms" aria-label="Copy a specific slice">
+      <button data-copy="url" class="secondary small" title="Just the request URL">URL</button>
+      <button data-copy="request" class="secondary small" title="Method + URL + headers + body, plain text">Request</button>
+      <button data-copy="req-resp" class="secondary small" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
+      <button data-copy="token" class="secondary small" title="Access token from the Authorization header (Bearer prefix stripped). Only works if Authorization masking is disabled in Settings → Privacy.">Token</button>
+    </div>
     <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
     ${
@@ -1997,7 +2003,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
 
   detail.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const format = btn.dataset.copy as 'report' | 'curl' | 'response';
+      const format = btn.dataset.copy as CopyFormat;
       const text = formatForCopy(c, format);
       const original = btn.textContent ?? '';
       try {
@@ -2122,10 +2128,57 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
 
 // ---------- formatters ----------
 
-function formatForCopy(c: NetworkRequestEvent, format: 'report' | 'curl' | 'response'): string {
+type CopyFormat = 'report' | 'curl' | 'response' | 'url' | 'request' | 'req-resp' | 'token';
+
+function formatForCopy(c: NetworkRequestEvent, format: CopyFormat): string {
   if (format === 'curl') return toCurl(c);
   if (format === 'response') return c.data.response.body ?? '';
+  if (format === 'url') return c.data.request.url;
+  if (format === 'request') return toRequestText(c);
+  if (format === 'req-resp') return toRequestResponseText(c);
+  if (format === 'token') return extractAccessToken(c);
   return toBugReport(c);
+}
+
+/** Plain text request dump — method + URL + headers + body, no cURL
+ *  decoration. Useful to paste into a different HTTP client. */
+function toRequestText(c: NetworkRequestEvent): string {
+  const lines = [`${c.data.request.method} ${c.data.request.url}`, ''];
+  lines.push('--- Request headers ---');
+  lines.push(JSON.stringify(c.data.request.headers, null, 2));
+  if (c.data.request.body) {
+    lines.push('', '--- Request body ---', c.data.request.body);
+  }
+  return lines.join('\n');
+}
+
+/** Request + response in one paste. No narrative, no screenshot ref —
+ *  meant for "here is the whole HTTP exchange" use. */
+function toRequestResponseText(c: NetworkRequestEvent): string {
+  const reqPart = toRequestText(c);
+  const respLines = [
+    '',
+    `--- Response ${c.data.response.status} ${c.data.response.statusText} (${c.data.timing.durationMs}ms) ---`,
+    'Headers:',
+    JSON.stringify(c.data.response.headers, null, 2),
+  ];
+  if (c.data.response.body) {
+    respLines.push('', 'Body:', c.data.response.body);
+  }
+  return reqPart + '\n' + respLines.join('\n');
+}
+
+/** Pull the access token out of the Authorization header. Strips the
+ *  scheme prefix (Bearer / Token / JWT) so the user can paste the raw
+ *  credential into a JWT decoder, Postman, etc. If the header is masked
+ *  (Authorization rule still enabled in Settings → Privacy) this
+ *  returns ***MASKED***, which is honest about what storage holds. */
+function extractAccessToken(c: NetworkRequestEvent): string {
+  const auth =
+    c.data.request.headers['Authorization'] ?? c.data.request.headers['authorization'] ?? '';
+  if (!auth) return '';
+  const m = auth.match(/^\s*(Bearer|Token|JWT|Basic)\s+(.+)$/i);
+  return m && m[2] ? m[2] : auth;
 }
 
 function toCurl(c: NetworkRequestEvent): string {
