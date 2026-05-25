@@ -187,37 +187,55 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener(
   (msg: RuntimeMessage, sender, sendResponse): boolean | void => {
+    // Every async branch returns true to keep the message channel open
+    // and pairs its .then(sendResponse) with a .catch that ALSO calls
+    // sendResponse — if storage throws (corruption, quota, teardown)
+    // a missing sendResponse leaves the popup / sidepanel hung waiting
+    // forever. Falling back to a safe default keeps the UI responsive
+    // and surfaces an unhandled rejection at the call site rather than
+    // here.
     if (isCaptureMessage(msg)) {
       const tabId = sender.tab?.id;
       if (tabId == null) return;
-      void handleCapture(tabId, msg);
+      void handleCapture(tabId, msg).catch(() => {
+        /* fire-and-forget capture — no sendResponse expected */
+      });
       return;
     }
 
     if (isGetEventsMessage(msg)) {
-      void readEvents(msg.tabId).then(sendResponse);
+      readEvents(msg.tabId)
+        .then(sendResponse)
+        .catch(() => sendResponse([]));
       return true;
     }
 
     if (isClearEventsMessage(msg)) {
-      void clearSession(msg.tabId)
+      clearSession(msg.tabId)
         .then(() => clearBadge(msg.tabId))
-        .then(() => sendResponse(true));
+        .then(() => sendResponse(true))
+        .catch(() => sendResponse(false));
       return true;
     }
 
     if (isGetArchiveMessage(msg)) {
-      void readArchive().then(sendResponse);
+      readArchive()
+        .then(sendResponse)
+        .catch(() => sendResponse([]));
       return true;
     }
 
     if (isClearArchiveMessage(msg)) {
-      void clearArchive().then(() => sendResponse(true));
+      clearArchive()
+        .then(() => sendResponse(true))
+        .catch(() => sendResponse(false));
       return true;
     }
 
     if (isToggleRecordingMessage(msg)) {
-      void toggleRecording(msg.tabId).then(sendResponse);
+      toggleRecording(msg.tabId)
+        .then(sendResponse)
+        .catch(() => sendResponse({ recording: false }));
       return true;
     }
 
