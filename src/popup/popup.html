@@ -41,14 +41,24 @@
         </div>
 
         <div class="page-controls">
-          <button id="reload-page" class="secondary" type="button">↻ Reload page</button>
-          <label
-            class="cache-toggle"
-            title="Force the page to refetch every resource (Cmd+Shift+R equivalent)"
-          >
-            <input type="checkbox" id="reload-bypass-cache" />
-            <span>bypass cache</span>
-          </label>
+          <div class="reload-group">
+            <button
+              id="reload-page"
+              class="secondary"
+              type="button"
+              title="Reload the active tab (Cmd+R equivalent)"
+            >
+              ↻ Reload
+            </button>
+            <button
+              id="reload-hard"
+              class="secondary"
+              type="button"
+              title="Reload and refetch every resource — bypass the HTTP cache (Cmd+Shift+R equivalent)"
+            >
+              ↻ Hard reload
+            </button>
+          </div>
           <button
             id="clear-events"
             class="secondary danger-btn"

@@ -69,16 +69,15 @@ async function init(): Promise<void> {
     void stopRecording(activeTabId);
   });
 
-  document.getElementById('reload-page')?.addEventListener('click', () => {
+  const reload = (bypassCache: boolean): void => {
     if (activeTabId == null) return;
-    const bypass =
-      document.getElementById('reload-bypass-cache') instanceof HTMLInputElement &&
-      (document.getElementById('reload-bypass-cache') as HTMLInputElement).checked;
-    void chrome.tabs.reload(activeTabId, { bypassCache: bypass });
-    // Close the popup after a successful reload kick so the user sees
-    // the fresh page; mirrors Cmd+R behaviour.
+    void chrome.tabs.reload(activeTabId, { bypassCache });
+    // Close the popup after the reload kick so the user sees the
+    // fresh page — same affordance as Cmd+R from the toolbar.
     window.close();
-  });
+  };
+  document.getElementById('reload-page')?.addEventListener('click', () => reload(false));
+  document.getElementById('reload-hard')?.addEventListener('click', () => reload(true));
 
   document.getElementById('clear-events')?.addEventListener('click', () => {
     if (activeTabId == null) return;
