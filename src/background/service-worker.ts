@@ -811,6 +811,14 @@ function applyMasking(
 
   const data: NetworkFetchData | NetworkXhrData = capture.data;
   if (debug) {
+    // Snippet the headers we care about so the user can tell whether the
+    // ***MASKED*** string is coming from us (SW masking) or from an
+    // upstream interceptor in the page. First 24 chars only — don't
+    // dump a full bearer token to the SW console.
+    const authRaw =
+      data.request.headers['Authorization'] ?? data.request.headers['authorization'] ?? '';
+    const cookieRaw = data.request.headers['Cookie'] ?? data.request.headers['cookie'] ?? '';
+    const snip = (s: string): string => (s.length > 24 ? s.slice(0, 24) + '…' : s);
     console.info(
       '[hindsight] applyMasking',
       capture.data.request.method,
@@ -818,7 +826,11 @@ function applyMasking(
       '— req-header-keys=',
       Object.keys(data.request.headers),
       '— rule-count=',
-      headerRules.length
+      headerRules.length,
+      '— RAW Authorization snippet=',
+      JSON.stringify(snip(authRaw)),
+      '— RAW Cookie snippet=',
+      JSON.stringify(snip(cookieRaw))
     );
   }
   const reqH = maskHeaders(data.request.headers, 'request.headers', headerRules);
