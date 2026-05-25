@@ -282,6 +282,33 @@ body {
   color: var(--text);
 }
 
+/* Toggleable default-rule chip. Click to disable (strike-through, muted)
+   or re-enable. The danger border on disabled chips telegraphs that
+   future captures will store the matched values verbatim. */
+.chip.toggle {
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text);
+  transition: opacity 100ms ease;
+}
+
+.chip.toggle:hover {
+  opacity: 0.85;
+}
+
+.chip.toggle.off {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  border-color: var(--danger, #c33);
+  border-style: dashed;
+}
+
+.danger-hint {
+  color: var(--danger, #c33);
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .empty-row {
   margin: 8px 0;
   color: var(--text-muted);

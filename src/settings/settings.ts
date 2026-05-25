@@ -91,6 +91,7 @@ async function initGeneral(): Promise<void> {
 let privacyState: PrivacySettings = {
   customPatterns: [],
   blocklistedOrigins: [],
+  disabledDefaultRules: [],
   schemaVersion: 1,
 };
 
@@ -120,38 +121,86 @@ function renderDefaultRuleChips(): void {
   renderRuleGroup(
     'default-headers',
     'Headers',
-    DEFAULT_HEADER_RULES.map((r) => ({ label: r.label, scope: r.scope.join(', ') }))
+    DEFAULT_HEADER_RULES.map((r) => ({
+      id: r.id,
+      label: r.label,
+      scope: r.scope.join(', '),
+    }))
   );
   renderRuleGroup(
     'default-bodies',
     'Bodies',
-    DEFAULT_BODY_RULES.map((r) => ({ label: r.label, scope: r.scope.join(', ') }))
+    DEFAULT_BODY_RULES.map((r) => ({
+      id: r.id,
+      label: r.label,
+      scope: r.scope.join(', '),
+    }))
   );
+  // Form-field rules stay always-on for now — disabling password-input
+  // masking is a much bigger footgun than disabling header/body rules,
+  // and the page-world capture path doesn't yet honour the
+  // disabledDefaultRules list. Show them read-only for transparency.
   renderRuleGroup(
     'default-forms',
     'Form fields',
-    DEFAULT_FORM_RULES.map((r) => ({ label: r.label, scope: r.scope.join(', ') }))
+    DEFAULT_FORM_RULES.map((r) => ({
+      id: r.id,
+      label: r.label,
+      scope: r.scope.join(', '),
+    })),
+    { readonly: true }
   );
 }
 
 function renderRuleGroup(
   containerId: string,
   heading: string,
-  items: { label: string; scope: string }[]
+  items: { id: string; label: string; scope: string }[],
+  opts: { readonly?: boolean } = {}
 ): void {
   const container = document.getElementById(containerId);
   if (!container) return;
+  const disabled = new Set(privacyState.disabledDefaultRules);
+  const readonly = opts.readonly ?? false;
   container.innerHTML = `
     <div class="chip-heading">${heading}</div>
     <div class="chips">
       ${items
-        .map(
-          (i) =>
-            `<span class="chip" title="scope: ${escapeHtml(i.scope)}">${escapeHtml(i.label)}</span>`
-        )
+        .map((i) => {
+          const off = disabled.has(i.id);
+          if (readonly) {
+            return `<span class="chip" title="scope: ${escapeHtml(i.scope)}">${escapeHtml(i.label)}</span>`;
+          }
+          const action = off ? 'enable' : 'disable';
+          return `<button
+            type="button"
+            class="chip toggle${off ? ' off' : ''}"
+            data-rule-id="${escapeHtml(i.id)}"
+            title="scope: ${escapeHtml(i.scope)} — click to ${action}"
+            aria-pressed="${off ? 'false' : 'true'}"
+          >${off ? '✗' : '✓'} ${escapeHtml(i.label)}</button>`;
+        })
         .join('')}
     </div>
   `;
+  if (readonly) return;
+  container.querySelectorAll<HTMLButtonElement>('.chip.toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.ruleId;
+      if (!id) return;
+      const next = new Set(privacyState.disabledDefaultRules);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      privacyState.disabledDefaultRules = Array.from(next);
+      const status = document.getElementById('save-status');
+      void writePrivacySettings({
+        disabledDefaultRules: privacyState.disabledDefaultRules,
+      }).then(() => {
+        renderDefaultRuleChips();
+        flashSaved(status);
+      });
+    });
+  });
 }
 
 // ----- Custom patterns ------------------------------------------------------

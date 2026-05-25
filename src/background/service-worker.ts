@@ -35,6 +35,7 @@ import {
   maskHeaders,
   tryCompilePattern,
   type BodyPatternRule,
+  type HeaderMaskingRule,
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
 import {
@@ -74,6 +75,7 @@ const sequenceCursor = new Map<string, number>();
 // ---------------------------------------------------------------------------
 
 interface PrivacyConfig {
+  headerRules: HeaderMaskingRule[];
   bodyRules: BodyPatternRule[];
   blocklist: Set<string>;
 }
@@ -141,8 +143,13 @@ function loadPrivacyConfig(): Promise<PrivacyConfig> {
   if (privacyConfigPromise) return privacyConfigPromise;
   privacyConfigPromise = (async () => {
     const settings = await readPrivacySettings();
+    const disabled = new Set(settings.disabledDefaultRules);
     return {
-      bodyRules: [...DEFAULT_BODY_RULES, ...compileCustomPatterns(settings.customPatterns)],
+      headerRules: DEFAULT_HEADER_RULES.filter((r) => !disabled.has(r.id)),
+      bodyRules: [
+        ...DEFAULT_BODY_RULES.filter((r) => !disabled.has(r.id)),
+        ...compileCustomPatterns(settings.customPatterns),
+      ],
       blocklist: new Set(settings.blocklistedOrigins),
     };
   })();
@@ -504,7 +511,11 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 
   // Apply capture-time masking before envelope construction. The result
   // is a new RawCapture variant with masked data and a redaction list.
-  const { capture, redactions: swRedactions } = applyMasking(msg.capture, privacy.bodyRules);
+  const { capture, redactions: swRedactions } = applyMasking(
+    msg.capture,
+    privacy.headerRules,
+    privacy.bodyRules
+  );
   // Merge with redactions the page-world already applied (form-field
   // masking, for instance, lives at the DOM site because that's where
   // FormFieldMeta is visible).
@@ -752,6 +763,7 @@ interface MaskedResult {
 
 function applyMasking(
   capture: CaptureRuntimeMessage['capture'],
+  headerRules: HeaderMaskingRule[],
   bodyRules: BodyPatternRule[]
 ): MaskedResult {
   // Only network.fetch / network.xhr carry the request/response shape we
@@ -763,8 +775,8 @@ function applyMasking(
   }
 
   const data: NetworkFetchData | NetworkXhrData = capture.data;
-  const reqH = maskHeaders(data.request.headers, 'request.headers', DEFAULT_HEADER_RULES);
-  const respH = maskHeaders(data.response.headers, 'response.headers', DEFAULT_HEADER_RULES);
+  const reqH = maskHeaders(data.request.headers, 'request.headers', headerRules);
+  const respH = maskHeaders(data.response.headers, 'response.headers', headerRules);
   const reqB = maskBody(data.request.body, 'request.body', bodyRules);
   const respB = maskBody(data.response.body, 'response.body', bodyRules);
 

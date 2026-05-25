@@ -48,10 +48,18 @@
 
           <div class="subsection">
             <h3>Default rules</h3>
-            <p class="hint">Always on. These cover the common cases.</p>
+            <p class="hint">
+              Click a chip to disable that rule for future captures. Disabled rules stay disabled
+              until you re-enable them — already-captured masked values are not affected (PRD §11.2:
+              mask cannot be reversed). Form-field rules cannot be disabled.
+            </p>
             <div class="chip-group" id="default-headers"></div>
             <div class="chip-group" id="default-bodies"></div>
             <div class="chip-group" id="default-forms"></div>
+            <p class="hint danger-hint">
+              ⚠ Captures recorded with a rule disabled will store the matched value verbatim on your
+              machine and include it verbatim in any bug report you share.
+            </p>
           </div>
 
           <div class="subsection">

@@ -55,12 +55,21 @@ export interface PrivacySettings {
    *  events. Match is exact string equality on the request page's
    *  origin — wildcard support is a later UI affordance. */
   blocklistedOrigins: string[];
+  /** IDs of built-in masking rules (header / body / form) the user has
+   *  explicitly opted out of. PRD §11.2 enforces capture-time masking,
+   *  and disabled rules mean *future* captures will store the matched
+   *  values verbatim — opt-in mechanism for dev workflows where the
+   *  user genuinely wants to see Authorization tokens or TCKN values
+   *  in their own bug reports. Already-captured masked values are
+   *  unrecoverable; see masking.ts §masking-representation. */
+  disabledDefaultRules: string[];
   schemaVersion: number;
 }
 
 export const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   customPatterns: [],
   blocklistedOrigins: [],
+  disabledDefaultRules: [],
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 
@@ -231,6 +240,9 @@ export async function readPrivacySettings(): Promise<PrivacySettings> {
     ...value,
     customPatterns: Array.isArray(value.customPatterns) ? value.customPatterns : [],
     blocklistedOrigins: Array.isArray(value.blocklistedOrigins) ? value.blocklistedOrigins : [],
+    disabledDefaultRules: Array.isArray(value.disabledDefaultRules)
+      ? value.disabledDefaultRules
+      : [],
   };
 }
 
