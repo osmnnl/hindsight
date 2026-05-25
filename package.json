@@ -1,6 +1,6 @@
 {
   "name": "hindsight",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "description": "Privacy-first Chrome MV3 extension for passive browser activity capture and shareable bug reports.",
   "license": "MIT",
@@ -27,7 +27,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.0.0-beta.34",
+    "@crxjs/vite-plugin": "^2.4.0",
     "@types/chrome": "^0.0.287",
     "@types/node": "^20.14.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
@@ -42,7 +42,7 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
     "vite": "^6.0.5",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.7"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
@@ -52,5 +52,10 @@
     "*.{json,md,css,html}": [
       "prettier --write"
     ]
+  },
+  "overrides": {
+    "@crxjs/vite-plugin": {
+      "rollup": "^2.80.0"
+    }
   }
 }

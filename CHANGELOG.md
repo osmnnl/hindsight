@@ -4,6 +4,43 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.4.4] — 2026-05-25 — M5 W10 dep audit closure
+
+Closes the `npm audit` finding deferred from v0.4.2. 7 advisories
+(5 moderate + 2 high) → **0**. All clean.
+
+### Changed
+
+- **vitest 2.1.9 → 4.1.7**. Vitest 4 pulls a security-patched
+  vite/esbuild chain that resolves the 5 moderate advisories
+  (CVE-2024 esbuild dev-server SSRF chain via vite-node, vite,
+  @vitest/mocker). API-compatible at the surface we use
+  (`describe / it / expect / vi.fn`); 123 tests pass unchanged.
+- **@crxjs/vite-plugin `^2.0.0-beta.34` → `^2.4.0`**. Latest
+  stable in the 2.x line. Manifest/HMR contract unchanged.
+- **Added npm `overrides` to force rollup `^2.80.0`** through
+  the @crxjs/vite-plugin transitive chain. @crxjs 2.4.0 pins
+  rollup@2.79.2, which still trips GHSA-mw96-cpmx-2vgc; the
+  override bumps to the security-patched 2.80.0+. Only the
+  patch level changed between 2.79.2 and 2.80.0, so no behavior
+  delta in the build.
+
+All dev-deps only — no runtime exposure shipped to users before
+or after, but a clean `npm audit` removes friction from the CWS
+submission checklist.
+
+### Audited (clean)
+
+- `npm audit` — 0 vulnerabilities, 258 packages.
+- `npm run build` — 177 ms, output bytes unchanged within rounding.
+- `npm test` — 123/123 in 197 ms (faster than v0.4.3 thanks to
+  vitest 4's improved transform pipeline).
+- All four perf benches green.
+
+[0.4.4]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.4
+
+---
+
 ## [0.4.3] — 2026-05-25 — M5 W8-W9 SW robustness
 
 Two small service-worker correctness fixes on top of v0.4.2. Both

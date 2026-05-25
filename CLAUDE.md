@@ -186,6 +186,12 @@ If a request would build any of the above, say so and stop.
 
 ## 9. Where we are now (M5 in flight)
 
+**v0.4.4** (2026-05-25) — M5 W10 dep audit closure. `npm audit`
+went 7 → 0 via vitest 2.1.9 → 4.1.7, @crxjs/vite-plugin beta.34 →
+2.4.0 stable, and an `overrides` block forcing rollup ≥ 2.80.0
+through the @crxjs transitive chain. All dev-deps; no runtime
+delta. Tests faster on vitest 4 (197 ms vs ~280 ms).
+
 **v0.4.3** (2026-05-25) — M5 W8-W9 SW robustness: `readArchive()`
 TTL-filters at read time (covers a wake-up race against the lazy
 sweep), and all async `chrome.runtime.onMessage` handlers now have
@@ -247,10 +253,11 @@ p95 ~0.012 ms, XHR p95 ~0.001 ms).
   reduced-motion added in W1. axe-core CI + manual SR pass still
   pending._
 - Security audit — CSP review, dependency audit, input validation
-  sweep at all system boundaries. _W3 done: CSP + innerHTML +
-  npm audit reviewed, `CSS.escape()` added at the one dynamic
-  selector site. Dev-dep upgrade (vitest 3 + @crxjs downgrade)
-  still pending._
+  sweep at all system boundaries. _W3 + W10 done: CSP + innerHTML +
+  `CSS.escape()` defense-in-depth landed in W3. Dep audit closed
+  in W10 (vitest 2 → 4, @crxjs 2.4.0, rollup override) — `npm
+audit` is now clean. CWS submission no longer blocked on audit
+  findings._
 - Documentation site (hindsight.dev) + landing page + demo video
   (out-of-repo).
 - CWS public submission + Edge Add-ons submission → `v1.0.0` tag.
