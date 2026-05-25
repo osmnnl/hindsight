@@ -39,12 +39,15 @@ import {
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
 import {
+  DEFAULT_ADVANCED_SETTINGS,
   DEFAULT_CAPTURE_SETTINGS,
   DEFAULT_DETECTION_SETTINGS,
+  readAdvancedSettings,
   readCaptureSettings,
   readDetectionSettings,
   readPrivacySettings,
   SettingsKeys,
+  type AdvancedSettings,
   type CaptureSettings,
   type CustomPatternSetting,
   type DetectionSettings,
@@ -104,6 +107,20 @@ function loadDetectionConfig(): Promise<DetectionSettings> {
     ...DEFAULT_DETECTION_SETTINGS,
   }));
   return detectionConfigPromise;
+}
+
+// Advanced settings cache — used here only to honour debugLogging.
+// Verbose mode prints the masking pipeline's input/output on every
+// network capture so a user (or maintainer) can confirm rule disables
+// are actually flowing through the SW.
+let advancedConfigPromise: Promise<AdvancedSettings> | null = null;
+
+function loadAdvancedConfig(): Promise<AdvancedSettings> {
+  if (advancedConfigPromise) return advancedConfigPromise;
+  advancedConfigPromise = readAdvancedSettings().catch(() => ({
+    ...DEFAULT_ADVANCED_SETTINGS,
+  }));
+  return advancedConfigPromise;
 }
 
 // Per-session notification dedup. Keyed by sessionId + ruleId so a
@@ -187,6 +204,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (SettingsKeys.privacy in changes) privacyConfigPromise = null;
   if (SettingsKeys.capture in changes) captureConfigPromise = null;
   if (SettingsKeys.detection in changes) detectionConfigPromise = null;
+  if (SettingsKeys.advanced in changes) advancedConfigPromise = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -491,6 +509,20 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   const origin = safeOrigin(msg.pageUrl);
   const privacy = await loadPrivacyConfig();
   const captureCfg = await loadCaptureConfig();
+  const advanced = await loadAdvancedConfig();
+  const debug = advanced.debugLogging;
+
+  if (debug) {
+    console.info(
+      '[hindsight]',
+      msg.capture.type,
+      'page=' + origin,
+      '— headerRules:',
+      privacy.headerRules.map((r) => r.id),
+      'bodyRules:',
+      privacy.bodyRules.map((r) => r.id)
+    );
+  }
 
   // Per-domain blocklist (PRD §6.6.1 "Per-domain 'never capture here'").
   // Dropped silently — the user explicitly told us to ignore this origin.
@@ -515,7 +547,8 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   const { capture, redactions: swRedactions } = applyMasking(
     msg.capture,
     privacy.headerRules,
-    privacy.bodyRules
+    privacy.bodyRules,
+    debug
   );
   // Merge with redactions the page-world already applied (form-field
   // masking, for instance, lives at the DOM site because that's where
@@ -765,7 +798,8 @@ interface MaskedResult {
 function applyMasking(
   capture: CaptureRuntimeMessage['capture'],
   headerRules: HeaderMaskingRule[],
-  bodyRules: BodyPatternRule[]
+  bodyRules: BodyPatternRule[],
+  debug = false
 ): MaskedResult {
   // Only network.fetch / network.xhr carry the request/response shape we
   // mask today. Other types (console, action, navigation) pass through
@@ -776,10 +810,33 @@ function applyMasking(
   }
 
   const data: NetworkFetchData | NetworkXhrData = capture.data;
+  if (debug) {
+    console.info(
+      '[hindsight] applyMasking',
+      capture.data.request.method,
+      capture.data.request.url,
+      '— req-header-keys=',
+      Object.keys(data.request.headers),
+      '— rule-count=',
+      headerRules.length
+    );
+  }
   const reqH = maskHeaders(data.request.headers, 'request.headers', headerRules);
   const respH = maskHeaders(data.response.headers, 'response.headers', headerRules);
   const reqB = maskBody(data.request.body, 'request.body', bodyRules);
   const respB = maskBody(data.response.body, 'response.body', bodyRules);
+  if (debug) {
+    console.info(
+      '[hindsight] mask result — req-masked-keys=',
+      Object.entries(reqH.headers)
+        .filter(([, v]) => v === '***MASKED***')
+        .map(([k]) => k),
+      '— redactions=',
+      [...reqH.redactions, ...respH.redactions, ...reqB.redactions, ...respB.redactions].map(
+        (r) => `${r.scope}:${r.rule}`
+      )
+    );
+  }
 
   const maskedData: NetworkFetchData = {
     request: { ...data.request, headers: reqH.headers, body: reqB.body },
