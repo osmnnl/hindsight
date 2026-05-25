@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hindsight — Privacy policy</title>
+    <meta
+      name="description"
+      content="What Hindsight collects, where it stores it, and what leaves your device. The short version: nothing leaves until you explicitly click 'Send'."
+    />
+    <link rel="canonical" href="./privacy.html" />
+    <style>
+      :root {
+        --bg: #0b0e1a;
+        --bg-elev: #11152a;
+        --surface: #161b34;
+        --border: #232a4d;
+        --text: #e6e8f5;
+        --muted: #8590b8;
+        --accent: #f5b042;
+        --max: 760px;
+        --mono:
+          ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
+          monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code {
+        font-family: var(--mono);
+        background: var(--bg-elev);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        color: var(--accent);
+      }
+      header.topbar {
+        border-bottom: 1px solid var(--border);
+        padding: 18px 0;
+      }
+      .container {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+      }
+      .brand .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .brand a {
+        color: var(--text);
+        text-decoration: none;
+      }
+      h1 {
+        font-size: 38px;
+        margin: 40px 0 4px;
+        letter-spacing: -0.02em;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 32px;
+      }
+      h2 {
+        margin: 40px 0 12px;
+        font-size: 22px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+      h3 {
+        margin: 28px 0 8px;
+        font-size: 17px;
+      }
+      p,
+      ul,
+      ol {
+        color: var(--text);
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 6px 0;
+      }
+      .callout {
+        background: var(--bg-elev);
+        border-left: 3px solid var(--accent);
+        padding: 16px 20px;
+        border-radius: 0 8px 8px 0;
+        margin: 24px 0;
+      }
+      .callout strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+        font-size: 14.5px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--accent);
+        font-weight: 600;
+        background: var(--bg-elev);
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 32px 0 48px;
+        margin-top: 48px;
+        color: var(--muted);
+        font-size: 13.5px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container brand">
+        <span class="dot"></span>
+        <a href="./index.html">Hindsight</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <h1>Privacy policy</h1>
+      <p class="meta">
+        Last updated: <strong>2026-05-25</strong> · Applies to Hindsight Chrome extension
+        <code>v0.5.x</code> and later.
+      </p>
+
+      <div class="callout">
+        <strong>Plain-English summary</strong>
+        Hindsight stores your captures on your own device. There is no Hindsight server. The
+        extension has no telemetry, no analytics SDKs, and makes zero outbound network requests
+        until you explicitly click a "Send" button. Authorization tokens, cookies, passwords, credit
+        cards and Turkish national IDs are masked at capture time — the original values are never
+        written to your local storage in the first place.
+      </div>
+
+      <h2>1. What we collect</h2>
+      <p>
+        When Hindsight is installed and enabled, content scripts inside the pages you visit and a
+        service worker observe browser activity. Captures are categorised by tier:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Default</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Network requests</td>
+            <td>On</td>
+            <td>
+              Method, URL, headers, body, status, response. Sensitive headers/bodies masked at
+              capture time (see §3).
+            </td>
+          </tr>
+          <tr>
+            <td>Console messages</td>
+            <td>On</td>
+            <td>Level, message, stack trace.</td>
+          </tr>
+          <tr>
+            <td>Navigation events</td>
+            <td>On</td>
+            <td>From-URL, to-URL, transition type.</td>
+          </tr>
+          <tr>
+            <td>Clicks</td>
+            <td>On (Tier 2)</td>
+            <td>Element tag, accessible name, position.</td>
+          </tr>
+          <tr>
+            <td>Form input changes</td>
+            <td>On (Tier 2)</td>
+            <td>Field name and type. Password / credit-card fields always masked.</td>
+          </tr>
+          <tr>
+            <td>Screenshots on error</td>
+            <td>On (Tier 3)</td>
+            <td>JPEG of visible tab on capture; throttled to one per tab per 2 s.</td>
+          </tr>
+          <tr>
+            <td>Performance signals</td>
+            <td>On (Tier 3)</td>
+            <td>Long tasks &gt; 100 ms, cumulative layout shift.</td>
+          </tr>
+          <tr>
+            <td>Cursor / scroll trail</td>
+            <td>Off (Tier 4)</td>
+            <td>Only while Recording Mode is explicitly active.</td>
+          </tr>
+          <tr>
+            <td>Periodic screenshots</td>
+            <td>Off (Tier 4)</td>
+            <td>2-second JPEGs, recording mode only.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Each tier is toggleable in <strong>Settings → Capture</strong> (except Tier 1, the bare
+        minimum for the extension to function).
+      </p>
+
+      <h2>2. Where it goes</h2>
+      <p>
+        Everything is stored in <code>chrome.storage.local</code> on your own device. There is no
+        Hindsight server. The repository that builds the extension is public and every line of code
+        that touches <code>fetch()</code> or <code>chrome.runtime.sendMessage</code> is verifiable.
+      </p>
+      <p>The service worker makes zero outbound HTTP requests of its own. The only fetches are:</p>
+      <ul>
+        <li>
+          A configured Slack / Discord / Teams webhook URL when you click "Send" on a captured
+          event;
+        </li>
+        <li>
+          The "↻ Replay this request" button in the side panel, which re-fires a specific captured
+          request from the extension context (without your real cookies — see §6).
+        </li>
+      </ul>
+
+      <h2>3. Sensitive data — capture-time masking</h2>
+      <p>
+        Sensitive values are masked
+        <strong>at capture time, before the event is written to storage</strong>:
+      </p>
+      <ul>
+        <li>
+          Built-in header masking: <code>Authorization</code>, <code>Cookie</code>,
+          <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
+          <code>Proxy-Authorization</code>.
+        </li>
+        <li>
+          Built-in body pattern masking: Turkish national ID (TCKN, with checksum), credit cards
+          (Luhn-validated 13–19 digits).
+        </li>
+        <li>
+          Built-in form masking: <code>&lt;input type="password"&gt;</code>, credit-card
+          autocomplete fields, fields named <code>password</code> / <code>secret</code> /
+          <code>token</code> / <code>ssn</code> / <code>pin</code>.
+        </li>
+        <li>User-defined body patterns — any regex you add in Settings → Privacy.</li>
+      </ul>
+      <p>
+        Matching values are replaced with the literal string <code>***MASKED***</code> before
+        persistence. The original is <strong>never</strong> written down, never embedded in the
+        screenshot, never copied to the HAR export, never included in any share payload. Mask cannot
+        be reversed — there is nothing to reverse to.
+      </p>
+      <p>
+        You can disable individual rules in Settings → Privacy if you need raw values in your own
+        captures. The disable is per-rule, per-future-capture, and the Settings page warns
+        explicitly that captures recorded with a rule disabled will store the matched value verbatim
+        on your machine.
+      </p>
+
+      <h2>4. The 7-day archive</h2>
+      <p>
+        Closing a tab does not delete its captures — they move into a 7-day rolling archive in
+        <code>chrome.storage.local</code>. Entries older than 7 days are swept at service-worker
+        startup. You can also manually clear the archive (sidepanel → recents → Clear archive) or
+        reset everything (Settings → Advanced → Reset everything).
+      </p>
+
+      <h2>5. Sharing — what we send when you click "Send"</h2>
+      <ul>
+        <li>
+          <strong>Webhook destinations</strong> (Slack / Discord / Teams): an HTTPS POST to the URL
+          you configured, with the formatted bug report. Payload is the already-masked event from
+          local storage.
+        </li>
+        <li>
+          <strong>Web intents</strong> (GitHub Issue, mailto): a new browser tab is opened with a
+          pre-filled body. The browser navigates; Hindsight does not POST anything itself.
+        </li>
+        <li>
+          <strong>Replay bundle download</strong>: a single <code>.html</code> file is written to
+          your computer via <code>chrome.downloads</code>. Nothing is uploaded.
+        </li>
+        <li><strong>ZIP export</strong>: same — local file write only.</li>
+        <li>
+          <strong>Copy to clipboard</strong>: the report is placed on your system clipboard. Nothing
+          leaves until you paste.
+        </li>
+      </ul>
+      <p>
+        A confirmation dialog ("Privacy preview modal") shows the exact event count, redaction
+        summary, and destination identity before every send.
+      </p>
+
+      <h2>6. Replay requests</h2>
+      <p>
+        The "↻ Replay this request" button re-fires a captured request from the extension's own
+        context. The fetch explicitly uses
+        <code>credentials: 'omit'</code> and skips any header whose stored value is
+        <code>***MASKED***</code>. Replayed auth-bound requests typically return 401 / 403 — that's
+        expected, the result panel labels it.
+      </p>
+
+      <h2>7. Permissions — why we ask for each</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>storage</code></td>
+            <td>Read and write the local capture buffer.</td>
+          </tr>
+          <tr>
+            <td><code>unlimitedStorage</code></td>
+            <td>Allow buffers larger than 5 MB on heavy-browsing days.</td>
+          </tr>
+          <tr>
+            <td><code>activeTab</code></td>
+            <td>Inspect the tab the user is actively looking at.</td>
+          </tr>
+          <tr>
+            <td><code>scripting</code></td>
+            <td>
+              Inject the content scripts that observe <code>fetch</code> /
+              <code>XMLHttpRequest</code> / <code>console</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>sidePanel</code></td>
+            <td>Open the primary inspection UI.</td>
+          </tr>
+          <tr>
+            <td><code>notifications</code> (opt-in)</td>
+            <td>Failure-cascade desktop notifications. Requested only when enabled.</td>
+          </tr>
+          <tr>
+            <td><code>downloads</code> (opt-in)</td>
+            <td>Save replay-bundle HTML and ZIP exports.</td>
+          </tr>
+          <tr>
+            <td><code>tabs</code> (opt-in)</td>
+            <td>Read tab metadata for sidepanel + popup display.</td>
+          </tr>
+          <tr>
+            <td><code>webNavigation</code> (opt-in)</td>
+            <td>Detect SPA route changes and reload events.</td>
+          </tr>
+          <tr>
+            <td><code>&lt;all_urls&gt;</code> (opt-in)</td>
+            <td>Run the content script on user pages so request interception works.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>8. Telemetry — none</h2>
+      <p>
+        Hindsight collects no usage data, no error reports, no diagnostic pings. No Sentry, no
+        Google Analytics, no Mixpanel, no Amplitude, no Segment. Zero <code>fetch()</code> calls to
+        any Hindsight-owned domain. If this ever changes, it will require explicit opt-in via a
+        Settings checkbox before any data leaves your device, and this policy will be updated first.
+      </p>
+
+      <h2>9. Cookies — none</h2>
+      <p>
+        Hindsight does not set cookies. It does not store cookies on any external site. It reads the
+        <code>Cookie</code> request header of pages you visit only to mask its value before
+        persisting the network event locally.
+      </p>
+
+      <h2>10. Third-party services</h2>
+      <p>
+        The extension itself ships with no third-party services bundled. At runtime, optional
+        features touch URLs you configure (your webhook, your <code>mailto:</code> URI). Hindsight
+        does not share these with anyone; they live in your local storage.
+      </p>
+
+      <h2>11. Children's privacy</h2>
+      <p>
+        Hindsight is a developer tool. It is not marketed to children and does not knowingly capture
+        data from children.
+      </p>
+
+      <h2>12. Changes to this policy</h2>
+      <p>
+        Material changes will be reflected in this document and called out in the extension's
+        <a href="https://github.com/osmanunal/hindsight/blob/main/CHANGELOG.md">CHANGELOG</a>.
+      </p>
+
+      <h2>13. Contact</h2>
+      <p>
+        Hindsight is open source. Bug reports, privacy questions, and vulnerability disclosures
+        should go to the
+        <a href="https://github.com/osmanunal/hindsight">project's GitHub repository</a>.
+      </p>
+
+      <div class="callout" style="margin-top: 32px">
+        Hindsight is published under the MIT license. The source code is the canonical proof of what
+        the extension does — every claim in this policy is verifiable by reading it.
+      </div>
+    </main>
+
+    <footer>
+      <div class="container">
+        <a href="./index.html">Hindsight home</a> ·
+        <a href="https://github.com/osmanunal/hindsight">GitHub</a> ·
+        <a href="https://github.com/osmanunal/hindsight/blob/main/Hindsight-PRD-v0.1.md">PRD</a>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hindsight — DevTools you didn't open</title>
+    <meta
+      name="description"
+      content="Privacy-first Chrome extension that passively records network, console, actions and screenshots so you can scrub back through time and ship a faithful bug report. No backend. No telemetry. No setup."
+    />
+    <meta property="og:title" content="Hindsight" />
+    <meta
+      property="og:description"
+      content="DevTools you didn't open. Privacy-first passive capture for bug reports."
+    />
+    <style>
+      :root {
+        --bg: #0b0e1a;
+        --bg-elev: #11152a;
+        --surface: #161b34;
+        --border: #232a4d;
+        --text: #e6e8f5;
+        --muted: #8590b8;
+        --accent: #f5b042;
+        --accent-text: #1a1303;
+        --success: #5fdc8a;
+        --danger: #f05050;
+        --mono:
+          ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
+          monospace;
+        --max: 980px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code,
+      pre {
+        font-family: var(--mono);
+      }
+      code {
+        background: var(--bg-elev);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        color: var(--accent);
+      }
+      pre {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        padding: 14px 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      header.topbar {
+        border-bottom: 1px solid var(--border);
+        padding: 18px 0;
+      }
+      .container {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 17px;
+      }
+      .brand .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      section {
+        padding: 48px 0;
+      }
+      section + section {
+        border-top: 1px solid var(--border);
+      }
+
+      .hero {
+        padding-top: 80px;
+        padding-bottom: 64px;
+        text-align: center;
+      }
+      .hero h1 {
+        font-size: clamp(36px, 6vw, 56px);
+        line-height: 1.1;
+        margin: 0 0 18px;
+        letter-spacing: -0.02em;
+      }
+      .hero .tagline {
+        font-size: clamp(17px, 2.5vw, 21px);
+        color: var(--muted);
+        max-width: 640px;
+        margin: 0 auto 28px;
+      }
+      .cta-row {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-block;
+        padding: 12px 22px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        transition:
+          background 100ms ease,
+          border-color 100ms ease;
+        border: 1px solid var(--border);
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: var(--accent-text);
+        border-color: var(--accent);
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+        text-decoration: none;
+      }
+      .btn-secondary {
+        background: transparent;
+        color: var(--text);
+      }
+      .btn-secondary:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      h2 {
+        font-size: 30px;
+        margin: 0 0 12px;
+        letter-spacing: -0.01em;
+      }
+      h2 + p.lead {
+        color: var(--muted);
+        font-size: 17px;
+        max-width: 720px;
+        margin: 0 0 28px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 22px 24px;
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+        color: var(--accent);
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14.5px;
+        line-height: 1.55;
+      }
+
+      .promise-row {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-top: 24px;
+      }
+      .promise {
+        background: var(--bg-elev);
+        border-left: 3px solid var(--accent);
+        padding: 16px 20px;
+        border-radius: 0 8px 8px 0;
+      }
+      .promise strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .promise span {
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 16px;
+        margin-top: 8px;
+      }
+      .stat {
+        text-align: center;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 18px;
+      }
+      .stat .num {
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--accent);
+        font-family: var(--mono);
+      }
+      .stat .lbl {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      ol.steps {
+        counter-reset: step;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      ol.steps > li {
+        counter-increment: step;
+        position: relative;
+        padding-left: 56px;
+        margin-bottom: 22px;
+        min-height: 36px;
+      }
+      ol.steps > li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--bg-elev);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-family: var(--mono);
+      }
+      ol.steps > li strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+      }
+      ol.steps > li span {
+        color: var(--muted);
+        font-size: 14.5px;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 36px 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+      footer a {
+        margin: 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container brand">
+        <span class="dot"></span>
+        Hindsight
+      </div>
+    </header>
+
+    <section class="hero container">
+      <h1>DevTools you didn't open.</h1>
+      <p class="tagline">
+        A Chrome extension that passively records every network request, console error, action and
+        screenshot in the background — so when something breaks, you can scrub back through time and
+        ship a faithful bug report without re-running anything.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#install">Install for Chrome</a>
+        <a class="btn btn-secondary" href="https://github.com/osmanunal/hindsight"
+          >View on GitHub</a
+        >
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Three brand promises</h2>
+        <p class="lead">
+          Every architectural decision in Hindsight defends one of these. They're load-bearing — not
+          aspirational marketing copy.
+        </p>
+        <div class="promise-row">
+          <div class="promise">
+            <strong>No information loss.</strong>
+            <span
+              >Hindsight never silently truncates, denoises, or "smart summarizes" your capture.
+              What got captured is what you can share.</span
+            >
+          </div>
+          <div class="promise">
+            <strong>Your data does not leave your machine unless you choose.</strong>
+            <span
+              >Zero outbound network requests except ones you explicitly initiate — a webhook POST,
+              a web-intent navigation, a file download. No telemetry. Ever.</span
+            >
+          </div>
+          <div class="promise">
+            <strong>Zero setup, useful from minute one.</strong>
+            <span
+              >Defaults work the moment you install. Settings exist for power users. The killer
+              feature is a single-file HTML replay bundle a teammate opens in any browser, no
+              recipient setup.</span
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>What it captures</h2>
+        <p class="lead">
+          Default-on the moment you install. Tier 4 captures (cursor / scroll / periodic
+          screenshots) light up only when you explicitly hit ● Record.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <h3>Network</h3>
+            <p>
+              <code>fetch</code>, <code>XMLHttpRequest</code>, WebSocket frames, SSE. Full
+              request/response with headers and bodies. Sensitive headers masked at capture time.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Console</h3>
+            <p>
+              <code>error</code>, <code>warn</code>, <code>info</code>, plus unhandled rejections
+              and uncaught errors with stack traces.
+            </p>
+          </div>
+          <div class="card">
+            <h3>User actions</h3>
+            <p>
+              Clicks, form input changes (passwords always masked), SPA route changes. Tag,
+              accessible name, position — not coordinates.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Screenshots on error</h3>
+            <p>
+              Single JPEG frame at the moment of the failed request. Throttled to one shot per tab
+              per two seconds.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Performance signals</h3>
+            <p>
+              Long tasks &gt; 100 ms, cumulative layout shift, white-screen heuristic — the moments
+              your app feels janky show up on the timeline.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Recording mode</h3>
+            <p>
+              ● Record kicks in cursor trail, throttled scroll, and 2-second screenshots — for the
+              "show me what they did" reproductions.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Capture-time masking, not export-time</h2>
+        <p class="lead">
+          The original value of a sensitive field is <strong>never</strong> written to your local
+          storage — replaced with <code>***MASKED***</code> before persistence. So even if your
+          machine is compromised, the bearer tokens aren't there to leak.
+        </p>
+        <pre>
+{
+  "Accept": "application/json",
+  "Authorization": "***MASKED***",
+  "Cookie": "***MASKED***",
+  "Content-Type": "application/json"
+}</pre
+        >
+        <p class="lead" style="margin-top: 20px">
+          Default rules cover <code>Authorization</code>, <code>Cookie</code>,
+          <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
+          <code>Proxy-Authorization</code>, credit-card numbers (Luhn-validated), and Turkish
+          national IDs. Add your own regex in Settings → Privacy. Disable an individual rule when
+          you genuinely want the raw value in your own captures.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>The replay bundle</h2>
+        <p class="lead">
+          Click "Save as replay bundle" and Hindsight writes a single
+          <code>hindsight-&lt;host&gt;-&lt;timestamp&gt;.html</code> file. Drag it into any browser
+          tab and the recipient sees the full session — scrubber, narrative, request/response panels
+          — with no extension, no service, no login. Works offline.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>How it actually works</h2>
+        <ol class="steps">
+          <li>
+            <strong>Install &amp; forget.</strong>
+            <span
+              >The toolbar icon shows a quiet event counter while you browse. No popups, no
+              prompts.</span
+            >
+          </li>
+          <li>
+            <strong>Something breaks.</strong>
+            <span
+              >Click the icon. The side panel opens with a scrubber across the last N events,
+              cluster banners for repeated failures, and detail panes for any request you tap.</span
+            >
+          </li>
+          <li>
+            <strong>Pick a slice.</strong>
+            <span
+              >Use the dual-handle scrubber to clip a time window. Filter by Failed / API / All.
+              Search by URL, type, or response body. Pin a single host.</span
+            >
+          </li>
+          <li>
+            <strong>Share it.</strong>
+            <span
+              >Copy bug report (markdown + screenshot to clipboard), → Slack/Discord/Teams webhook,
+              → GitHub Issue, ⤓ Download replay bundle, ⤓ ZIP everything. Privacy preview modal
+              shows what's about to leave the machine before it does.</span
+            >
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Performance</h2>
+        <p class="lead">
+          Hindsight is mostly invisible by design. The capture path is gated by hard CI benchmarks —
+          your browser doesn't notice it's there.
+        </p>
+        <div class="stats">
+          <div class="stat">
+            <div class="num">0.012<small>ms</small></div>
+            <div class="lbl">fetch overhead p95 (budget 0.5ms)</div>
+          </div>
+          <div class="stat">
+            <div class="num">0.001<small>ms</small></div>
+            <div class="lbl">XHR overhead p95</div>
+          </div>
+          <div class="stat">
+            <div class="num">0.25<small>ms</small></div>
+            <div class="lbl">filter 1000 events p95</div>
+          </div>
+          <div class="stat">
+            <div class="num">0<small></small></div>
+            <div class="lbl">outbound requests (no telemetry)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="container">
+        <h2>Install</h2>
+        <p class="lead">
+          Coming to the Chrome Web Store. While we're under review, you can load the latest packaged
+          build directly:
+        </p>
+        <ol class="steps">
+          <li>
+            <strong>Download the release.</strong>
+            <span
+              >Grab <code>hindsight-v0.5.0.zip</code> from the
+              <a href="https://github.com/osmanunal/hindsight/releases">GitHub releases page</a>.
+              Unzip into a folder you'll keep around.</span
+            >
+          </li>
+          <li>
+            <strong>Open <code>chrome://extensions</code>.</strong>
+            <span>Toggle <em>Developer mode</em> on in the top-right corner.</span>
+          </li>
+          <li>
+            <strong>Click "Load unpacked".</strong>
+            <span>Pick the unzipped folder. Pin the Hindsight icon to your toolbar.</span>
+          </li>
+          <li>
+            <strong>Browse normally.</strong>
+            <span
+              >Hindsight captures in the background. When something breaks, click the icon — the
+              side panel is your inspector.</span
+            >
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        Open source · MIT licensed ·
+        <a href="https://github.com/osmanunal/hindsight">GitHub</a>
+        <a href="./PRIVACY-POLICY.md">Privacy policy</a>
+        <a href="https://github.com/osmanunal/hindsight/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/osmanunal/hindsight/blob/main/Hindsight-PRD-v0.1.md">PRD</a>
+      </div>
+    </footer>
+  </body>
+</html>

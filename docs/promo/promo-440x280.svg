@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Small promo tile for the Chrome Web Store (440×280) — REQUIRED.
+
+  Same export options as promo-1400x560.svg:
+    rsvg-convert -w 440 -h 280 promo-440x280.svg promo-440x280.png
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="440"
+  height="280"
+  viewBox="0 0 440 280"
+  font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0b0e1a" />
+      <stop offset="1" stop-color="#161b34" />
+    </linearGradient>
+  </defs>
+
+  <rect width="440" height="280" fill="url(#bg)" />
+
+  <!-- subtle horizontal lines -->
+  <g opacity="0.06" stroke="#8590b8" stroke-width="1">
+    <line x1="0" y1="70" x2="440" y2="70" />
+    <line x1="0" y1="140" x2="440" y2="140" />
+    <line x1="0" y1="210" x2="440" y2="210" />
+  </g>
+
+  <!-- brand -->
+  <g transform="translate(28, 32)">
+    <circle cx="8" cy="8" r="7" fill="#f5b042" />
+    <text x="24" y="14" fill="#e6e8f5" font-size="15" font-weight="600">Hindsight</text>
+  </g>
+
+  <!-- headline -->
+  <text x="28" y="100" fill="#e6e8f5" font-size="28" font-weight="700" letter-spacing="-0.8">
+    DevTools you
+  </text>
+  <text x="28" y="132" fill="#e6e8f5" font-size="28" font-weight="700" letter-spacing="-0.8">
+    didn't open.
+  </text>
+
+  <!-- tagline -->
+  <text x="28" y="166" fill="#8590b8" font-size="12" font-weight="400">
+    Privacy-first passive capture for bug reports.
+  </text>
+
+  <!-- mini scrubber -->
+  <g transform="translate(28, 192)">
+    <rect width="384" height="32" rx="4" fill="#0b0e1a" stroke="#232a4d" stroke-width="1" />
+    <g fill="#f5b042" opacity="0.7">
+      <rect x="12" y="20" width="6" height="8" />
+      <rect x="24" y="12" width="6" height="16" />
+      <rect x="36" y="22" width="6" height="6" />
+      <rect x="48" y="8" width="6" height="20" />
+      <rect x="60" y="16" width="6" height="12" />
+      <rect x="72" y="22" width="6" height="6" />
+      <rect x="84" y="14" width="6" height="14" />
+      <rect x="96" y="6" width="6" height="22" />
+      <rect x="108" y="18" width="6" height="10" />
+      <rect x="120" y="20" width="6" height="8" />
+      <rect x="132" y="10" width="6" height="18" />
+      <rect x="144" y="14" width="6" height="14" />
+      <rect x="156" y="18" width="6" height="10" />
+      <rect x="168" y="12" width="6" height="16" />
+      <rect x="180" y="22" width="6" height="6" />
+      <rect x="192" y="16" width="6" height="12" />
+      <rect x="204" y="6" width="6" height="22" />
+      <rect x="216" y="20" width="6" height="8" />
+      <rect x="228" y="12" width="6" height="16" />
+      <rect x="240" y="22" width="6" height="6" />
+      <rect x="252" y="10" width="6" height="18" />
+      <rect x="264" y="16" width="6" height="12" />
+      <rect x="276" y="20" width="6" height="8" />
+      <rect x="288" y="12" width="6" height="16" />
+      <rect x="300" y="22" width="6" height="6" />
+      <rect x="312" y="8" width="6" height="20" />
+      <rect x="324" y="16" width="6" height="12" />
+      <rect x="336" y="20" width="6" height="8" />
+      <rect x="348" y="14" width="6" height="14" />
+      <rect x="360" y="22" width="6" height="6" />
+      <rect x="372" y="18" width="6" height="10" />
+    </g>
+  </g>
+
+  <g transform="translate(28, 234)">
+    <rect width="384" height="2" rx="1" fill="#232a4d" />
+    <rect x="60" width="240" height="2" rx="1" fill="#f5b042" />
+    <circle cx="60" cy="1" r="4" fill="#f5b042" />
+    <circle cx="300" cy="1" r="4" fill="#f5b042" />
+  </g>
+
+  <!-- footer chip -->
+  <g transform="translate(28, 252)">
+    <rect width="160" height="18" rx="9" fill="none" stroke="#232a4d" stroke-width="1" />
+    <text x="14" y="13" fill="#5fdc8a" font-size="10" font-weight="600">
+      ✓ Never leaves your machine
+    </text>
+  </g>
+</svg>
