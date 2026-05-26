@@ -1,0 +1,58 @@
+name: Pages
+
+# Deploys the docs/ folder to GitHub Pages whenever the landing page,
+# privacy policy or promo assets change. The repo's CWS submission
+# links (privacy policy URL, homepage URL) resolve to whatever this
+# job last published.
+#
+# Repo prerequisite (one-time, manual): Settings → Pages → Source =
+# "GitHub Actions". After that this workflow owns the deployment.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  # Lets the maintainer trigger a deploy from the Actions tab without
+  # touching docs/ — useful after enabling Pages for the first time.
+  workflow_dispatch:
+
+# Pages deployments are single-writer per repo; cancelling in-flight
+# runs prevents two successive pushes from racing each other.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Package docs/ as the Pages artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs/ as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
