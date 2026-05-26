@@ -59,7 +59,7 @@ plus an architectural privacy contract addition
 v0.5.0 also gives v1.0.0 (CWS submission) some breathing room for
 genuinely-major changes between now and then.
 
-[0.5.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.5.0
+[0.5.0]: https://github.com/osmnnl/hindsight/releases/tag/v0.5.0
 
 ---
 
@@ -96,7 +96,7 @@ submission checklist.
   vitest 4's improved transform pipeline).
 - All four perf benches green.
 
-[0.4.4]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.4
+[0.4.4]: https://github.com/osmnnl/hindsight/releases/tag/v0.4.4
 
 ---
 
@@ -129,7 +129,7 @@ diagnose in the wild.
 
 123 tests, all four perf gates green. Doc-only delta in CLAUDE.md.
 
-[0.4.3]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.3
+[0.4.3]: https://github.com/osmnnl/hindsight/releases/tag/v0.4.3
 
 ---
 
@@ -223,7 +223,7 @@ fix(sw):          screenshotLastShotAt + sequenceCursor leak on tab close — W7
 123 unit tests (121 → 123 via the two new cascade-head assertions),
 all four perf gates green.
 
-[0.4.2]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.2
+[0.4.2]: https://github.com/osmnnl/hindsight/releases/tag/v0.4.2
 
 ---
 
@@ -289,7 +289,7 @@ feat(sidepanel): persistent filter + search bar + host picker
 fix(sidepanel):  skip render when events haven't changed — stop bulk bar flicker
 ```
 
-[0.4.1]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.1
+[0.4.1]: https://github.com/osmnnl/hindsight/releases/tag/v0.4.1
 
 ---
 
@@ -402,7 +402,7 @@ feat(popup):        recording banner + sidepanel UX polish — W15
 chore(release):     M4 closeout — v0.4.0 — W16
 ```
 
-[0.4.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.4.0
+[0.4.0]: https://github.com/osmnnl/hindsight/releases/tag/v0.4.0
 
 ---
 
@@ -501,7 +501,7 @@ feat(sw):         notification anomaly rule — W11-4
 chore(release):   M3 closeout — v0.3.0 — W11-5
 ```
 
-[0.3.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.3.0
+[0.3.0]: https://github.com/osmnnl/hindsight/releases/tag/v0.3.0
 
 ---
 
@@ -598,7 +598,7 @@ chore(release):  M2 audit + CHANGELOG + README + version 0.2.0 — W7-4
 chore(release):  CWS submission prep — W7-5
 ```
 
-[0.2.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.2.0
+[0.2.0]: https://github.com/osmnnl/hindsight/releases/tag/v0.2.0
 
 ---
 
@@ -704,4 +704,4 @@ test(har): audit — masked Cookie / Set-Cookie do not leak (W4-5)
 chore(release): M1 closeout
 ```
 
-[0.1.0]: https://github.com/osmanunal/hindsight/releases/tag/v0.1.0
+[0.1.0]: https://github.com/osmnnl/hindsight/releases/tag/v0.1.0

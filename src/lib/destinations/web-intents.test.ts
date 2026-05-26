@@ -34,13 +34,13 @@ describe('buildGithubIssueUrl', () => {
   });
 
   it('returns null when repo is missing', () => {
-    expect(buildGithubIssueUrl([netEvt()], { owner: 'osmanunal', repo: '' })).toBeNull();
+    expect(buildGithubIssueUrl([netEvt()], { owner: 'osmnnl', repo: '' })).toBeNull();
   });
 
   it('builds an issues/new URL with title and body params', () => {
-    const r = buildGithubIssueUrl([netEvt()], { owner: 'osmanunal', repo: 'hindsight' });
+    const r = buildGithubIssueUrl([netEvt()], { owner: 'osmnnl', repo: 'hindsight' });
     expect(r).not.toBeNull();
-    expect(r?.url).toContain('https://github.com/osmanunal/hindsight/issues/new');
+    expect(r?.url).toContain('https://github.com/osmnnl/hindsight/issues/new');
     expect(r?.url).toContain('title=');
     expect(r?.url).toContain('body=');
   });

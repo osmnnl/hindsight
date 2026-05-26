@@ -70,7 +70,7 @@ draft in [`CWS-LISTING.md`](./CWS-LISTING.md) — refine as needed.
 ✅ `docs/PRIVACY-POLICY.md` (also as `docs/privacy.html` for hosted
 serving via GitHub Pages).
 
-If you publish the site as `https://osmanunal.github.io/hindsight/`
+If you publish the site as `https://osmnnl.github.io/hindsight/`
 the policy lives at `…/hindsight/privacy.html`.
 
 ### Single purpose statement
@@ -146,7 +146,7 @@ ScreenFlow. Keep cursor visible. No music; soft voiceover ok.
 
 ```sh
 # In repo settings → Pages → Source → main branch → /docs folder
-# Then it's live at https://osmanunal.github.io/hindsight/
+# Then it's live at https://osmnnl.github.io/hindsight/
 ```
 
 Point the CWS "Homepage URL" field at that URL.
