@@ -19,911 +19,1832 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f5b042'/%3E%3Ctext x='50%25' y='52%25' text-anchor='middle' dominant-baseline='central' font-family='ui-monospace,monospace' font-size='17' font-weight='800' fill='%231a1303'%3EH%3C/text%3E%3C/svg%3E"
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #07080a;
-        --surface: #0e0f12;
-        --line: #1a1b22;
-        --line-strong: #262830;
-        --text: #f1f1f3;
-        --text-soft: #a3a4ad;
-        --text-mute: #5d5e67;
+        --bg: #000000;
+        --bg-elev: #0a0a0c;
+        --surface: #131316;
+        --surface-2: #1c1c20;
+        --hairline: rgba(255, 255, 255, 0.08);
+        --hairline-strong: rgba(255, 255, 255, 0.14);
+        --text: #f5f5f7;
+        --text-soft: #a1a1a6;
+        --text-mute: #6e6e73;
         --accent: #f5b042;
-        --accent-hover: #ffc36a;
-        --accent-text: #1a1303;
-        --max: 920px;
-        --mono:
-          ui-monospace, SFMono-Regular, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+        --accent-soft: #ffd494;
+        --accent-deep: #c4842a;
+        --max: 1120px;
+        --max-wide: 1280px;
+        --sans:
+          'Geist', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui,
+          sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --radius: 18px;
+        --radius-lg: 28px;
+        --radius-pill: 980px;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 40px 80px -20px rgba(0, 0, 0, 0.7), 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        --ease: cubic-bezier(0.4, 0, 0.2, 1);
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       }
-      * {
+
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
         margin: 0;
         padding: 0;
       }
+
       html {
         scroll-behavior: smooth;
+        background: var(--bg);
       }
+
       body {
         background: var(--bg);
         color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
-        font-size: 16px;
-        line-height: 1.6;
+        font-family: var(--sans);
+        font-size: 17px;
+        line-height: 1.55;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: 'ss01', 'cv01', 'cv02';
+        letter-spacing: -0.005em;
+        overflow-x: hidden;
       }
+
       a {
         color: inherit;
         text-decoration: none;
       }
+
       code {
         font-family: var(--mono);
-        background: var(--surface);
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 0.88em;
+        font-size: 0.86em;
         color: var(--accent);
+        background: rgba(245, 176, 66, 0.08);
+        padding: 1px 7px;
+        border-radius: 5px;
+        letter-spacing: -0.01em;
       }
 
-      /* i18n — show one language, hide the other */
-      [data-lang] {
+      em {
+        font-style: italic;
+      }
+
+      ::selection {
+        background: var(--accent);
+        color: #1a1303;
+      }
+
+      /* i18n — high-specificity hide rule beats component display values */
+      html:not(.lang-tr) [data-lang='tr'],
+      html.lang-tr [data-lang='en'] {
         display: none;
-      }
-      [data-lang='en'] {
-        display: revert;
-      }
-      .lang-tr [data-lang='en'] {
-        display: none;
-      }
-      .lang-tr [data-lang='tr'] {
-        display: revert;
       }
 
       .container {
         max-width: var(--max);
         margin: 0 auto;
-        padding: 0 32px;
+        padding: 0 24px;
+      }
+      .container-wide {
+        max-width: var(--max-wide);
+        margin: 0 auto;
+        padding: 0 24px;
       }
 
-      /* Nav */
+      /* — Nav — */
       .nav {
-        padding: 24px 0;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(0, 0, 0, 0.72);
+        backdrop-filter: saturate(180%) blur(24px);
+        -webkit-backdrop-filter: saturate(180%) blur(24px);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .nav-inner {
+        height: 56px;
+        max-width: var(--max-wide);
+        margin: 0 auto;
+        padding: 0 24px;
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        font-size: 13px;
       }
       .brand {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: 11px;
+        gap: 9px;
         font-weight: 600;
-        font-size: 15px;
-        letter-spacing: -0.01em;
+        font-size: 15.5px;
+        letter-spacing: -0.02em;
+        color: var(--text);
       }
-      .brand .mark {
-        width: 24px;
-        height: 24px;
-        border-radius: 7px;
+      .brand-mark {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
         background: var(--accent);
-        color: var(--accent-text);
+        color: #1a1303;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-weight: 800;
-        font-size: 13px;
         font-family: var(--mono);
+        font-weight: 700;
+        font-size: 12px;
       }
       .nav-right {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        gap: 28px;
+        gap: 22px;
+      }
+      .nav-link {
+        color: var(--text-soft);
+        transition: color 200ms var(--ease);
+      }
+      .nav-link:hover {
+        color: var(--text);
       }
       .lang-switch {
-        display: flex;
-        gap: 2px;
-        font-size: 13px;
+        display: inline-flex;
         align-items: center;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: var(--radius-pill);
+        padding: 3px;
       }
       .lang-switch button {
         background: none;
         border: none;
-        color: var(--text-mute);
         cursor: pointer;
         font: inherit;
+        font-size: 12px;
         font-weight: 500;
-        padding: 4px 8px;
-        border-radius: 4px;
-        transition: color 100ms ease;
-      }
-      .lang-switch button:hover {
         color: var(--text-soft);
+        padding: 4px 11px;
+        border-radius: var(--radius-pill);
+        letter-spacing: 0.02em;
+        transition:
+          background 200ms var(--ease),
+          color 200ms var(--ease);
       }
       .lang-switch button.active {
+        background: rgba(255, 255, 255, 0.16);
         color: var(--text);
       }
-      .lang-switch span {
-        color: var(--line-strong);
-      }
-      .nav-link {
-        font-size: 13.5px;
-        color: var(--text-soft);
-        transition: color 120ms ease;
-      }
-      .nav-link:hover {
-        color: var(--accent);
+      .lang-switch button:hover:not(.active) {
+        color: var(--text);
       }
 
-      /* Hero */
+      /* — Hero — */
       .hero {
-        padding: 96px 0 80px;
+        position: relative;
+        padding: clamp(80px, 13vw, 140px) 0 0;
+        text-align: center;
+        overflow: hidden;
+      }
+      .hero::before {
+        content: '';
+        position: absolute;
+        top: -200px;
+        left: 50%;
+        width: 900px;
+        height: 900px;
+        transform: translateX(-50%);
+        background: radial-gradient(
+          closest-side,
+          rgba(245, 176, 66, 0.18),
+          rgba(245, 176, 66, 0.04) 50%,
+          transparent 75%
+        );
+        pointer-events: none;
+        z-index: 0;
+        filter: blur(20px);
+      }
+      .hero-content {
+        position: relative;
+        z-index: 1;
+      }
+      .hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--text-soft);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--hairline);
+        padding: 7px 14px 7px 12px;
+        border-radius: var(--radius-pill);
+        margin-bottom: 28px;
+        letter-spacing: -0.005em;
+      }
+      .hero-eyebrow .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(245, 176, 66, 0.8);
+        animation: pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
       }
       .hero h1 {
-        font-size: clamp(42px, 7vw, 76px);
-        line-height: 1.02;
-        letter-spacing: -0.04em;
-        font-weight: 700;
+        font-size: clamp(48px, 8.5vw, 104px);
+        font-weight: 600;
+        line-height: 0.98;
+        letter-spacing: -0.045em;
+        color: var(--text);
         max-width: 14ch;
+        margin: 0 auto;
+        text-wrap: balance;
       }
-      .hero .lede {
-        font-size: clamp(17px, 1.6vw, 19px);
+      .hero h1 .accent {
+        background: linear-gradient(180deg, #ffd494 0%, #f5b042 60%, #c4842a 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        display: inline-block;
+      }
+      .hero-lede {
+        margin: 28px auto 0;
+        max-width: 36ch;
+        font-size: clamp(18px, 1.5vw, 22px);
+        line-height: 1.45;
         color: var(--text-soft);
-        max-width: 58ch;
-        margin-top: 28px;
-        line-height: 1.55;
+        font-weight: 400;
+        text-wrap: balance;
       }
       .hero-actions {
         margin-top: 44px;
         display: flex;
-        gap: 10px;
-        align-items: center;
+        gap: 14px;
+        justify-content: center;
         flex-wrap: wrap;
       }
+      .hero-meta {
+        margin-top: 28px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--text-mute);
+        letter-spacing: 0.02em;
+        display: inline-flex;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .hero-meta .dot-sep {
+        color: var(--hairline-strong);
+      }
 
+      /* — Buttons — */
       .btn {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 12px 22px;
-        border-radius: 8px;
-        font-size: 14.5px;
-        font-weight: 500;
+        padding: 14px 26px;
         font-family: inherit;
-        cursor: pointer;
-        transition:
-          background 120ms ease,
-          border-color 120ms ease,
-          transform 120ms ease,
-          color 120ms ease;
+        font-size: 15px;
+        font-weight: 500;
+        letter-spacing: -0.005em;
+        border-radius: var(--radius-pill);
         border: 1px solid transparent;
+        cursor: pointer;
         white-space: nowrap;
+        transition:
+          background 240ms var(--ease),
+          color 240ms var(--ease),
+          border-color 240ms var(--ease),
+          transform 240ms var(--ease-out),
+          box-shadow 240ms var(--ease-out);
       }
       .btn-primary {
         background: var(--accent);
-        color: var(--accent-text);
+        color: #1a1303;
         font-weight: 600;
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.18) inset,
+          0 8px 24px -4px rgba(245, 176, 66, 0.35);
       }
       .btn-primary:hover {
-        background: var(--accent-hover);
+        background: var(--accent-soft);
         transform: translateY(-1px);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.22) inset,
+          0 14px 32px -4px rgba(245, 176, 66, 0.45);
       }
-      .btn-ghost {
-        background: transparent;
+      .btn-primary:active {
+        transform: translateY(0);
+      }
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
         color: var(--text);
-        border-color: var(--line-strong);
+        border-color: var(--hairline);
+        backdrop-filter: blur(10px);
       }
-      .btn-ghost:hover {
-        border-color: var(--accent);
-        color: var(--accent);
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: var(--hairline-strong);
       }
-      .version-chip {
-        font-family: var(--mono);
-        font-size: 12px;
-        color: var(--text-mute);
-        padding-left: 6px;
+      .btn-arrow::after {
+        content: '→';
+        font-weight: 400;
+        margin-left: 4px;
+        transition: transform 240ms var(--ease-out);
+      }
+      .btn-arrow:hover::after {
+        transform: translateX(4px);
       }
 
-      /* Sections */
-      section {
-        padding: 88px 0;
+      /* — Hero device mockup — */
+      .hero-device {
+        position: relative;
+        z-index: 1;
+        margin: 64px auto -120px;
+        max-width: 980px;
+        padding: 0 24px;
+        perspective: 1400px;
       }
-      section + section {
-        border-top: 1px solid var(--line);
+      .device-frame {
+        background: linear-gradient(180deg, #1c1c20 0%, #111114 100%);
+        border: 1px solid var(--hairline-strong);
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        transform: rotateX(2deg);
+        transform-origin: top center;
+      }
+      .device-titlebar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.025);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .traffic {
+        display: inline-flex;
+        gap: 7px;
+      }
+      .traffic span {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #4a4a4f;
+      }
+      .traffic span:nth-child(1) {
+        background: #ff5f57;
+      }
+      .traffic span:nth-child(2) {
+        background: #febc2e;
+      }
+      .traffic span:nth-child(3) {
+        background: #28c840;
+      }
+      .device-title {
+        font-size: 12px;
+        color: var(--text-mute);
+        letter-spacing: -0.01em;
+        flex: 1;
+        text-align: center;
+      }
+      .device-title strong {
+        color: var(--text-soft);
+        font-weight: 500;
+      }
+      .device-rec {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .device-rec::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .device-body {
+        padding: 18px 18px 22px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--text-soft);
+      }
+      .event {
+        display: grid;
+        grid-template-columns: 60px 70px 1fr auto;
+        gap: 14px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        align-items: center;
+        transition: background 200ms var(--ease);
+      }
+      .event:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .event + .event {
+        margin-top: 1px;
+      }
+      .ev-time {
+        color: var(--text-mute);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+      .ev-type {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 5px;
+        text-align: center;
+      }
+      .ev-type.net {
+        background: rgba(99, 161, 255, 0.14);
+        color: #8ab4ff;
+      }
+      .ev-type.err {
+        background: rgba(255, 99, 99, 0.14);
+        color: #ff9a9a;
+      }
+      .ev-type.act {
+        background: rgba(141, 230, 161, 0.14);
+        color: #9be3a8;
+      }
+      .ev-type.shot {
+        background: rgba(245, 176, 66, 0.14);
+        color: var(--accent);
+      }
+      .ev-msg {
+        color: var(--text);
+        font-size: 12.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-family: var(--mono);
+      }
+      .ev-msg .muted {
+        color: var(--text-mute);
+      }
+      .ev-status {
+        font-size: 11px;
+        color: var(--text-mute);
+        font-variant-numeric: tabular-nums;
+      }
+      .ev-status.ok {
+        color: #9be3a8;
+      }
+      .ev-status.fail {
+        color: #ff9a9a;
+      }
+
+      /* — Sections — */
+      section {
+        padding: clamp(100px, 14vw, 180px) 0;
+        position: relative;
+      }
+      .section-head {
+        text-align: center;
+        max-width: 760px;
+        margin: 0 auto clamp(48px, 7vw, 80px);
       }
       .eyebrow {
-        font-size: 12px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--text-mute);
-        font-weight: 600;
-        margin-bottom: 22px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--accent);
+        margin-bottom: 16px;
+        letter-spacing: -0.005em;
       }
       h2 {
-        font-size: clamp(26px, 3.4vw, 34px);
-        letter-spacing: -0.025em;
-        line-height: 1.18;
+        font-size: clamp(36px, 5.2vw, 64px);
         font-weight: 600;
-        max-width: 22ch;
+        line-height: 1.04;
+        letter-spacing: -0.035em;
+        color: var(--text);
+        text-wrap: balance;
       }
       .section-lead {
-        font-size: 16.5px;
+        margin-top: 20px;
+        font-size: clamp(17px, 1.4vw, 20px);
         color: var(--text-soft);
-        max-width: 58ch;
-        line-height: 1.6;
-        margin-top: 14px;
+        line-height: 1.5;
+        max-width: 56ch;
+        margin-left: auto;
+        margin-right: auto;
+        text-wrap: balance;
       }
 
-      /* Promises — typography only */
-      .promises {
-        margin-top: 44px;
+      /* — Promises bento — */
+      .bento {
         display: grid;
-        gap: 36px;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
       }
-      .promise h3 {
-        font-size: 17px;
-        font-weight: 600;
-        letter-spacing: -0.005em;
-        margin-bottom: 8px;
-      }
-      .promise p {
-        color: var(--text-soft);
-        max-width: 64ch;
-        line-height: 1.6;
-        font-size: 15px;
-      }
-
-      /* Captures */
-      .capture-list {
-        margin-top: 40px;
-        display: grid;
-        gap: 26px;
-      }
-      .capture-row {
-        display: grid;
-        grid-template-columns: 200px 1fr;
-        gap: 28px;
-        align-items: baseline;
-      }
-      .capture-row h3 {
-        font-size: 15px;
-        font-weight: 600;
-        letter-spacing: -0.005em;
-      }
-      .capture-row p {
-        color: var(--text-soft);
-        line-height: 1.58;
-        font-size: 14.5px;
-      }
-
-      /* Masking — code preview block (the only "card" on the page,
-         because it's actual code we're quoting). Single subtle border,
-         no left-stripe ornament. */
-      .mask-preview {
-        margin-top: 32px;
-        font-family: var(--mono);
-        font-size: 13.5px;
-        line-height: 1.7;
-        color: var(--text-soft);
+      .bento-card {
         background: var(--surface);
-        padding: 22px 24px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        overflow-x: auto;
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        padding: 40px;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 280ms var(--ease);
       }
-      .mask-preview .k {
-        color: var(--text);
+      .bento-card:hover {
+        border-color: var(--hairline-strong);
       }
-      .mask-preview .v {
-        color: var(--text-soft);
+      .bento-card.featured {
+        grid-column: span 6;
+        background:
+          radial-gradient(120% 200% at 100% 0%, rgba(245, 176, 66, 0.14) 0%, transparent 50%),
+          var(--surface);
       }
-      .mask-preview .m {
+      .bento-card.half {
+        grid-column: span 3;
+      }
+      .bento-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(245, 176, 66, 0.12);
         color: var(--accent);
-      }
-
-      /* Stats */
-      .stats {
-        margin-top: 40px;
-      }
-      .stat-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        padding: 18px 0;
-        border-bottom: 1px solid var(--line);
-      }
-      .stat-row:first-child {
-        border-top: 1px solid var(--line);
-      }
-      .stat-label {
-        color: var(--text-soft);
-        font-size: 15px;
-      }
-      .stat-value {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 22px;
         font-family: var(--mono);
+        font-weight: 600;
         font-size: 16px;
+      }
+      .bento-card h3 {
+        font-size: clamp(22px, 2.4vw, 28px);
         font-weight: 600;
-        color: var(--accent);
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+        margin-bottom: 12px;
+        max-width: 22ch;
+        color: var(--text);
+        text-wrap: balance;
       }
-
-      /* Install steps */
-      .steps {
-        list-style: none;
-        margin-top: 40px;
-        counter-reset: step;
-      }
-      .steps li {
-        counter-increment: step;
-        display: grid;
-        grid-template-columns: 36px 1fr;
-        gap: 18px;
-        padding: 18px 0;
-        align-items: baseline;
-        border-bottom: 1px solid var(--line);
-      }
-      .steps li:first-child {
-        border-top: 1px solid var(--line);
-      }
-      .steps li::before {
-        content: counter(step);
-        font-family: var(--mono);
-        font-size: 13px;
-        color: var(--accent);
-        font-weight: 600;
-      }
-      .steps strong {
-        display: block;
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 3px;
-        letter-spacing: -0.005em;
-      }
-      .steps p {
+      .bento-card p {
         color: var(--text-soft);
-        font-size: 14.5px;
+        font-size: 16px;
         line-height: 1.55;
+        max-width: 58ch;
+      }
+      .bento-card.featured h3 {
+        font-size: clamp(28px, 3.4vw, 40px);
+        max-width: 18ch;
       }
 
-      /* Other extensions */
-      .others {
-        margin-top: 40px;
+      /* — Captures zigzag — */
+      .capture-stack {
+        display: grid;
+        gap: clamp(64px, 10vw, 120px);
+      }
+      .capture-feature {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 48px;
+        gap: 64px;
+        align-items: center;
       }
-      .other h3 {
-        font-size: 18px;
+      .capture-feature:nth-child(even) .cf-text {
+        order: 2;
+      }
+      .cf-tag {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+        letter-spacing: 0.04em;
+        margin-bottom: 18px;
+      }
+      .cf-text h3 {
+        font-size: clamp(28px, 3.4vw, 44px);
         font-weight: 600;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin-bottom: 18px;
+        text-wrap: balance;
       }
-      .other-meta {
+      .cf-text p {
+        font-size: 17px;
+        color: var(--text-soft);
+        line-height: 1.55;
+        max-width: 52ch;
+      }
+      .cf-visual {
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        min-height: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        position: relative;
+        overflow: hidden;
+      }
+      .cf-visual pre {
+        width: 100%;
+        color: var(--text-soft);
+        line-height: 1.85;
+        overflow-x: auto;
+      }
+      .cf-visual .ln {
+        color: var(--text-mute);
+        margin-right: 14px;
+      }
+      .cf-visual .kw {
+        color: #ff9a9a;
+      }
+      .cf-visual .str {
+        color: #9be3a8;
+      }
+      .cf-visual .key {
+        color: #8ab4ff;
+      }
+      .cf-visual .acc {
+        color: var(--accent);
+      }
+      .cf-mini-list {
+        list-style: none;
+        font-family: var(--sans);
+        font-size: 14px;
+        width: 100%;
+      }
+      .cf-mini-list li {
+        display: grid;
+        grid-template-columns: 76px 1fr auto;
+        gap: 14px;
+        padding: 11px 12px;
+        border-radius: 8px;
+        align-items: center;
+      }
+      .cf-mini-list li + li {
+        margin-top: 2px;
+      }
+      .cf-mini-list li:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .cf-mini-list .ev-time {
+        font-family: var(--mono);
+      }
+      .ss-frame {
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        border-radius: 14px;
+        background:
+          linear-gradient(
+            135deg,
+            rgba(245, 176, 66, 0.18) 0%,
+            transparent 40%,
+            rgba(138, 180, 255, 0.12) 100%
+          ),
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 12px),
+          var(--bg-elev);
+        border: 1px solid var(--hairline);
+        position: relative;
+        overflow: hidden;
+      }
+      .ss-frame::before {
+        content: '';
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        width: 38%;
+        height: 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+      }
+      .ss-frame::after {
+        content: '⚠  Network 500';
+        position: absolute;
+        bottom: 18px;
+        left: 18px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: #ff9a9a;
+        background: rgba(255, 99, 99, 0.12);
+        border: 1px solid rgba(255, 99, 99, 0.3);
+        padding: 6px 12px;
+        border-radius: 6px;
+      }
+      .perf-chip {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 16px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+      .perf-chip + .perf-chip {
+        margin-top: 8px;
+      }
+      .perf-chip .name {
+        color: var(--text);
+      }
+      .perf-chip .bar {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .perf-chip .bar i {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #ff9a9a, #febc2e, #9be3a8);
+        border-radius: 999px;
+      }
+      .perf-chip .val {
+        color: var(--accent);
+      }
+
+      /* — Privacy moment — */
+      .privacy {
+        background:
+          radial-gradient(120% 80% at 50% 0%, rgba(245, 176, 66, 0.06) 0%, transparent 60%),
+          var(--bg);
+      }
+      .privacy h2 .accent {
+        background: linear-gradient(180deg, #ffd494, #f5b042);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .mask-card {
+        margin: clamp(48px, 7vw, 72px) auto 0;
+        max-width: 720px;
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        padding: 36px 40px;
+        box-shadow: var(--shadow-md);
+      }
+      .mask-pre {
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 2;
+        color: var(--text-soft);
+        white-space: pre;
+        overflow-x: auto;
+      }
+      .mask-pre .k {
+        color: var(--text);
+      }
+      .mask-pre .v {
+        color: var(--text-soft);
+      }
+      .mask-pre .m {
+        background: rgba(245, 176, 66, 0.14);
+        color: var(--accent);
+        padding: 1px 10px;
+        border-radius: 5px;
+        font-weight: 500;
+      }
+      .privacy-detail {
+        margin: 32px auto 0;
+        max-width: 720px;
+        font-size: 16px;
+        color: var(--text-soft);
+        line-height: 1.6;
+        text-align: center;
+        text-wrap: pretty;
+      }
+
+      /* — Performance — */
+      .perf-band {
+        background: var(--bg-elev);
+        border-top: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1px;
+        background: var(--hairline);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        margin-top: clamp(48px, 7vw, 64px);
+      }
+      .stat {
+        background: var(--bg-elev);
+        padding: 36px 24px;
+        text-align: center;
+      }
+      .stat-value {
+        font-size: clamp(34px, 4.2vw, 56px);
+        font-weight: 600;
+        letter-spacing: -0.04em;
+        color: var(--text);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat-value .unit {
+        font-size: 0.36em;
+        color: var(--accent);
+        margin-left: 4px;
+        font-weight: 500;
+        letter-spacing: 0;
+      }
+      .stat-label {
+        margin-top: 14px;
+        font-size: 13.5px;
+        color: var(--text-soft);
+        line-height: 1.4;
+      }
+
+      /* — Steps — */
+      .steps {
+        list-style: none;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .steps li {
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        padding: 32px 28px;
+        position: relative;
+        transition:
+          border-color 280ms var(--ease),
+          transform 280ms var(--ease-out);
+      }
+      .steps li:hover {
+        border-color: var(--hairline-strong);
+        transform: translateY(-2px);
+      }
+      .step-num {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        margin-bottom: 24px;
+      }
+      .step-title {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        margin-bottom: 10px;
+        display: block;
+      }
+      .step-title code {
+        font-size: 0.85em;
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text);
+        padding: 2px 7px;
+      }
+      .steps p {
+        font-size: 14.5px;
+        color: var(--text-soft);
+        line-height: 1.55;
+      }
+      .steps p a {
+        color: var(--accent);
+      }
+      .steps p a:hover {
+        color: var(--accent-soft);
+      }
+
+      /* — Other extensions — */
+      .others {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .other {
+        background: var(--surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        padding: 40px;
+        transition:
+          border-color 280ms var(--ease),
+          transform 280ms var(--ease-out);
+      }
+      .other:hover {
+        border-color: var(--hairline-strong);
+        transform: translateY(-2px);
+      }
+      .other-kicker {
         font-family: var(--mono);
         font-size: 11.5px;
-        color: var(--text-mute);
-        letter-spacing: 0.04em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        margin-top: 4px;
+        color: var(--text-mute);
+        margin-bottom: 16px;
+      }
+      .other h3 {
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        margin-bottom: 14px;
       }
       .other p {
+        font-size: 15.5px;
         color: var(--text-soft);
-        font-size: 14.5px;
-        margin: 12px 0 18px;
         line-height: 1.55;
+        margin-bottom: 28px;
       }
       .other-actions {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         flex-wrap: wrap;
       }
       .btn-sm {
-        padding: 7px 14px;
+        padding: 9px 18px;
         font-size: 13px;
-        border-radius: 6px;
       }
 
-      /* Footer */
+      /* — Footer — */
       footer {
-        padding: 56px 0 72px;
-        border-top: 1px solid var(--line);
-        color: var(--text-mute);
-        font-size: 13px;
+        padding: 56px 0 64px;
+        border-top: 1px solid var(--hairline);
+        background: var(--bg);
       }
       .footer-row {
+        max-width: var(--max-wide);
+        margin: 0 auto;
+        padding: 0 24px;
         display: flex;
         justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 18px;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        font-size: 13px;
+        color: var(--text-mute);
       }
-      .footer-links a {
+      .footer-row .muted-link {
         color: var(--text-soft);
-        margin-left: 22px;
-        transition: color 120ms ease;
+        transition: color 200ms var(--ease);
       }
-      .footer-links a:first-child {
-        margin-left: 0;
+      .footer-row .muted-link:hover {
+        color: var(--text);
       }
-      .footer-links a:hover {
-        color: var(--accent);
+      .footer-links {
+        display: flex;
+        gap: 24px;
+      }
+
+      /* — Reveal — */
+      .reveal {
+        opacity: 0;
+        transform: translateY(20px);
+        transition:
+          opacity 800ms var(--ease-out),
+          transform 800ms var(--ease-out);
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* Hero on-load stagger */
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .hero-eyebrow {
+        animation: rise 700ms var(--ease-out) both;
+      }
+      .hero h1 {
+        animation: rise 900ms var(--ease-out) both;
+        animation-delay: 80ms;
+      }
+      .hero-lede {
+        animation: rise 900ms var(--ease-out) both;
+        animation-delay: 200ms;
+      }
+      .hero-actions {
+        animation: rise 900ms var(--ease-out) both;
+        animation-delay: 320ms;
+      }
+      .hero-meta {
+        animation: rise 900ms var(--ease-out) both;
+        animation-delay: 420ms;
+      }
+      .hero-device {
+        animation: rise 1100ms var(--ease-out) both;
+        animation-delay: 520ms;
       }
 
       /* Focus */
       a:focus-visible,
       button:focus-visible {
         outline: 2px solid var(--accent);
-        outline-offset: 2px;
-        border-radius: 4px;
+        outline-offset: 4px;
+        border-radius: 6px;
       }
 
-      /* Responsive */
-      @media (max-width: 720px) {
-        .container {
-          padding: 0 22px;
+      /* — Responsive — */
+      @media (max-width: 960px) {
+        .bento-card.half {
+          grid-column: span 6;
         }
-        section {
-          padding: 64px 0;
-        }
-        .hero {
-          padding: 64px 0 56px;
-        }
-        .capture-row {
+        .capture-feature {
           grid-template-columns: 1fr;
-          gap: 6px;
+          gap: 32px;
         }
-        .capture-row h3 {
-          color: var(--accent);
+        .capture-feature:nth-child(even) .cf-text {
+          order: 0;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stat:last-child {
+          grid-column: span 2;
+        }
+        .steps {
+          grid-template-columns: 1fr 1fr;
         }
         .others {
           grid-template-columns: 1fr;
-          gap: 24px;
         }
-        .stat-row {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 4px;
+      }
+      @media (max-width: 640px) {
+        .nav-inner {
+          gap: 12px;
         }
         .nav-right {
-          gap: 14px;
+          gap: 12px;
         }
-        .footer-links a {
-          margin-left: 14px;
+        .hero {
+          padding-top: 60px;
+        }
+        .hero-device {
+          margin-bottom: -60px;
+        }
+        .device-body {
+          padding: 12px 10px 16px;
+          font-size: 11px;
+        }
+        .event {
+          grid-template-columns: 48px 64px 1fr;
+          gap: 10px;
+        }
+        .event .ev-status {
+          display: none;
+        }
+        .bento-card {
+          padding: 28px;
+        }
+        .mask-card {
+          padding: 24px 20px;
+        }
+        .mask-pre {
+          font-size: 12px;
+        }
+        .stats {
+          grid-template-columns: 1fr 1fr;
+        }
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        .footer-row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .footer-links {
+          flex-wrap: wrap;
         }
       }
 
-      /* Reduced motion */
       @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
         html {
           scroll-behavior: auto;
         }
-        * {
-          transition: none !important;
-        }
-        .btn-primary:hover {
+        .hero-device .device-frame {
           transform: none;
         }
       }
     </style>
   </head>
   <body>
-    <header class="nav container">
-      <a href="#" class="brand">
-        <span class="mark">H</span>
-        Hindsight
-      </a>
-      <nav class="nav-right">
-        <div class="lang-switch" role="tablist" aria-label="Language">
-          <button type="button" data-set-lang="en" class="active" role="tab" aria-selected="true">
-            EN
-          </button>
-          <span aria-hidden="true">·</span>
-          <button type="button" data-set-lang="tr" role="tab" aria-selected="false">TR</button>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a href="#" class="brand">
+          <span class="brand-mark">H</span>
+          Hindsight
+        </a>
+        <div class="nav-right">
+          <div class="lang-switch" role="tablist" aria-label="Language">
+            <button type="button" data-set-lang="en" class="active" role="tab" aria-selected="true">
+              EN
+            </button>
+            <button type="button" data-set-lang="tr" role="tab" aria-selected="false">TR</button>
+          </div>
+          <a href="https://github.com/osmnnl/hindsight" class="nav-link">GitHub</a>
         </div>
-        <a href="https://github.com/osmnnl/hindsight" class="nav-link">GitHub</a>
-      </nav>
-    </header>
+      </div>
+    </nav>
 
     <main>
-      <section class="hero container">
-        <h1>
-          <span data-lang="en">DevTools you didn't open.</span>
-          <span data-lang="tr">Açmadığın DevTools.</span>
-        </h1>
-        <p class="lede">
-          <span data-lang="en"
-            >Hindsight passively records every network request, console error, user action and
-            screenshot in the background. When something breaks, you scrub back through time and
-            ship a faithful bug report — without re-running anything.</span
-          >
-          <span data-lang="tr"
-            >Hindsight her ağ isteğini, konsol hatasını, kullanıcı aksiyonunu ve ekran görüntüsünü
-            arka planda sessizce kaydeder. Bir şey bozulduğunda zamanda geri sarıp tam içerikli bir
-            hata raporunu hiçbir şeyi tekrar etmeden gönderirsin.</span
-          >
-        </p>
-        <div class="hero-actions">
-          <a
-            href="https://github.com/osmnnl/hindsight/releases/latest"
-            class="btn btn-primary"
-            data-lang="en"
-            >Add to Chrome</a
-          >
-          <a
-            href="https://github.com/osmnnl/hindsight/releases/latest"
-            class="btn btn-primary"
-            data-lang="tr"
-            >Chrome'a Ekle</a
-          >
-          <a href="https://github.com/osmnnl/hindsight" class="btn btn-ghost" data-lang="en"
-            >View on GitHub</a
-          >
-          <a href="https://github.com/osmnnl/hindsight" class="btn btn-ghost" data-lang="tr"
-            >GitHub'da İncele</a
-          >
-          <span class="version-chip">v0.5.0</span>
-        </div>
-      </section>
-
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">Three promises</span>
-          <span data-lang="tr">Üç söz</span>
-        </div>
-        <h2>
-          <span data-lang="en">Load-bearing, not aspirational.</span>
-          <span data-lang="tr">Süs değil, taşıyıcı kolon.</span>
-        </h2>
-        <p class="section-lead">
-          <span data-lang="en"
-            >Every architectural decision in Hindsight defends one of these. If we can't, we don't
-            ship the feature.</span
-          >
-          <span data-lang="tr"
-            >Hindsight'taki her mimari karar bunlardan birini koruyor. Koruyamıyorsak, o özelliği
-            yayınlamıyoruz.</span
-          >
-        </p>
-
-        <div class="promises">
-          <div class="promise">
-            <h3>
-              <span data-lang="en">No information loss.</span>
-              <span data-lang="tr">Bilgi kaybı yok.</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Hindsight never silently truncates, denoises or "smart summarizes" your capture.
-                What got recorded is what you can share.</span
-              >
-              <span data-lang="tr"
-                >Hindsight yakaladığını sessizce kısaltmaz, "akıllı özetleme" yapmaz. Neyi
-                kaydettiyse onu paylaşabilirsin.</span
-              >
-            </p>
+      <!-- HERO -->
+      <section class="hero">
+        <div class="container hero-content">
+          <div class="hero-eyebrow">
+            <span class="dot"></span>
+            <span data-lang="en">Privacy-first capture for Chromium</span>
+            <span data-lang="tr">Chromium için gizlilik öncelikli yakalama</span>
           </div>
-
-          <div class="promise">
-            <h3>
-              <span data-lang="en">Your data doesn't leave your machine unless you choose.</span>
-              <span data-lang="tr">Sen seçmedikçe verin makineni terk etmez.</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Zero outbound network requests except ones you explicitly initiate — a webhook
-                POST, a web-intent navigation, a file download. No telemetry. Ever.</span
-              >
-              <span data-lang="tr"
-                >Senin tetiklemediğin tek bir dış istek yok: webhook POST'u, web-intent
-                yönlendirmesi, dosya indirme. Telemetri yok. Asla.</span
-              >
-            </p>
+          <h1>
+            <span data-lang="en"><span class="accent">DevTools</span> you didn't open.</span>
+            <span data-lang="tr">Açmadığın <span class="accent">DevTools</span>.</span>
+          </h1>
+          <p class="hero-lede">
+            <span data-lang="en"
+              >Hindsight passively records every request, error, action and screenshot in the
+              background — so you can scrub back through time and ship a faithful bug report.</span
+            >
+            <span data-lang="tr"
+              >Hindsight her isteği, hatayı, aksiyonu ve ekran görüntüsünü arka planda sessizce
+              kaydeder — zamanda geri sarıp tam içerikli bir hata raporu gönderirsin.</span
+            >
+          </p>
+          <div class="hero-actions">
+            <a
+              href="https://github.com/osmnnl/hindsight/releases/latest"
+              class="btn btn-primary"
+              data-lang="en"
+              >Add to Chrome</a
+            >
+            <a
+              href="https://github.com/osmnnl/hindsight/releases/latest"
+              class="btn btn-primary"
+              data-lang="tr"
+              >Chrome'a Ekle</a
+            >
+            <a
+              href="https://github.com/osmnnl/hindsight"
+              class="btn btn-secondary btn-arrow"
+              data-lang="en"
+              >View on GitHub</a
+            >
+            <a
+              href="https://github.com/osmnnl/hindsight"
+              class="btn btn-secondary btn-arrow"
+              data-lang="tr"
+              >GitHub'da İncele</a
+            >
           </div>
-
-          <div class="promise">
-            <h3>
-              <span data-lang="en">Zero setup, useful from minute one.</span>
-              <span data-lang="tr">Sıfır kurulum, ilk dakikadan değerli.</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Defaults work the moment you install. Settings exist for power users. The killer
-                feature is a single-file HTML replay bundle a teammate opens in any browser, no
-                recipient setup.</span
-              >
-              <span data-lang="tr"
-                >Yüklediğin anda varsayılanlar çalışır. Ayarlar uzman kullanıcılar için. Asıl
-                özellik: tek dosyalık HTML replay paketi — meslektaşın herhangi bir tarayıcıda açar,
-                kurulum gerekmez.</span
-              >
-            </p>
+          <div class="hero-meta">
+            <span>v0.5.0</span>
+            <span class="dot-sep">·</span>
+            <span data-lang="en">No backend</span>
+            <span data-lang="tr">Backend yok</span>
+            <span class="dot-sep">·</span>
+            <span data-lang="en">No telemetry</span>
+            <span data-lang="tr">Telemetri yok</span>
+            <span class="dot-sep">·</span>
+            <span data-lang="en">MIT licensed</span>
+            <span data-lang="tr">MIT lisanslı</span>
           </div>
         </div>
-      </section>
 
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">What it captures</span>
-          <span data-lang="tr">Ne yakalıyor</span>
-        </div>
-        <h2>
-          <span data-lang="en">The whole picture, in the background.</span>
-          <span data-lang="tr">Arka planda, her şey.</span>
-        </h2>
-        <p class="section-lead">
-          <span data-lang="en"
-            >Default-on the moment you install. Tier 4 captures (cursor, scroll, periodic
-            screenshots) light up only when you explicitly press Record.</span
-          >
-          <span data-lang="tr"
-            >Yüklediğin an varsayılan olarak aktif. Tier 4 kayıtlar (imleç, kaydırma, periyodik
-            ekran görüntüleri) yalnızca Record'a bastığında devreye girer.</span
-          >
-        </p>
-
-        <div class="capture-list">
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">Network</span>
-              <span data-lang="tr">Ağ</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                ><code>fetch</code>, <code>XMLHttpRequest</code>, WebSocket frames, SSE. Full
-                request and response with headers and bodies. Sensitive headers masked at capture
-                time.</span
-              >
-              <span data-lang="tr"
-                ><code>fetch</code>, <code>XMLHttpRequest</code>, WebSocket çerçeveleri, SSE. Tam
-                istek/yanıt — başlıklar ve gövde dahil. Hassas başlıklar yakalama anında
-                maskelenir.</span
-              >
-            </p>
-          </div>
-
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">Console</span>
-              <span data-lang="tr">Konsol</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                ><code>error</code>, <code>warn</code>, <code>info</code>, plus unhandled rejections
-                and uncaught errors with stack traces.</span
-              >
-              <span data-lang="tr"
-                ><code>error</code>, <code>warn</code>, <code>info</code>, ek olarak yakalanmamış
-                hatalar ve unhandled rejection'lar — stack trace ile birlikte.</span
-              >
-            </p>
-          </div>
-
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">User actions</span>
-              <span data-lang="tr">Kullanıcı aksiyonları</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Clicks, form inputs (passwords always masked), SPA route changes. Tag, accessible
-                name and position — not raw coordinates.</span
-              >
-              <span data-lang="tr"
-                >Tıklamalar, form girdileri (şifreler her zaman maskeli), SPA yönlendirmeleri.
-                Element tag'i, erişilebilir ad ve konum — koordinat değil.</span
-              >
-            </p>
-          </div>
-
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">Screenshots on error</span>
-              <span data-lang="tr">Hatada ekran görüntüsü</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >A single JPEG frame at the moment of the failed request. Throttled to one shot per
-                tab per two seconds.</span
-              >
-              <span data-lang="tr"
-                >Başarısız istek anında tek bir JPEG kare. Sekme başına 2 saniyede bir
-                sınırlı.</span
-              >
-            </p>
-          </div>
-
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">Performance signals</span>
-              <span data-lang="tr">Performans sinyalleri</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Long tasks &gt; 100 ms, cumulative layout shift, white-screen heuristic. The
-                moments your app feels janky show up on the timeline.</span
-              >
-              <span data-lang="tr"
-                >100 ms'yi geçen long task'lar, cumulative layout shift, beyaz ekran sezgisi.
-                Uygulamanın takıldığı anlar zaman çizelgesinde görünür.</span
-              >
-            </p>
-          </div>
-
-          <div class="capture-row">
-            <h3>
-              <span data-lang="en">Recording mode</span>
-              <span data-lang="tr">Kayıt modu</span>
-            </h3>
-            <p>
-              <span data-lang="en"
-                >Record toggles cursor trail, throttled scroll and 2-second screenshots — for the
-                "show me what they did" reproductions.</span
-              >
-              <span data-lang="tr"
-                >Record imleç izini, kaydırma kaydını ve 2 saniyelik ekran görüntülerini açar — "ne
-                yaptıklarını göster" senaryoları için.</span
-              >
-            </p>
+        <div class="hero-device" aria-hidden="true">
+          <div class="device-frame">
+            <div class="device-titlebar">
+              <span class="traffic"><span></span><span></span><span></span></span>
+              <span class="device-title"><strong>Hindsight</strong> · Side panel</span>
+              <span class="device-rec">REC</span>
+            </div>
+            <div class="device-body">
+              <div class="event">
+                <span class="ev-time">14:32:08</span>
+                <span class="ev-type net">NET</span>
+                <span class="ev-msg">GET /api/orders/4821 <span class="muted">→ 200</span></span>
+                <span class="ev-status ok">128ms</span>
+              </div>
+              <div class="event">
+                <span class="ev-time">14:32:09</span>
+                <span class="ev-type act">ACT</span>
+                <span class="ev-msg">click <span class="muted">button[name="checkout"]</span></span>
+                <span class="ev-status">—</span>
+              </div>
+              <div class="event">
+                <span class="ev-time">14:32:09</span>
+                <span class="ev-type net">NET</span>
+                <span class="ev-msg">POST /api/checkout <span class="muted">→ 500</span></span>
+                <span class="ev-status fail">2.1s</span>
+              </div>
+              <div class="event">
+                <span class="ev-time">14:32:09</span>
+                <span class="ev-type shot">SHOT</span>
+                <span class="ev-msg">Screenshot captured <span class="muted">1440×900</span></span>
+                <span class="ev-status">—</span>
+              </div>
+              <div class="event">
+                <span class="ev-time">14:32:09</span>
+                <span class="ev-type err">ERR</span>
+                <span class="ev-msg"
+                  >Uncaught TypeError: <span class="muted">cart is undefined</span></span
+                >
+                <span class="ev-status">checkout.js:42</span>
+              </div>
+              <div class="event">
+                <span class="ev-time">14:32:10</span>
+                <span class="ev-type net">NET</span>
+                <span class="ev-msg">GET /api/cart <span class="muted">→ 200</span></span>
+                <span class="ev-status ok">94ms</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">Privacy</span>
-          <span data-lang="tr">Gizlilik</span>
-        </div>
-        <h2>
-          <span data-lang="en">Masked at capture time, not at export time.</span>
-          <span data-lang="tr">Yakalama anında maskelenir, dışa aktarımda değil.</span>
-        </h2>
-        <p class="section-lead">
-          <span data-lang="en"
-            >The original value of a sensitive field is never written to your local storage —
-            replaced with <code>***MASKED***</code> before persistence. Even if your machine is
-            compromised, the bearer tokens aren't there to leak.</span
-          >
-          <span data-lang="tr"
-            >Hassas bir alanın orijinal değeri yerel depolamana asla yazılmaz — kalıcı hale gelmeden
-            <code>***MASKED***</code> ile değiştirilir. Makinen ele geçse bile bearer token'lar
-            orada olmadığı için sızamaz.</span
-          >
-        </p>
-
-        <pre
-          class="mask-preview"
-        ><span class="k">"Accept"</span>: <span class="v">"application/json"</span>,
-<span class="k">"Authorization"</span>: <span class="m">"***MASKED***"</span>,
-<span class="k">"Cookie"</span>: <span class="m">"***MASKED***"</span>,
-<span class="k">"Content-Type"</span>: <span class="v">"application/json"</span></pre>
-
-        <p class="section-lead" style="margin-top: 28px">
-          <span data-lang="en"
-            >Default rules cover <code>Authorization</code>, <code>Cookie</code>,
-            <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
-            <code>Proxy-Authorization</code>, credit-card numbers and Turkish national IDs. Add your
-            own regex in Settings → Privacy. Disable an individual rule when you genuinely want the
-            raw value in your own captures.</span
-          >
-          <span data-lang="tr"
-            >Varsayılan kurallar <code>Authorization</code>, <code>Cookie</code>,
-            <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
-            <code>Proxy-Authorization</code>, kredi kartı numaraları ve TCKN'yi kapsar. Ayarlar →
-            Privacy'den kendi regex'ini ekleyebilirsin. Kendi yakalamalarında ham değeri görmeyi
-            tercih ediyorsan bir kuralı bireysel olarak kapatabilirsin.</span
-          >
-        </p>
-      </section>
-
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">Performance</span>
-          <span data-lang="tr">Performans</span>
-        </div>
-        <h2>
-          <span data-lang="en">Mostly invisible by design.</span>
-          <span data-lang="tr">Tasarımı gereği görünmez.</span>
-        </h2>
-        <p class="section-lead">
-          <span data-lang="en"
-            >The capture path is gated by hard CI benchmarks. Your browser doesn't notice it's
-            there.</span
-          >
-          <span data-lang="tr"
-            >Yakalama yolu CI üzerinde sıkı performans gate'leriyle korunur. Tarayıcın orada
-            olduğunu fark etmez.</span
-          >
-        </p>
-
-        <div class="stats">
-          <div class="stat-row">
-            <span class="stat-label" data-lang="en">fetch overhead p95</span>
-            <span class="stat-label" data-lang="tr">fetch yükü p95</span>
-            <span class="stat-value">0.012 ms</span>
+      <!-- PROMISES -->
+      <section style="padding-top: clamp(180px, 22vw, 260px)">
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">Three promises</span>
+              <span data-lang="tr">Üç söz</span>
+            </div>
+            <h2>
+              <span data-lang="en">Built around what really matters.</span>
+              <span data-lang="tr">Gerçekten önemli olanın etrafında kuruldu.</span>
+            </h2>
+            <p class="section-lead">
+              <span data-lang="en"
+                >Every architectural decision defends one of these. If we can't, we don't ship the
+                feature.</span
+              >
+              <span data-lang="tr"
+                >Her mimari karar bunlardan birini koruyor. Koruyamıyorsak, o özelliği
+                yayınlamıyoruz.</span
+              >
+            </p>
           </div>
-          <div class="stat-row">
-            <span class="stat-label" data-lang="en">XHR overhead p95</span>
-            <span class="stat-label" data-lang="tr">XHR yükü p95</span>
-            <span class="stat-value">0.001 ms</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label" data-lang="en">filter 1000 events p95</span>
-            <span class="stat-label" data-lang="tr">1000 olayı filtrele p95</span>
-            <span class="stat-value">0.25 ms</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label" data-lang="en">outbound requests</span>
-            <span class="stat-label" data-lang="tr">dış istek</span>
-            <span class="stat-value">0</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label" data-lang="en">unit tests</span>
-            <span class="stat-label" data-lang="tr">birim test</span>
-            <span class="stat-value">125</span>
+
+          <div class="bento reveal">
+            <div class="bento-card featured">
+              <div class="bento-icon">01</div>
+              <h3>
+                <span data-lang="en">Your data stays on your machine.</span>
+                <span data-lang="tr">Verin makinende kalır.</span>
+              </h3>
+              <p>
+                <span data-lang="en"
+                  >Zero outbound network requests except ones you explicitly initiate — a webhook
+                  POST, a web-intent navigation, a file download. No telemetry. Ever.</span
+                >
+                <span data-lang="tr"
+                  >Senin tetiklemediğin tek bir dış istek yok: webhook POST'u, web-intent
+                  yönlendirmesi, dosya indirme. Telemetri yok. Asla.</span
+                >
+              </p>
+            </div>
+            <div class="bento-card half">
+              <div class="bento-icon">02</div>
+              <h3>
+                <span data-lang="en">No information loss.</span>
+                <span data-lang="tr">Bilgi kaybı yok.</span>
+              </h3>
+              <p>
+                <span data-lang="en"
+                  >Hindsight never silently truncates, denoises or "smart summarizes" your capture.
+                  What got recorded is what you can share.</span
+                >
+                <span data-lang="tr"
+                  >Hindsight yakaladığını sessizce kısaltmaz, "akıllı özetleme" yapmaz. Neyi
+                  kaydettiyse onu paylaşabilirsin.</span
+                >
+              </p>
+            </div>
+            <div class="bento-card half">
+              <div class="bento-icon">03</div>
+              <h3>
+                <span data-lang="en">Zero setup, useful from minute one.</span>
+                <span data-lang="tr">Sıfır kurulum, ilk dakikadan değerli.</span>
+              </h3>
+              <p>
+                <span data-lang="en"
+                  >Defaults work the moment you install. The killer feature is a single-file HTML
+                  replay bundle a teammate opens in any browser.</span
+                >
+                <span data-lang="tr"
+                  >Yüklediğin anda varsayılanlar çalışır. Asıl özellik: tek dosyalık HTML replay
+                  paketi — meslektaşın herhangi bir tarayıcıda açar.</span
+                >
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">Install</span>
-          <span data-lang="tr">Kurulum</span>
-        </div>
-        <h2>
-          <span data-lang="en">Four steps. Sixty seconds.</span>
-          <span data-lang="tr">Dört adım. Altmış saniye.</span>
-        </h2>
-        <p class="section-lead">
-          <span data-lang="en"
-            >Coming to the Chrome Web Store. Until then, load the packaged release directly.</span
-          >
-          <span data-lang="tr"
-            >Chrome Web Store'da yakında. O ana kadar paketlenmiş sürümü doğrudan
-            yükleyebilirsin.</span
-          >
-        </p>
+      <!-- CAPTURES — alternating feature blocks -->
+      <section>
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">What it captures</span>
+              <span data-lang="tr">Ne yakalıyor</span>
+            </div>
+            <h2>
+              <span data-lang="en">The whole picture, in the background.</span>
+              <span data-lang="tr">Arka planda, her şey.</span>
+            </h2>
+            <p class="section-lead">
+              <span data-lang="en"
+                >Default-on the moment you install. Tier 4 captures light up only when you press
+                Record.</span
+              >
+              <span data-lang="tr"
+                >Yüklediğin an varsayılan olarak aktif. Tier 4 kayıtlar yalnızca Record'a bastığında
+                devreye girer.</span
+              >
+            </p>
+          </div>
 
-        <ol class="steps">
-          <li>
-            <div>
-              <strong data-lang="en">Download the release.</strong>
-              <strong data-lang="tr">Sürümü indir.</strong>
+          <div class="capture-stack">
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">Network</span><span data-lang="tr">Ağ</span>
+                </div>
+                <h3>
+                  <span data-lang="en">Every request, with the full body.</span>
+                  <span data-lang="tr">Her istek, gövdesiyle birlikte.</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    ><code>fetch</code>, <code>XMLHttpRequest</code>, WebSocket frames, SSE. Headers
+                    and bodies on both sides. Sensitive headers masked at capture time.</span
+                  >
+                  <span data-lang="tr"
+                    ><code>fetch</code>, <code>XMLHttpRequest</code>, WebSocket çerçeveleri, SSE.
+                    İki yönde başlıklar ve gövde. Hassas başlıklar yakalama anında maskelenir.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <pre><span class="ln">01</span>POST <span class="acc">/api/checkout</span>
+<span class="ln">02</span>{
+<span class="ln">03</span>  <span class="key">"cart_id"</span>: <span class="str">"abc123"</span>,
+<span class="ln">04</span>  <span class="key">"total"</span>: <span class="kw">4299</span>
+<span class="ln">05</span>}
+<span class="ln">06</span>
+<span class="ln">07</span><span class="kw">→ 500</span> Internal Server Error
+<span class="ln">08</span>{ <span class="key">"error"</span>: <span class="str">"db timeout"</span> }</pre>
+              </div>
+            </div>
+
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">Console &amp; errors</span
+                  ><span data-lang="tr">Konsol &amp; hatalar</span>
+                </div>
+                <h3>
+                  <span data-lang="en">Logs, warnings, stack traces.</span>
+                  <span data-lang="tr">Loglar, uyarılar, stack trace.</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    ><code>error</code>, <code>warn</code>, <code>info</code>, plus unhandled
+                    rejections and uncaught errors — captured with full stack traces.</span
+                  >
+                  <span data-lang="tr"
+                    ><code>error</code>, <code>warn</code>, <code>info</code>, ek olarak
+                    yakalanmamış hatalar ve unhandled rejection'lar — stack trace ile
+                    birlikte.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <ul class="cf-mini-list">
+                  <li>
+                    <span class="ev-time">14:32:09</span>
+                    <span><span class="ev-type err">ERR</span> Uncaught TypeError</span>
+                    <span style="color: var(--text-mute); font-family: var(--mono); font-size: 11px"
+                      >checkout.js:42</span
+                    >
+                  </li>
+                  <li>
+                    <span class="ev-time">14:32:10</span>
+                    <span><span class="ev-type act">WARN</span> deprecated API used</span>
+                    <span style="color: var(--text-mute); font-family: var(--mono); font-size: 11px"
+                      >cart.ts:118</span
+                    >
+                  </li>
+                  <li>
+                    <span class="ev-time">14:32:12</span>
+                    <span><span class="ev-type net">INFO</span> retry scheduled</span>
+                    <span style="color: var(--text-mute); font-family: var(--mono); font-size: 11px"
+                      >api.ts:9</span
+                    >
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">User actions</span><span data-lang="tr">Aksiyonlar</span>
+                </div>
+                <h3>
+                  <span data-lang="en">Clicks, inputs, route changes — sanely.</span>
+                  <span data-lang="tr">Tıklamalar, girdiler, yönlendirmeler — temizce.</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    >Tag, accessible name and position — not raw coordinates. Passwords always
+                    masked. SPA route changes detected.</span
+                  >
+                  <span data-lang="tr"
+                    >Element tag'i, erişilebilir ad ve konum — koordinat değil. Şifreler her zaman
+                    maskeli. SPA yönlendirmeleri otomatik algılanır.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <ul class="cf-mini-list">
+                  <li>
+                    <span class="ev-time">14:31:58</span>
+                    <span><span class="ev-type act">CLICK</span> nav[role="primary"] / Cart</span>
+                    <span></span>
+                  </li>
+                  <li>
+                    <span class="ev-time">14:32:03</span>
+                    <span><span class="ev-type act">INPUT</span> email · <code>***@***</code></span>
+                    <span></span>
+                  </li>
+                  <li>
+                    <span class="ev-time">14:32:07</span>
+                    <span><span class="ev-type act">ROUTE</span> /cart → /checkout</span>
+                    <span></span>
+                  </li>
+                  <li>
+                    <span class="ev-time">14:32:08</span>
+                    <span><span class="ev-type act">CLICK</span> button[name="checkout"]</span>
+                    <span></span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">Screenshots on error</span
+                  ><span data-lang="tr">Hatada ekran görüntüsü</span>
+                </div>
+                <h3>
+                  <span data-lang="en">A single frame at the breaking point.</span>
+                  <span data-lang="tr">Tam kırıldığı an tek bir kare.</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    >A JPEG frame the instant a request fails. Throttled to one per tab every two
+                    seconds — never enough to hurt your battery.</span
+                  >
+                  <span data-lang="tr"
+                    >İstek başarısız olduğu anda tek bir JPEG kare. Sekme başına 2 saniyede bir
+                    sınırlı — pilini hiçbir zaman zorlamaz.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <div class="ss-frame"></div>
+              </div>
+            </div>
+
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">Performance signals</span
+                  ><span data-lang="tr">Performans sinyalleri</span>
+                </div>
+                <h3>
+                  <span data-lang="en">When the app feels janky, you'll know why.</span>
+                  <span data-lang="tr">Uygulama takıldığında nedenini bileceksin.</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    >Long tasks &gt; 100 ms, cumulative layout shift, white-screen heuristic — all
+                    laid out on the timeline.</span
+                  >
+                  <span data-lang="tr"
+                    >100 ms'yi geçen long task'lar, cumulative layout shift, beyaz ekran sezgisi —
+                    hepsi zaman çizelgesinde.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <div style="width: 100%">
+                  <div class="perf-chip">
+                    <span class="name">Long task</span>
+                    <span class="bar"><i style="width: 78%"></i></span>
+                    <span class="val">182 ms</span>
+                  </div>
+                  <div class="perf-chip">
+                    <span class="name">CLS</span>
+                    <span class="bar"><i style="width: 42%"></i></span>
+                    <span class="val">0.08</span>
+                  </div>
+                  <div class="perf-chip">
+                    <span class="name">White screen</span>
+                    <span class="bar"><i style="width: 20%"></i></span>
+                    <span class="val">0.4 s</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="capture-feature reveal">
+              <div class="cf-text">
+                <div class="cf-tag">
+                  <span data-lang="en">Recording mode</span><span data-lang="tr">Kayıt modu</span>
+                </div>
+                <h3>
+                  <span data-lang="en">"Show me exactly what they did."</span>
+                  <span data-lang="tr">"Bana tam olarak ne yaptıklarını göster."</span>
+                </h3>
+                <p>
+                  <span data-lang="en"
+                    >Record toggles cursor trail, throttled scroll and 2-second screenshots — for
+                    reproductions you'd otherwise have to ask for.</span
+                  >
+                  <span data-lang="tr"
+                    >Record imleç izini, kaydırma kaydını ve 2 saniyelik ekran görüntülerini açar —
+                    aksi takdirde ekstra rica edeceğin reprodüksiyonlar için.</span
+                  >
+                </p>
+              </div>
+              <div class="cf-visual">
+                <div style="text-align: center; padding: 12px">
+                  <div
+                    style="
+                      width: 96px;
+                      height: 96px;
+                      margin: 0 auto 18px;
+                      border-radius: 50%;
+                      background: rgba(245, 176, 66, 0.12);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                  >
+                    <div
+                      style="
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 50%;
+                        background: var(--accent);
+                        box-shadow: 0 0 32px var(--accent);
+                        animation: pulse 1.8s ease-in-out infinite;
+                      "
+                    ></div>
+                  </div>
+                  <div
+                    style="
+                      font-family: var(--mono);
+                      font-size: 11px;
+                      letter-spacing: 0.18em;
+                      color: var(--accent);
+                    "
+                  >
+                    ● REC · 00:14
+                  </div>
+                  <div
+                    style="
+                      margin-top: 6px;
+                      font-size: 13px;
+                      color: var(--text-mute);
+                      font-family: var(--sans);
+                    "
+                  >
+                    <span data-lang="en">cursor · scroll · screenshots</span>
+                    <span data-lang="tr">imleç · kaydırma · ekran görüntüsü</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRIVACY -->
+      <section class="privacy">
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">Privacy</span>
+              <span data-lang="tr">Gizlilik</span>
+            </div>
+            <h2>
+              <span data-lang="en"
+                >Masked at <span class="accent">capture</span> time, not at export time.</span
+              >
+              <span data-lang="tr"
+                ><span class="accent">Yakalama</span> anında maskelenir, dışa aktarımda değil.</span
+              >
+            </h2>
+            <p class="section-lead">
+              <span data-lang="en"
+                >The original value of a sensitive field is never written to your local storage —
+                replaced with <code>***MASKED***</code> before persistence.</span
+              >
+              <span data-lang="tr"
+                >Hassas bir alanın orijinal değeri yerel depolamana asla yazılmaz — kalıcı hale
+                gelmeden <code>***MASKED***</code> ile değiştirilir.</span
+              >
+            </p>
+          </div>
+
+          <div class="mask-card reveal">
+            <pre
+              class="mask-pre"
+            ><span class="k">"Accept"</span>        : <span class="v">"application/json"</span>,
+<span class="k">"Authorization"</span> : <span class="m">***MASKED***</span>,
+<span class="k">"Cookie"</span>        : <span class="m">***MASKED***</span>,
+<span class="k">"X-API-Key"</span>     : <span class="m">***MASKED***</span>,
+<span class="k">"Content-Type"</span>  : <span class="v">"application/json"</span></pre>
+          </div>
+
+          <p class="privacy-detail reveal">
+            <span data-lang="en"
+              >Default rules cover <code>Authorization</code>, <code>Cookie</code>,
+              <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
+              <code>Proxy-Authorization</code>, credit-card numbers and Turkish national IDs. Add
+              your own regex in Settings → Privacy.</span
+            >
+            <span data-lang="tr"
+              >Varsayılan kurallar <code>Authorization</code>, <code>Cookie</code>,
+              <code>Set-Cookie</code>, <code>X-API-Key</code>, <code>X-Auth-Token</code>,
+              <code>Proxy-Authorization</code>, kredi kartı numaraları ve TCKN'yi kapsar. Ayarlar →
+              Privacy'den kendi regex'ini ekleyebilirsin.</span
+            >
+          </p>
+        </div>
+      </section>
+
+      <!-- PERFORMANCE -->
+      <section class="perf-band">
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">Performance</span>
+              <span data-lang="tr">Performans</span>
+            </div>
+            <h2>
+              <span data-lang="en">Mostly invisible by design.</span>
+              <span data-lang="tr">Tasarımı gereği görünmez.</span>
+            </h2>
+            <p class="section-lead">
+              <span data-lang="en"
+                >The capture path is gated by hard CI benchmarks. Your browser doesn't notice it's
+                there.</span
+              >
+              <span data-lang="tr"
+                >Yakalama yolu CI üzerinde sıkı performans gate'leriyle korunur. Tarayıcın orada
+                olduğunu fark etmez.</span
+              >
+            </p>
+          </div>
+
+          <div class="stats reveal">
+            <div class="stat">
+              <div class="stat-value">0.012<span class="unit">ms</span></div>
+              <div class="stat-label">
+                <span data-lang="en">fetch overhead<br />p95</span>
+                <span data-lang="tr">fetch yükü<br />p95</span>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">0.001<span class="unit">ms</span></div>
+              <div class="stat-label">
+                <span data-lang="en">XHR overhead<br />p95</span>
+                <span data-lang="tr">XHR yükü<br />p95</span>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">0.25<span class="unit">ms</span></div>
+              <div class="stat-label">
+                <span data-lang="en">filter 1k events<br />p95</span>
+                <span data-lang="tr">1k olay filtre<br />p95</span>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">0</div>
+              <div class="stat-label">
+                <span data-lang="en">outbound requests</span>
+                <span data-lang="tr">dış istek</span>
+              </div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">125</div>
+              <div class="stat-label">
+                <span data-lang="en">unit tests</span>
+                <span data-lang="tr">birim test</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSTALL -->
+      <section>
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">Install</span>
+              <span data-lang="tr">Kurulum</span>
+            </div>
+            <h2>
+              <span data-lang="en">Four steps. Sixty seconds.</span>
+              <span data-lang="tr">Dört adım. Altmış saniye.</span>
+            </h2>
+            <p class="section-lead">
+              <span data-lang="en"
+                >Coming to the Chrome Web Store. Until then, load the packaged release
+                directly.</span
+              >
+              <span data-lang="tr"
+                >Chrome Web Store'da yakında. O ana kadar paketlenmiş sürümü doğrudan
+                yükleyebilirsin.</span
+              >
+            </p>
+          </div>
+
+          <ol class="steps reveal">
+            <li>
+              <div class="step-num">STEP 01</div>
+              <span class="step-title" data-lang="en">Download the release.</span>
+              <span class="step-title" data-lang="tr">Sürümü indir.</span>
               <p>
                 <span data-lang="en"
                   >Grab
-                  <a
-                    href="https://github.com/osmnnl/hindsight/releases/latest"
-                    style="color: var(--accent)"
+                  <a href="https://github.com/osmnnl/hindsight/releases/latest"
                     >hindsight-v0.5.0.zip</a
                   >
-                  from the GitHub releases page and unzip it somewhere you'll keep.</span
+                  and unzip it somewhere you'll keep.</span
                 >
                 <span data-lang="tr"
-                  >GitHub releases sayfasından
-                  <a
-                    href="https://github.com/osmnnl/hindsight/releases/latest"
-                    style="color: var(--accent)"
+                  >GitHub'dan
+                  <a href="https://github.com/osmnnl/hindsight/releases/latest"
                     >hindsight-v0.5.0.zip</a
                   >
                   dosyasını indir ve kalıcı bir klasöre çıkar.</span
                 >
               </p>
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong data-lang="en">Open <code>chrome://extensions</code>.</strong>
-              <strong data-lang="tr"><code>chrome://extensions</code> aç.</strong>
+            </li>
+            <li>
+              <div class="step-num">STEP 02</div>
+              <span class="step-title" data-lang="en">Open <code>chrome://extensions</code>.</span>
+              <span class="step-title" data-lang="tr">Aç <code>chrome://extensions</code>.</span>
               <p>
-                <span data-lang="en"
-                  >Toggle <em>Developer mode</em> on in the top-right corner.</span
-                >
-                <span data-lang="tr"
-                  >Sağ üst köşedeki <em>Geliştirici modu</em> anahtarını aç.</span
-                >
+                <span data-lang="en">Toggle <em>Developer mode</em> on in the top-right.</span>
+                <span data-lang="tr">Sağ üstteki <em>Geliştirici modu</em> anahtarını aç.</span>
               </p>
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong data-lang="en">Click "Load unpacked".</strong>
-              <strong data-lang="tr">"Paketten Çıkarılmış Öğeleri Yükle" tıkla.</strong>
+            </li>
+            <li>
+              <div class="step-num">STEP 03</div>
+              <span class="step-title" data-lang="en">Click "Load unpacked".</span>
+              <span class="step-title" data-lang="tr">"Paketten Çıkarılmış" tıkla.</span>
               <p>
                 <span data-lang="en"
                   >Pick the unzipped folder. Pin the Hindsight icon to your toolbar.</span
@@ -932,142 +1853,146 @@
                   >Çıkardığın klasörü seç. Hindsight ikonunu araç çubuğuna sabitle.</span
                 >
               </p>
-            </div>
-          </li>
-          <li>
-            <div>
-              <strong data-lang="en">Browse normally.</strong>
-              <strong data-lang="tr">Normal şekilde gez.</strong>
+            </li>
+            <li>
+              <div class="step-num">STEP 04</div>
+              <span class="step-title" data-lang="en">Browse normally.</span>
+              <span class="step-title" data-lang="tr">Normal şekilde gez.</span>
               <p>
                 <span data-lang="en"
-                  >Hindsight captures in the background. When something breaks, click the icon — the
-                  side panel is your inspector.</span
+                  >When something breaks, click the icon — the side panel is your inspector.</span
                 >
                 <span data-lang="tr"
-                  >Hindsight arka planda kaydeder. Bir şey bozulduğunda ikona tıkla — yan panel
-                  senin müfettişin.</span
+                  >Bir şey bozulduğunda ikona tıkla — yan panel senin müfettişin.</span
                 >
               </p>
-            </div>
-          </li>
-        </ol>
+            </li>
+          </ol>
+        </div>
       </section>
 
-      <section class="container">
-        <div class="eyebrow">
-          <span data-lang="en">More from osmnnl</span>
-          <span data-lang="tr">osmnnl'den daha fazlası</span>
-        </div>
-        <h2>
-          <span data-lang="en">Other extensions worth your toolbar.</span>
-          <span data-lang="tr">Araç çubuğuna değer eklentiler.</span>
-        </h2>
-
-        <div class="others">
-          <article class="other">
-            <h3>StorageNinja</h3>
-            <div class="other-meta">Chrome Extension</div>
-            <p>
-              <span data-lang="en"
-                >Inspect, edit and wipe browser storage — localStorage, sessionStorage, cookies and
-                IndexedDB — from a single keyboard-friendly panel.</span
-              >
-              <span data-lang="tr"
-                >Tek bir klavyeye dost panelden localStorage, sessionStorage, cookie ve IndexedDB —
-                tarayıcı depolamasını incele, düzenle ve sıfırla.</span
-              >
-            </p>
-            <div class="other-actions">
-              <!-- TODO: replace search URL with actual CWS detail URL once published -->
-              <a
-                href="https://chromewebstore.google.com/search/StorageNinja"
-                class="btn btn-primary btn-sm"
-                data-lang="en"
-                >Add to Chrome</a
-              >
-              <a
-                href="https://chromewebstore.google.com/search/StorageNinja"
-                class="btn btn-primary btn-sm"
-                data-lang="tr"
-                >Chrome'a Ekle</a
-              >
-              <a
-                href="https://osmnnl.github.io/StorageNinja/"
-                class="btn btn-ghost btn-sm"
-                data-lang="en"
-                >Visit site</a
-              >
-              <a
-                href="https://osmnnl.github.io/StorageNinja/"
-                class="btn btn-ghost btn-sm"
-                data-lang="tr"
-                >Siteyi Ziyaret Et</a
-              >
+      <!-- OTHERS -->
+      <section>
+        <div class="container">
+          <div class="section-head reveal">
+            <div class="eyebrow">
+              <span data-lang="en">More from osmnnl</span>
+              <span data-lang="tr">osmnnl'den dahası</span>
             </div>
-          </article>
+            <h2>
+              <span data-lang="en">Other extensions worth your toolbar.</span>
+              <span data-lang="tr">Araç çubuğuna değer eklentiler.</span>
+            </h2>
+          </div>
 
-          <article class="other">
-            <h3>TestDataHelper</h3>
-            <div class="other-meta">Chrome Extension</div>
-            <p>
-              <span data-lang="en"
-                >Generate realistic test data — Turkish IDs, IBANs, names, emails, dates — and drop
-                them into any form field with one click.</span
-              >
-              <span data-lang="tr"
-                >Gerçekçi test verisi üret — TCKN, IBAN, ad, e-posta, tarih — ve tek tıkla herhangi
-                bir form alanına yerleştir.</span
-              >
-            </p>
-            <div class="other-actions">
-              <!-- TODO: replace search URL with actual CWS detail URL once published -->
-              <a
-                href="https://chromewebstore.google.com/search/TestDataHelper"
-                class="btn btn-primary btn-sm"
-                data-lang="en"
-                >Add to Chrome</a
-              >
-              <a
-                href="https://chromewebstore.google.com/search/TestDataHelper"
-                class="btn btn-primary btn-sm"
-                data-lang="tr"
-                >Chrome'a Ekle</a
-              >
-              <a
-                href="https://osmnnl.github.io/TestDataHelper/"
-                class="btn btn-ghost btn-sm"
-                data-lang="en"
-                >Visit site</a
-              >
-              <a
-                href="https://osmnnl.github.io/TestDataHelper/"
-                class="btn btn-ghost btn-sm"
-                data-lang="tr"
-                >Siteyi Ziyaret Et</a
-              >
-            </div>
-          </article>
+          <div class="others reveal">
+            <article class="other">
+              <div class="other-kicker">Chrome Extension · 01</div>
+              <h3>StorageNinja</h3>
+              <p>
+                <span data-lang="en"
+                  >Inspect, edit and wipe browser storage — localStorage, sessionStorage, cookies
+                  and IndexedDB — from a single keyboard-friendly panel.</span
+                >
+                <span data-lang="tr"
+                  >Tek bir klavyeye dost panelden localStorage, sessionStorage, cookie ve IndexedDB
+                  — tarayıcı depolamasını incele, düzenle ve sıfırla.</span
+                >
+              </p>
+              <div class="other-actions">
+                <a
+                  href="https://chromewebstore.google.com/search/StorageNinja"
+                  class="btn btn-primary btn-sm"
+                  data-lang="en"
+                  >Add to Chrome</a
+                >
+                <a
+                  href="https://chromewebstore.google.com/search/StorageNinja"
+                  class="btn btn-primary btn-sm"
+                  data-lang="tr"
+                  >Chrome'a Ekle</a
+                >
+                <a
+                  href="https://osmnnl.github.io/StorageNinja/"
+                  class="btn btn-secondary btn-sm btn-arrow"
+                  data-lang="en"
+                  >Visit site</a
+                >
+                <a
+                  href="https://osmnnl.github.io/StorageNinja/"
+                  class="btn btn-secondary btn-sm btn-arrow"
+                  data-lang="tr"
+                  >Siteyi ziyaret et</a
+                >
+              </div>
+            </article>
+
+            <article class="other">
+              <div class="other-kicker">Chrome Extension · 02</div>
+              <h3>TestDataHelper</h3>
+              <p>
+                <span data-lang="en"
+                  >Generate realistic test data — Turkish IDs, IBANs, names, emails, dates — and
+                  drop them into any form field with one click.</span
+                >
+                <span data-lang="tr"
+                  >Gerçekçi test verisi üret — TCKN, IBAN, ad, e-posta, tarih — ve tek tıkla
+                  herhangi bir form alanına yerleştir.</span
+                >
+              </p>
+              <div class="other-actions">
+                <a
+                  href="https://chromewebstore.google.com/search/TestDataHelper"
+                  class="btn btn-primary btn-sm"
+                  data-lang="en"
+                  >Add to Chrome</a
+                >
+                <a
+                  href="https://chromewebstore.google.com/search/TestDataHelper"
+                  class="btn btn-primary btn-sm"
+                  data-lang="tr"
+                  >Chrome'a Ekle</a
+                >
+                <a
+                  href="https://osmnnl.github.io/TestDataHelper/"
+                  class="btn btn-secondary btn-sm btn-arrow"
+                  data-lang="en"
+                  >Visit site</a
+                >
+                <a
+                  href="https://osmnnl.github.io/TestDataHelper/"
+                  class="btn btn-secondary btn-sm btn-arrow"
+                  data-lang="tr"
+                  >Siteyi ziyaret et</a
+                >
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </main>
 
     <footer>
-      <div class="container footer-row">
+      <div class="footer-row">
         <div>
-          <span data-lang="en">Open source · MIT licensed · built by</span>
-          <span data-lang="tr">Açık kaynak · MIT lisanslı · geliştiren</span>
-          <a href="https://github.com/osmnnl" class="nav-link" style="color: var(--text-soft)"
-            >osmnnl</a
-          >
+          <span data-lang="en">Open source · MIT licensed · built by </span>
+          <span data-lang="tr">Açık kaynak · MIT lisanslı · geliştiren </span>
+          <a href="https://github.com/osmnnl" class="muted-link">osmnnl</a>
         </div>
         <nav class="footer-links">
-          <a href="https://github.com/osmnnl/hindsight">GitHub</a>
-          <a href="./privacy.html" data-lang="en">Privacy</a>
-          <a href="./privacy.html" data-lang="tr">Gizlilik</a>
-          <a href="https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md" data-lang="en"
+          <a href="https://github.com/osmnnl/hindsight" class="muted-link">GitHub</a>
+          <a href="./privacy.html" class="muted-link" data-lang="en">Privacy</a>
+          <a href="./privacy.html" class="muted-link" data-lang="tr">Gizlilik</a>
+          <a
+            href="https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md"
+            class="muted-link"
+            data-lang="en"
             >Changelog</a
           >
-          <a href="https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md" data-lang="tr"
+          <a
+            href="https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md"
+            class="muted-link"
+            data-lang="tr"
             >Değişiklikler</a
           >
         </nav>
@@ -1109,6 +2034,28 @@
           saved = nav.indexOf('tr') === 0 ? 'tr' : 'en';
         }
         setLang(saved);
+
+        // Scroll reveal
+        if ('IntersectionObserver' in window) {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting) {
+                  e.target.classList.add('in');
+                  io.unobserve(e.target);
+                }
+              });
+            },
+            { rootMargin: '0px 0px -10% 0px', threshold: 0.05 }
+          );
+          document.querySelectorAll('.reveal').forEach(function (el) {
+            io.observe(el);
+          });
+        } else {
+          document.querySelectorAll('.reveal').forEach(function (el) {
+            el.classList.add('in');
+          });
+        }
       })();
     </script>
   </body>
