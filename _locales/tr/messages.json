@@ -1,0 +1,26 @@
+{
+  "appName": {
+    "message": "Hindsight",
+    "description": "Eklenti adı (Chrome Web Store ve araç çubuğunda)."
+  },
+  "appDescription": {
+    "message": "Açmadığın DevTools. Hata raporu için gizlilik öncelikli pasif yakalama.",
+    "description": "Eklenti açıklaması (Chrome Web Store)."
+  },
+  "appDefaultTitle": {
+    "message": "Hindsight",
+    "description": "Araç çubuğu simgesindeki tooltip."
+  },
+  "cmdOpenSidePanel": {
+    "message": "Hindsight yan panelini aç",
+    "description": "Klavye kısayolu açıklaması."
+  },
+  "cmdCaptureLastMoment": {
+    "message": "Son 30 saniyeyi hızlıca yakala",
+    "description": "Klavye kısayolu açıklaması."
+  },
+  "cmdToggleRecording": {
+    "message": "Kayıt modunu başlat/durdur",
+    "description": "Klavye kısayolu açıklaması."
+  }
+}

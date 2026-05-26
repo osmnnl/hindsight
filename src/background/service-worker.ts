@@ -38,6 +38,7 @@ import {
   type HeaderMaskingRule,
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
+import { initI18n, t } from '@/lib/i18n';
 import {
   DEFAULT_ADVANCED_SETTINGS,
   DEFAULT_CAPTURE_SETTINGS,
@@ -712,18 +713,22 @@ async function notifyDetection(
     perSession.add(rule);
   }
 
+  // Re-read locale from storage on every notification so a recently
+  // flipped Settings → Language is honoured. Service worker is
+  // event-driven (PRD §9) — the in-memory locale otherwise lags until
+  // the next module wake-up.
+  await initI18n();
   const origin = safeOrigin(event.url);
-  const messages: Record<NotificationRule, { title: string; message: string }> = {
-    cascade: {
-      title: 'Hindsight: failure cascade',
-      message: `3+ failures on ${origin} within 10s — open the side panel for details.`,
-    },
-    anomaly: {
-      title: 'Hindsight: repeated identical failure',
-      message: `Same endpoint failing on ${origin} — open the side panel for details.`,
-    },
-  };
-  const copy = messages[rule];
+  const copy =
+    rule === 'cascade'
+      ? {
+          title: t('bg.notif.cascade.title'),
+          message: t('bg.notif.cascade.message', { origin }),
+        }
+      : {
+          title: t('bg.notif.anomaly.title'),
+          message: t('bg.notif.anomaly.message', { origin }),
+        };
 
   // chrome.notifications is an optional permission. Detection settings'
   // toggle requests it at enable time; here we just try and let the API

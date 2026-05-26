@@ -1,5 +1,14 @@
 // Settings page — General + Privacy + Capture sections (PRD §6.6.1).
 
+import { applyI18nToDom, initI18n, isLocale, setLocaleSync, subscribeLocale, t } from '@/lib/i18n';
+import {
+  DEFAULT_BODY_RULES,
+  DEFAULT_FORM_RULES,
+  DEFAULT_HEADER_RULES,
+  maskBody,
+  tryCompilePattern,
+  type BodyPatternRule,
+} from '@/lib/masking';
 import {
   readAdvancedSettings,
   readCaptureSettings,
@@ -20,14 +29,6 @@ import {
   type SharingSettings,
   type ThemePreference,
 } from '@/lib/settings';
-import {
-  DEFAULT_BODY_RULES,
-  DEFAULT_FORM_RULES,
-  DEFAULT_HEADER_RULES,
-  maskBody,
-  tryCompilePattern,
-  type BodyPatternRule,
-} from '@/lib/masking';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 const SAVE_FLASH_MS = 1400;
@@ -35,6 +36,8 @@ const SAVE_FLASH_MS = 1400;
 void init();
 
 async function init(): Promise<void> {
+  await initI18n();
+  applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
   setupSectionNav();
@@ -44,6 +47,20 @@ async function init(): Promise<void> {
   await initDetection();
   await initSharing();
   await initAdvanced();
+
+  // Live language switch from any window — re-apply static markup and
+  // re-render the dynamic chip/pattern/origin lists so they pick up the
+  // new locale without a page reload. Theme/checkbox values are read
+  // from storage so they don't need rebinding.
+  subscribeLocale(() => {
+    applyI18nToDom();
+    renderDefaultRuleChips();
+    renderCustomPatterns();
+    renderOriginList();
+    renderSandboxRules();
+    runSandbox();
+    relabelBufferOptions();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -65,22 +82,41 @@ function setupSectionNav(): void {
 }
 
 // ---------------------------------------------------------------------------
-// General — Theme
+// General — Theme + Language
 // ---------------------------------------------------------------------------
 
 async function initGeneral(): Promise<void> {
   const themeSelect = document.getElementById('theme');
-  if (!(themeSelect instanceof HTMLSelectElement)) return;
+  const languageSelect = document.getElementById('language');
+  if (!(themeSelect instanceof HTMLSelectElement) || !(languageSelect instanceof HTMLSelectElement))
+    return;
   const status = document.getElementById('save-status');
 
   const current = await readGeneralSettings();
   themeSelect.value = current.theme;
+  languageSelect.value = current.language;
 
   themeSelect.addEventListener('change', () => {
     const next = themeSelect.value as ThemePreference;
-    void writeGeneralSettings({ theme: next }).then(() => {
-      flashSaved(status);
-    });
+    void writeGeneralSettings({ theme: next }).then(() => flashSaved(status));
+  });
+
+  languageSelect.addEventListener('change', () => {
+    const next = languageSelect.value;
+    if (!isLocale(next)) return;
+    // Update the in-memory locale before persistence so this tab
+    // re-renders immediately. subscribeLocale() ignores writes that
+    // don't actually flip the value, so the storage.onChanged echo
+    // from our own write is a no-op here.
+    setLocaleSync(next);
+    applyI18nToDom();
+    renderDefaultRuleChips();
+    renderCustomPatterns();
+    renderOriginList();
+    renderSandboxRules();
+    runSandbox();
+    relabelBufferOptions();
+    void writeGeneralSettings({ language: next }).then(() => flashSaved(status));
   });
 }
 
@@ -120,7 +156,7 @@ async function initPrivacy(): Promise<void> {
 function renderDefaultRuleChips(): void {
   renderRuleGroup(
     'default-headers',
-    'Headers',
+    t('settings.privacy.defaultRules.groupHeaders'),
     DEFAULT_HEADER_RULES.map((r) => ({
       id: r.id,
       label: r.label,
@@ -129,7 +165,7 @@ function renderDefaultRuleChips(): void {
   );
   renderRuleGroup(
     'default-bodies',
-    'Bodies',
+    t('settings.privacy.defaultRules.groupBodies'),
     DEFAULT_BODY_RULES.map((r) => ({
       id: r.id,
       label: r.label,
@@ -142,7 +178,7 @@ function renderDefaultRuleChips(): void {
   // disabledDefaultRules list. Show them read-only for transparency.
   renderRuleGroup(
     'default-forms',
-    'Form fields',
+    t('settings.privacy.defaultRules.groupFormFields'),
     DEFAULT_FORM_RULES.map((r) => ({
       id: r.id,
       label: r.label,
@@ -163,20 +199,27 @@ function renderRuleGroup(
   const disabled = new Set(privacyState.disabledDefaultRules);
   const readonly = opts.readonly ?? false;
   container.innerHTML = `
-    <div class="chip-heading">${heading}</div>
+    <div class="chip-heading">${escapeHtml(heading)}</div>
     <div class="chips">
       ${items
         .map((i) => {
           const off = disabled.has(i.id);
           if (readonly) {
-            return `<span class="chip" title="scope: ${escapeHtml(i.scope)}">${escapeHtml(i.label)}</span>`;
+            const tooltip = t('settings.privacy.defaultRules.tooltipScope', { scope: i.scope });
+            return `<span class="chip" title="${escapeHtml(tooltip)}">${escapeHtml(i.label)}</span>`;
           }
-          const action = off ? 'enable' : 'disable';
+          const action = off
+            ? t('settings.privacy.defaultRules.actionEnable')
+            : t('settings.privacy.defaultRules.actionDisable');
+          const tooltip = t('settings.privacy.defaultRules.tooltipToggle', {
+            scope: i.scope,
+            action,
+          });
           return `<button
             type="button"
             class="chip toggle${off ? ' off' : ''}"
             data-rule-id="${escapeHtml(i.id)}"
-            title="scope: ${escapeHtml(i.scope)} — click to ${action}"
+            title="${escapeHtml(tooltip)}"
             aria-pressed="${off ? 'false' : 'true'}"
           >${off ? '✗' : '✓'} ${escapeHtml(i.label)}</button>`;
         })
@@ -210,7 +253,7 @@ function renderCustomPatterns(): void {
   if (!container) return;
 
   if (privacyState.customPatterns.length === 0) {
-    container.innerHTML = `<p class="empty-row">No custom patterns yet. Click <strong>Add pattern</strong> to start.</p>`;
+    container.innerHTML = `<p class="empty-row">${t('settings.privacy.customPatterns.empty')}</p>`;
     return;
   }
 
@@ -225,29 +268,33 @@ function renderCustomPatterns(): void {
 
 function renderPatternEditor(p: CustomPatternSetting, idx: number): string {
   const compiles = tryCompilePattern(p.source) !== null || p.source.trim() === '';
+  const labelPh = t('settings.privacy.customPatterns.labelPlaceholder');
+  const regexPh = t('settings.privacy.customPatterns.regexPlaceholder');
+  const invalid = t('settings.privacy.customPatterns.invalidRegex');
+  const labelHdr = t('settings.privacy.customPatterns.labelPlaceholder');
   return `
     <div class="pattern-card" data-pattern-id="${escapeHtml(p.id)}">
       <div class="pattern-row">
         <label>
-          <span>Label</span>
-          <input type="text" data-bind="label" value="${escapeHtml(p.label)}" placeholder="My API token" />
+          <span>${escapeHtml(t('settings.privacy.sandbox.rule'))}</span>
+          <input type="text" data-bind="label" value="${escapeHtml(p.label)}" placeholder="${escapeHtml(labelPh)}" aria-label="${escapeHtml(labelHdr)}" />
         </label>
         <label>
           <span>Regex</span>
-          <input type="text" data-bind="source" value="${escapeHtml(p.source)}" placeholder="\\\\bsk_live_[A-Za-z0-9]+\\\\b" spellcheck="false" />
-          ${compiles ? '' : `<span class="regex-error">invalid regex — saved but not applied</span>`}
+          <input type="text" data-bind="source" value="${escapeHtml(p.source)}" placeholder="${escapeHtml(regexPh)}" spellcheck="false" />
+          ${compiles ? '' : `<span class="regex-error">${escapeHtml(invalid)}</span>`}
         </label>
       </div>
       <div class="pattern-row scopes">
         <label class="scope-check">
           <input type="checkbox" data-bind="scope-request" ${p.scope.includes('request.body') ? 'checked' : ''} />
-          Apply to request bodies
+          ${escapeHtml(t('settings.privacy.customPatterns.applyRequest'))}
         </label>
         <label class="scope-check">
           <input type="checkbox" data-bind="scope-response" ${p.scope.includes('response.body') ? 'checked' : ''} />
-          Apply to response bodies
+          ${escapeHtml(t('settings.privacy.customPatterns.applyResponse'))}
         </label>
-        <button type="button" class="btn-remove" data-action="remove" data-idx="${idx}">Remove</button>
+        <button type="button" class="btn-remove" data-action="remove" data-idx="${idx}">${escapeHtml(t('common.remove'))}</button>
       </div>
     </div>
   `;
@@ -324,17 +371,17 @@ function renderOriginList(): void {
   const container = document.getElementById('origin-list');
   if (!container) return;
   if (privacyState.blocklistedOrigins.length === 0) {
-    container.innerHTML = `<p class="empty-row">No origins blocked.</p>`;
+    container.innerHTML = `<p class="empty-row">${escapeHtml(t('settings.privacy.origins.empty'))}</p>`;
     return;
   }
   container.innerHTML = privacyState.blocklistedOrigins
-    .map(
-      (o, idx) =>
-        `<span class="chip removable" data-origin="${escapeHtml(o)}">
+    .map((o, idx) => {
+      const aria = t('settings.privacy.origins.removeAria', { origin: o });
+      return `<span class="chip removable" data-origin="${escapeHtml(o)}">
           <code>${escapeHtml(o)}</code>
-          <button type="button" data-idx="${idx}" aria-label="Remove ${escapeHtml(o)}">✕</button>
-        </span>`
-    )
+          <button type="button" data-idx="${idx}" aria-label="${escapeHtml(aria)}">✕</button>
+        </span>`;
+    })
     .join('');
 
   container.querySelectorAll<HTMLButtonElement>('button[data-idx]').forEach((btn) => {
@@ -359,8 +406,7 @@ function addOrigin(): void {
   try {
     origin = new URL(raw).origin;
   } catch {
-    // Treat as host-only entry; surface a tiny inline hint.
-    input.setCustomValidity('Enter a full URL (https://host:port).');
+    input.setCustomValidity(t('settings.privacy.origins.invalid'));
     input.reportValidity();
     return;
   }
@@ -388,18 +434,19 @@ interface SandboxRuleOption {
 function listSandboxRules(): SandboxRuleOption[] {
   const opts: SandboxRuleOption[] = DEFAULT_BODY_RULES.map((r) => ({
     key: r.id,
-    label: `Default · ${r.label}`,
+    label: t('settings.privacy.sandbox.defaultOption', { label: r.label }),
     rule: r,
   }));
   for (const p of privacyState.customPatterns) {
     const compiled = tryCompilePattern(p.source);
     if (!compiled) continue;
+    const labelDisplay = p.label || t('settings.privacy.sandbox.customNoLabel');
     opts.push({
       key: `user.${p.id}`,
-      label: `Custom · ${p.label || '(no label)'}`,
+      label: t('settings.privacy.sandbox.customOption', { label: labelDisplay }),
       rule: {
         id: `user.${p.id}`,
-        label: p.label || 'Custom pattern',
+        label: p.label || t('settings.privacy.sandbox.customFallback'),
         scope: p.scope.length > 0 ? p.scope : ['request.body', 'response.body'],
         kind: 'body-pattern',
         pattern: compiled,
@@ -452,7 +499,10 @@ function runSandbox(): void {
 
   if (!chosen.rule.scope.includes(scope)) {
     output.textContent = sample;
-    meta.textContent = `Rule does not apply to ${scope} (scope is ${chosen.rule.scope.join(', ')}).`;
+    meta.textContent = t('settings.privacy.sandbox.scopeMismatch', {
+      scope,
+      ruleScope: chosen.rule.scope.join(', '),
+    });
     return;
   }
 
@@ -460,8 +510,10 @@ function runSandbox(): void {
   output.textContent = result.body ?? '';
   meta.textContent =
     result.redactions.length === 0
-      ? 'No matches.'
-      : `${result.redactions.length} match${result.redactions.length === 1 ? '' : 'es'} masked.`;
+      ? ''
+      : result.redactions.length === 1
+        ? t('settings.privacy.sandbox.matchesOne', { n: result.redactions.length })
+        : t('settings.privacy.sandbox.matchesMany', { n: result.redactions.length });
 }
 
 // ---------------------------------------------------------------------------
@@ -471,7 +523,7 @@ function runSandbox(): void {
 let generalFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashSaved(target: HTMLElement | null): void {
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (generalFlashTimer) clearTimeout(generalFlashTimer);
   generalFlashTimer = setTimeout(() => {
     target.textContent = '';
@@ -494,6 +546,8 @@ async function initCapture(): Promise<void> {
     return;
   }
 
+  relabelBufferOptions();
+
   const current = await readCaptureSettings();
   tier2.checked = current.tier2Enabled;
   tier3.checked = current.tier3Enabled;
@@ -509,6 +563,11 @@ async function initCapture(): Promise<void> {
     const v = Number(maxEvents.value) as MaxEventsPerTab;
     void writeCaptureSettings({ maxEventsPerTab: v }).then(flashCapture);
   });
+}
+
+function relabelBufferOptions(): void {
+  const opt = document.querySelector<HTMLOptionElement>('#max-events option[value="200"]');
+  if (opt) opt.textContent = `200 ${t('settings.capture.buffer.defaultSuffix')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -560,7 +619,7 @@ let sharingFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashSharing(): void {
   const target = document.getElementById('sharing-status');
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (sharingFlashTimer) clearTimeout(sharingFlashTimer);
   sharingFlashTimer = setTimeout(() => {
     target.textContent = '';
@@ -622,7 +681,7 @@ let detectionFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashDetection(): void {
   const target = document.getElementById('detection-status');
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (detectionFlashTimer) clearTimeout(detectionFlashTimer);
   detectionFlashTimer = setTimeout(() => {
     target.textContent = '';
@@ -633,7 +692,7 @@ let captureFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashCapture(): void {
   const target = document.getElementById('capture-status');
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (captureFlashTimer) clearTimeout(captureFlashTimer);
   captureFlashTimer = setTimeout(() => {
     target.textContent = '';
@@ -693,14 +752,14 @@ async function refreshStorageStats(): Promise<void> {
       n == null ? '—' : `${(n / 1024).toFixed(1)} KB`;
     out.textContent = `local: ${formatKb(local)}`;
   } catch (e) {
-    out.textContent = `Unable to read storage: ${(e as Error).message ?? e}`;
+    out.textContent = t('settings.advanced.storage.error', {
+      error: (e as Error).message ?? String(e),
+    });
   }
 }
 
 async function resetEverything(): Promise<void> {
-  const confirmed = confirm(
-    'Reset everything? This clears every captured session, the 7-day archive, and resets every settings section to defaults. There is no undo.'
-  );
+  const confirmed = confirm(t('settings.advanced.reset.confirm'));
   if (!confirmed) return;
   try {
     // Both areas cleared even though settings live on local now — old
@@ -710,7 +769,7 @@ async function resetEverything(): Promise<void> {
       /* sync may be unavailable; not fatal */
     });
   } catch (e) {
-    alert(`Reset failed: ${(e as Error).message ?? e}`);
+    alert(t('settings.advanced.reset.failed', { error: (e as Error).message ?? String(e) }));
     return;
   }
   flashAdvanced();
@@ -722,7 +781,7 @@ let advancedFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashAdvanced(): void {
   const target = document.getElementById('advanced-status');
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (advancedFlashTimer) clearTimeout(advancedFlashTimer);
   advancedFlashTimer = setTimeout(() => {
     target.textContent = '';
@@ -733,7 +792,7 @@ let privacyFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashPrivacy(): void {
   const target = document.getElementById('privacy-status');
   if (!target) return;
-  target.textContent = '✓ Saved';
+  target.textContent = t('settings.status.saved');
   if (privacyFlashTimer) clearTimeout(privacyFlashTimer);
   privacyFlashTimer = setTimeout(() => {
     target.textContent = '';

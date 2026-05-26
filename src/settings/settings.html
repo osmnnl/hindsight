@@ -8,47 +8,74 @@
   <body>
     <div id="app">
       <header class="topbar">
-        <h1>Hindsight Settings</h1>
-        <p class="subtitle">Privacy-first defaults — captures stay on your machine.</p>
+        <h1 data-i18n="settings.title">Hindsight Settings</h1>
+        <p class="subtitle" data-i18n="settings.subtitle">
+          Privacy-first defaults — captures stay on your machine.
+        </p>
       </header>
 
       <nav class="sections" aria-label="Settings sections">
-        <button class="section-link active" data-section="general">General</button>
-        <button class="section-link" data-section="privacy">Privacy</button>
-        <button class="section-link" data-section="capture">Capture</button>
-        <button class="section-link" data-section="detection">Detection</button>
-        <button class="section-link" data-section="sharing">Sharing</button>
-        <button class="section-link" data-section="advanced">Advanced</button>
+        <button class="section-link active" data-section="general" data-i18n="settings.nav.general">
+          General
+        </button>
+        <button class="section-link" data-section="privacy" data-i18n="settings.nav.privacy">
+          Privacy
+        </button>
+        <button class="section-link" data-section="capture" data-i18n="settings.nav.capture">
+          Capture
+        </button>
+        <button class="section-link" data-section="detection" data-i18n="settings.nav.detection">
+          Detection
+        </button>
+        <button class="section-link" data-section="sharing" data-i18n="settings.nav.sharing">
+          Sharing
+        </button>
+        <button class="section-link" data-section="advanced" data-i18n="settings.nav.advanced">
+          Advanced
+        </button>
       </nav>
 
       <main>
         <section id="section-general" class="section active">
-          <h2>General</h2>
+          <h2 data-i18n="settings.general.heading">General</h2>
 
           <div class="field">
-            <label for="theme">Theme</label>
-            <select id="theme" name="theme">
-              <option value="system">Match system</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
+            <label for="language" data-i18n="settings.general.language.label">Language</label>
+            <select id="language" name="language">
+              <option value="en" data-i18n="settings.general.language.en">English</option>
+              <option value="tr" data-i18n="settings.general.language.tr">Türkçe</option>
             </select>
-            <p class="hint">Affects the popup, side panel, and settings page.</p>
+            <p class="hint" data-i18n="settings.general.language.hint">
+              Changes apply immediately across the popup, side panel, and this settings page.
+            </p>
+          </div>
+
+          <div class="field">
+            <label for="theme" data-i18n="settings.general.theme.label">Theme</label>
+            <select id="theme" name="theme">
+              <option value="system" data-i18n="settings.general.theme.system">Match system</option>
+              <option value="light" data-i18n="settings.general.theme.light">Light</option>
+              <option value="dark" data-i18n="settings.general.theme.dark">Dark</option>
+            </select>
+            <p class="hint" data-i18n="settings.general.theme.hint">
+              Affects the popup, side panel, and settings page.
+            </p>
           </div>
 
           <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
         </section>
 
         <section id="section-privacy" class="section">
-          <h2>Privacy</h2>
-          <p class="lead">
+          <h2 data-i18n="settings.privacy.heading">Privacy</h2>
+          <p class="lead" data-i18n-html="settings.privacy.lead">
             Masking happens at capture time — the original value is never written to storage (<code
               >PRD §11.2</code
             >).
           </p>
 
           <div class="subsection">
-            <h3>Default rules</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.privacy.defaultRules.heading">Default rules</h3>
+            <p class="hint" data-i18n="settings.privacy.defaultRules.hint">
               Click a chip to disable that rule for future captures. Disabled rules stay disabled
               until you re-enable them — already-captured masked values are not affected (PRD §11.2:
               mask cannot be reversed). Form-field rules cannot be disabled.
@@ -56,25 +83,32 @@
             <div class="chip-group" id="default-headers"></div>
             <div class="chip-group" id="default-bodies"></div>
             <div class="chip-group" id="default-forms"></div>
-            <p class="hint danger-hint">
+            <p class="hint danger-hint" data-i18n="settings.privacy.defaultRules.warn">
               ⚠ Captures recorded with a rule disabled will store the matched value verbatim on your
               machine and include it verbatim in any bug report you share.
             </p>
           </div>
 
           <div class="subsection">
-            <h3>Custom body patterns</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.privacy.customPatterns.heading">Custom body patterns</h3>
+            <p class="hint" data-i18n="settings.privacy.customPatterns.hint">
               Regex applied to request and response bodies. Empty by default — add only what your
               own captures need.
             </p>
             <div id="custom-patterns" class="pattern-list"></div>
-            <button id="add-pattern" class="btn-add" type="button">+ Add pattern</button>
+            <button
+              id="add-pattern"
+              class="btn-add"
+              type="button"
+              data-i18n="settings.privacy.customPatterns.add"
+            >
+              + Add pattern
+            </button>
           </div>
 
           <div class="subsection">
-            <h3>Never capture on these origins</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.privacy.origins.heading">Never capture on these origins</h3>
+            <p class="hint" data-i18n="settings.privacy.origins.hint">
               Exact origin match (scheme + host + port). Events from these origins are dropped
               before they hit storage.
             </p>
@@ -84,39 +118,52 @@
                 id="origin-input"
                 placeholder="https://internal.example.com"
                 spellcheck="false"
+                data-i18n-attr="placeholder:settings.privacy.origins.placeholder"
               />
-              <button id="origin-add" type="button" class="btn-add">+ Add</button>
+              <button
+                id="origin-add"
+                type="button"
+                class="btn-add"
+                data-i18n="settings.privacy.origins.add"
+              >
+                + Add
+              </button>
             </div>
             <div id="origin-list" class="chip-group removable" aria-live="polite"></div>
           </div>
 
           <div class="subsection">
-            <h3>Test sandbox</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.privacy.sandbox.heading">Test sandbox</h3>
+            <p class="hint" data-i18n="settings.privacy.sandbox.hint">
               Paste a sample body, pick a rule, see what would be masked. Nothing here is saved.
             </p>
             <div class="sandbox">
               <div class="field">
-                <label for="sandbox-rule">Rule</label>
+                <label for="sandbox-rule" data-i18n="settings.privacy.sandbox.rule">Rule</label>
                 <select id="sandbox-rule"></select>
               </div>
               <div class="field">
-                <label for="sandbox-scope">Scope</label>
+                <label for="sandbox-scope" data-i18n="settings.privacy.sandbox.scope">Scope</label>
                 <select id="sandbox-scope">
                   <option value="request.body">request.body</option>
                   <option value="response.body">response.body</option>
                 </select>
               </div>
               <div class="field">
-                <label for="sandbox-input">Sample input</label>
+                <label for="sandbox-input" data-i18n="settings.privacy.sandbox.input">
+                  Sample input
+                </label>
                 <textarea
                   id="sandbox-input"
                   rows="4"
                   placeholder="Paste a JSON body, header value, or any string..."
+                  data-i18n-attr="placeholder:settings.privacy.sandbox.inputPlaceholder"
                 ></textarea>
               </div>
               <div class="field">
-                <label for="sandbox-output">Masked output</label>
+                <label for="sandbox-output" data-i18n="settings.privacy.sandbox.output">
+                  Masked output
+                </label>
                 <pre id="sandbox-output" class="sandbox-output">—</pre>
                 <p class="hint" id="sandbox-meta"></p>
               </div>
@@ -127,8 +174,8 @@
         </section>
 
         <section id="section-capture" class="section">
-          <h2>Capture</h2>
-          <p class="lead">
+          <h2 data-i18n="settings.capture.heading">Capture</h2>
+          <p class="lead" data-i18n-html="settings.capture.lead">
             Pick which event families Hindsight records and how big the per-tab buffer is. Tier 1
             events (network requests, navigations, errors) cannot be disabled (<code
               >PRD §6.1.1</code
@@ -136,40 +183,46 @@
           </p>
 
           <div class="subsection">
-            <h3>Tier 2 events</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.capture.tier2.heading">Tier 2 events</h3>
+            <p class="hint" data-i18n="settings.capture.tier2.hint">
               Clicks, form input changes, WebSocket frames, console.warn / console.info. Disabling
               stops new captures only — existing buffer stays intact.
             </p>
             <label class="scope-check">
               <input type="checkbox" id="tier2-toggle" />
-              Capture Tier 2 events
+              <span data-i18n="settings.capture.tier2.toggle">Capture Tier 2 events</span>
             </label>
           </div>
 
           <div class="subsection">
-            <h3>Tier 3 events</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.capture.tier3.heading">Tier 3 events</h3>
+            <p class="hint" data-i18n="settings.capture.tier3.hint">
               Performance long tasks (>100 ms) and layout shifts. Screenshots on error stay on
               regardless of this toggle.
             </p>
             <label class="scope-check">
               <input type="checkbox" id="tier3-toggle" />
-              Capture performance long tasks + layout shifts
+              <span data-i18n="settings.capture.tier3.toggle">
+                Capture performance long tasks + layout shifts
+              </span>
             </label>
           </div>
 
           <div class="subsection">
-            <h3>Per-tab buffer</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.capture.buffer.heading">Per-tab buffer</h3>
+            <p class="hint" data-i18n="settings.capture.buffer.hint">
               Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move
               to a 7-day archive (read-only until M3 ships the side panel).
             </p>
             <div class="field">
-              <label for="max-events">Maximum events per tab</label>
+              <label for="max-events" data-i18n="settings.capture.buffer.label">
+                Maximum events per tab
+              </label>
               <select id="max-events" name="max-events">
                 <option value="50">50</option>
-                <option value="200">200 (default)</option>
+                <option value="200" data-i18n-suffix="settings.capture.buffer.defaultSuffix">
+                  200 (default)
+                </option>
                 <option value="500">500</option>
                 <option value="2000">2000</option>
               </select>
@@ -180,8 +233,8 @@
         </section>
 
         <section id="section-detection" class="section">
-          <h2>Detection</h2>
-          <p class="lead">
+          <h2 data-i18n="settings.detection.heading">Detection</h2>
+          <p class="lead" data-i18n-html="settings.detection.lead">
             Hindsight watches captures for failed-request cascades, slow requests, and
             white-screen-after-navigation patterns (<code>PRD §6.2.1</code>). Surfaces them as
             colored flags in the side panel; optional desktop notifications for high-severity
@@ -189,32 +242,40 @@
           </p>
 
           <div class="subsection">
-            <h3>Smart detection</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.detection.smart.heading">Smart detection</h3>
+            <p class="hint" data-i18n="settings.detection.smart.hint">
               When off, no detection rules run and no flags get stamped — the side panel still lists
               events but the cluster grouping and left-border tints disappear.
             </p>
             <label class="scope-check">
               <input type="checkbox" id="smart-detection-toggle" />
-              Enable smart detection
+              <span data-i18n="settings.detection.smart.toggle">Enable smart detection</span>
             </label>
           </div>
 
           <div class="subsection">
-            <h3>Desktop notifications</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.detection.notifications.heading">Desktop notifications</h3>
+            <p class="hint" data-i18n="settings.detection.notifications.hint">
               Optional. Notify on cascades and repeated identical failures. Permission is requested
               the first time you enable this.
             </p>
             <label class="scope-check">
               <input type="checkbox" id="notifications-toggle" />
-              Show notifications for detected patterns
+              <span data-i18n="settings.detection.notifications.toggle">
+                Show notifications for detected patterns
+              </span>
             </label>
             <div class="field" style="margin-top: 10px">
-              <label for="notification-frequency">Frequency</label>
+              <label for="notification-frequency" data-i18n="settings.detection.frequency.label">
+                Frequency
+              </label>
               <select id="notification-frequency">
-                <option value="first-per-session">First occurrence per session</option>
-                <option value="every">Every occurrence</option>
+                <option value="first-per-session" data-i18n="settings.detection.frequency.first">
+                  First occurrence per session
+                </option>
+                <option value="every" data-i18n="settings.detection.frequency.every">
+                  Every occurrence
+                </option>
               </select>
             </div>
           </div>
@@ -223,8 +284,8 @@
         </section>
 
         <section id="section-sharing" class="section">
-          <h2>Sharing</h2>
-          <p class="lead">
+          <h2 data-i18n="settings.sharing.heading">Sharing</h2>
+          <p class="lead" data-i18n-html="settings.sharing.lead">
             Optional webhook URLs for Slack, Discord, and Microsoft Teams. Hindsight POSTs shareable
             bug reports directly to these endpoints; URLs are stored in
             <code>chrome.storage.local</code> alongside the rest of your settings. Leave blank to
@@ -232,8 +293,8 @@
           </p>
 
           <div class="subsection">
-            <h3>Slack incoming webhook</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.sharing.slack.heading">Slack incoming webhook</h3>
+            <p class="hint" data-i18n-html="settings.sharing.slack.hint">
               Create one at <code>api.slack.com/apps</code> → Incoming Webhooks. URL looks like
               <code>https://hooks.slack.com/services/...</code>.
             </p>
@@ -247,8 +308,8 @@
           </div>
 
           <div class="subsection">
-            <h3>Discord webhook</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.sharing.discord.heading">Discord webhook</h3>
+            <p class="hint" data-i18n-html="settings.sharing.discord.hint">
               Server settings → Integrations → Create webhook. URL looks like
               <code>https://discord.com/api/webhooks/...</code>.
             </p>
@@ -262,8 +323,8 @@
           </div>
 
           <div class="subsection">
-            <h3>Microsoft Teams webhook</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.sharing.teams.heading">Microsoft Teams webhook</h3>
+            <p class="hint" data-i18n="settings.sharing.teams.hint">
               Channel → ⋯ → Connectors → Incoming Webhook. Configurable outlook.office.com URL.
             </p>
             <input
@@ -276,8 +337,8 @@
           </div>
 
           <div class="subsection">
-            <h3>GitHub default repo</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.sharing.github.heading">GitHub default repo</h3>
+            <p class="hint" data-i18n="settings.sharing.github.hint">
               "Send to GitHub" opens a new-issue form with the bug report pre-filled. Leave blank to
               hide the button.
             </p>
@@ -288,6 +349,7 @@
                 placeholder="owner"
                 spellcheck="false"
                 autocomplete="off"
+                data-i18n-attr="placeholder:settings.sharing.github.ownerPlaceholder"
               />
               <input
                 type="text"
@@ -295,13 +357,14 @@
                 placeholder="repo"
                 spellcheck="false"
                 autocomplete="off"
+                data-i18n-attr="placeholder:settings.sharing.github.repoPlaceholder"
               />
             </div>
           </div>
 
           <div class="subsection">
-            <h3>Default email recipient</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.sharing.email.heading">Default email recipient</h3>
+            <p class="hint" data-i18n="settings.sharing.email.hint">
               "Send to Email" opens a mailto: draft addressed here. Leave blank to let the mail
               client prompt for a recipient.
             </p>
@@ -318,33 +381,37 @@
         </section>
 
         <section id="section-advanced" class="section">
-          <h2>Advanced</h2>
-          <p class="lead">
+          <h2 data-i18n="settings.advanced.heading">Advanced</h2>
+          <p class="lead" data-i18n-html="settings.advanced.lead">
             Power-user knobs. Most users never need these — defaults are tuned for the privacy and
             performance promises in <code>PRD §4</code>.
           </p>
 
           <div class="subsection">
-            <h3>Debug logging</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.advanced.debug.heading">Debug logging</h3>
+            <p class="hint" data-i18n="settings.advanced.debug.hint">
               Emits verbose service-worker console logs for every captured event. Helpful when
               debugging Hindsight itself; noisy otherwise.
             </p>
             <label class="scope-check">
               <input type="checkbox" id="debug-logging-toggle" />
-              Enable verbose service-worker logs
+              <span data-i18n="settings.advanced.debug.toggle">
+                Enable verbose service-worker logs
+              </span>
             </label>
           </div>
 
           <div class="subsection">
-            <h3>Perf budget threshold</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.advanced.perfBudget.heading">Perf budget threshold</h3>
+            <p class="hint" data-i18n="settings.advanced.perfBudget.hint">
               Soft warning threshold (ms) for capture overhead. PRD §13.1 hard ceiling is 0.5 ms —
               the CI bench gate enforces it independently. Raise this if you see false-positive perf
               nudges on slow hardware.
             </p>
             <div class="field">
-              <label for="perf-budget">Threshold (ms)</label>
+              <label for="perf-budget" data-i18n="settings.advanced.perfBudget.label">
+                Threshold (ms)
+              </label>
               <input
                 type="number"
                 id="perf-budget"
@@ -357,20 +424,24 @@
           </div>
 
           <div class="subsection">
-            <h3>Storage usage</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.advanced.storage.heading">Storage usage</h3>
+            <p class="hint" data-i18n-html="settings.advanced.storage.hint">
               How much room the capture buffers and the closed-tab archive currently take in
               <code>chrome.storage.local</code>.
             </p>
             <div class="field">
-              <pre id="storage-stats" class="sandbox-output">Calculating…</pre>
-              <button id="storage-refresh" class="btn-add" type="button">Refresh</button>
+              <pre id="storage-stats" class="sandbox-output" data-i18n="common.calculating">
+Calculating…</pre
+              >
+              <button id="storage-refresh" class="btn-add" type="button" data-i18n="common.refresh">
+                Refresh
+              </button>
             </div>
           </div>
 
           <div class="subsection">
-            <h3>Reset everything</h3>
-            <p class="hint">
+            <h3 data-i18n="settings.advanced.reset.heading">Reset everything</h3>
+            <p class="hint" data-i18n="settings.advanced.reset.hint">
               Clears every captured session, the closed-tab archive, and resets every settings
               section to defaults. There is no undo.
             </p>
@@ -379,6 +450,7 @@
               type="button"
               class="btn-add"
               style="color: var(--danger)"
+              data-i18n="settings.advanced.reset.button"
             >
               Reset all data
             </button>

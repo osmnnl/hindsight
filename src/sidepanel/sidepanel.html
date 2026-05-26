@@ -17,7 +17,8 @@
             class="filter active"
             data-filter="failed"
             aria-pressed="true"
-            aria-label="Show only failed events"
+            data-i18n="sidepanel.filter.failed"
+            data-i18n-attr="aria-label:sidepanel.filter.failed.title;title:sidepanel.filter.failed.title"
           >
             Failed
           </button>
@@ -25,8 +26,8 @@
             class="filter"
             data-filter="api"
             aria-pressed="false"
-            aria-label="Show only real API calls (hides framework chunks, static assets, prefetches)"
-            title="Hide static assets and framework internals — show only API/data fetches"
+            data-i18n="sidepanel.filter.api"
+            data-i18n-attr="aria-label:sidepanel.filter.api.title;title:sidepanel.filter.api.title"
           >
             API
           </button>
@@ -34,19 +35,27 @@
             class="filter"
             data-filter="all"
             aria-pressed="false"
-            aria-label="Show every captured event"
+            data-i18n="sidepanel.filter.all"
+            data-i18n-attr="aria-label:sidepanel.filter.all.title;title:sidepanel.filter.all.title"
           >
             All
           </button>
           <button
             id="record-toggle"
             class="ghost"
-            title="Start a Tier 4 recording (PRD §6.5)"
-            aria-label="Toggle recording mode"
+            data-i18n="sidepanel.record.start"
+            data-i18n-attr="aria-label:sidepanel.record.title;title:sidepanel.record.title"
           >
             ● Record
           </button>
-          <button class="ghost" id="clear" aria-label="Clear captures for this tab">Clear</button>
+          <button
+            class="ghost"
+            id="clear"
+            data-i18n="sidepanel.clear"
+            data-i18n-attr="aria-label:sidepanel.clear.title;title:sidepanel.clear.title"
+          >
+            Clear
+          </button>
         </div>
       </header>
 
@@ -55,22 +64,18 @@
           id="search-input"
           type="search"
           placeholder="Search URLs, messages, payloads…"
-          aria-label="Search captured events"
+          data-i18n-attr="placeholder:sidepanel.search.placeholder;aria-label:sidepanel.search.label"
         />
-        <label
-          class="host-picker"
-          title="Filter by host (request URL for network, page URL otherwise)"
-        >
-          <span class="host-picker-label">Host</span>
-          <select id="host-select" aria-label="Filter by host">
-            <option value="">Any</option>
+        <label class="host-picker" data-i18n-attr="title:sidepanel.host.label">
+          <span class="host-picker-label" data-i18n="sidepanel.host.label">Host</span>
+          <select id="host-select" data-i18n-attr="aria-label:sidepanel.host.label">
+            <option value="" data-i18n="common.any">Any</option>
           </select>
           <button
             id="host-clear"
             class="host-clear hidden"
             type="button"
-            aria-label="Clear host filter"
-            title="Clear host filter"
+            data-i18n-attr="aria-label:sidepanel.host.clear;title:sidepanel.host.clear"
           >
             ×
           </button>
@@ -78,7 +83,11 @@
         <span id="result-count" class="result-count" aria-live="polite"></span>
       </div>
 
-      <div id="scrubber" class="scrubber hidden" aria-label="Timeline scrubber">
+      <div
+        id="scrubber"
+        class="scrubber hidden"
+        data-i18n-attr="aria-label:sidepanel.scrubber.label"
+      >
         <div id="scrubber-bars" class="scrubber-bars" aria-hidden="true"></div>
         <div class="scrubber-range">
           <div class="scrubber-track" aria-hidden="true">
@@ -91,7 +100,7 @@
             max="100"
             step="1"
             value="0"
-            aria-label="Time range start"
+            data-i18n-attr="aria-label:sidepanel.scrubber.startLabel"
           />
           <input
             id="scrubber-end-input"
@@ -100,7 +109,7 @@
             max="100"
             step="1"
             value="100"
-            aria-label="Time range end"
+            data-i18n-attr="aria-label:sidepanel.scrubber.endLabel"
           />
         </div>
         <div class="scrubber-axis" aria-hidden="true">
@@ -109,7 +118,8 @@
             type="button"
             id="scrubber-reset"
             class="scrubber-reset hidden"
-            aria-label="Reset time range to full session"
+            data-i18n="sidepanel.scrubber.reset"
+            data-i18n-attr="aria-label:sidepanel.scrubber.resetTitle;title:sidepanel.scrubber.resetTitle"
           >
             ↺ reset
           </button>
@@ -119,16 +129,24 @@
 
       <details id="archive-panel" class="archive-panel">
         <summary>
-          <span id="archive-count">0 closed sessions</span>
-          <a id="archive-clear" href="#" class="archive-clear hidden">Clear archive</a>
+          <span id="archive-count" data-i18n="sidepanel.archive.empty">0 closed sessions</span>
+          <a
+            id="archive-clear"
+            href="#"
+            class="archive-clear hidden"
+            data-i18n="sidepanel.archive.clear"
+            >Clear archive</a
+          >
         </summary>
         <div id="archive-list" class="archive-list"></div>
       </details>
 
       <div id="list" class="list">
         <div class="empty">
-          <div class="empty-title">No events yet</div>
-          <div class="empty-sub">Browse the page — events will appear here.</div>
+          <div class="empty-title" data-i18n="sidepanel.empty.title">No events yet</div>
+          <div class="empty-sub" data-i18n="sidepanel.empty.sub">
+            Browse the page — events will appear here.
+          </div>
         </div>
       </div>
 

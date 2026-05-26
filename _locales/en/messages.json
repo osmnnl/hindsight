@@ -1,0 +1,26 @@
+{
+  "appName": {
+    "message": "Hindsight",
+    "description": "Extension name in Chrome Web Store and toolbar."
+  },
+  "appDescription": {
+    "message": "DevTools you didn't open. Privacy-first passive capture for bug reports.",
+    "description": "Extension description in Chrome Web Store."
+  },
+  "appDefaultTitle": {
+    "message": "Hindsight",
+    "description": "Tooltip on the toolbar icon."
+  },
+  "cmdOpenSidePanel": {
+    "message": "Open Hindsight side panel",
+    "description": "Keyboard shortcut description."
+  },
+  "cmdCaptureLastMoment": {
+    "message": "Quick capture last 30 seconds",
+    "description": "Keyboard shortcut description."
+  },
+  "cmdToggleRecording": {
+    "message": "Start/stop recording mode",
+    "description": "Keyboard shortcut description."
+  }
+}

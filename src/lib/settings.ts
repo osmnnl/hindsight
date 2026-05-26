@@ -13,6 +13,7 @@
 // Privacy / Advanced. This module ships General + Privacy today; Capture
 // / Detection / Sharing / Advanced sprouts as those UIs land.
 
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/types';
 import type { RuleScope } from '@/lib/masking';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,12 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 
 export interface GeneralSettings {
   theme: ThemePreference;
+  /** UI language (PRD §14). 'en' or 'tr'. Settings UI override of the
+   *  browser locale — see src/lib/i18n for runtime resolution.
+   *  Stored at schemaVersion 1: read functions tolerate missing fields
+   *  via DEFAULT_GENERAL_SETTINGS spread, so existing users get 'en'
+   *  by default without a schema bump. */
+  language: Locale;
   /** Schema version for this slice; bumped on breaking changes. */
   schemaVersion: number;
 }
@@ -31,6 +38,7 @@ export const SETTINGS_SCHEMA_VERSION = 1;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   theme: 'system',
+  language: DEFAULT_LOCALE,
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
 

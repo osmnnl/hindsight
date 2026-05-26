@@ -20,9 +20,12 @@
             id="summary-counts"
             class="counts-button"
             type="button"
-            aria-label="Open side panel filtered to failures"
+            data-i18n-attr="aria-label:popup.summary.title.openFiltered"
           >
-            <span class="count-total"><strong>0</strong> events</span>
+            <span class="count-total">
+              <strong>0</strong>
+              <span data-i18n="popup.summary.eventsLabel">events</span>
+            </span>
             <span class="count-errors hidden"></span>
           </button>
 
@@ -31,13 +34,27 @@
 
         <div id="recording-banner" class="recording-banner hidden">
           <span class="recording-dot" aria-hidden="true"></span>
-          <span class="recording-label">Recording · <span id="recording-time">00:00</span></span>
-          <button id="recording-stop" class="ghost-stop">■ Stop</button>
+          <span class="recording-label" id="recording-label"
+            ><span data-i18n="popup.recording.label">Recording</span> ·
+            <span id="recording-time">00:00</span></span
+          >
+          <button id="recording-stop" class="ghost-stop" data-i18n="popup.recording.stop">
+            ■ Stop
+          </button>
         </div>
 
         <div class="actions">
-          <button id="open-panel" class="primary">Open side panel</button>
-          <button id="download-bundle" class="secondary" disabled>⤓ Download replay bundle</button>
+          <button id="open-panel" class="primary" data-i18n="popup.actions.openPanel">
+            Open side panel
+          </button>
+          <button
+            id="download-bundle"
+            class="secondary"
+            disabled
+            data-i18n="popup.actions.downloadBundle"
+          >
+            ⤓ Download replay bundle
+          </button>
         </div>
 
         <div class="page-controls">
@@ -46,7 +63,8 @@
               id="reload-page"
               class="secondary"
               type="button"
-              title="Reload the active tab (Cmd+R equivalent)"
+              data-i18n="popup.page.reload"
+              data-i18n-attr="title:popup.page.reload.title"
             >
               ↻ Reload
             </button>
@@ -54,7 +72,8 @@
               id="reload-hard"
               class="secondary"
               type="button"
-              title="Reload and refetch every resource — bypass the HTTP cache (Cmd+Shift+R equivalent)"
+              data-i18n="popup.page.hardReload"
+              data-i18n-attr="title:popup.page.hardReload.title"
             >
               ↻ Hard reload
             </button>
@@ -63,19 +82,22 @@
             id="clear-events"
             class="secondary danger-btn"
             type="button"
-            title="Drop every captured event for this tab. Cannot be undone."
+            data-i18n="popup.page.clearHistory"
+            data-i18n-attr="title:popup.page.clearHistory.title"
           >
             🗑 Clear history
           </button>
         </div>
 
         <div id="quick-share" class="quick-share hidden">
-          <div class="quick-share-label">Send to</div>
+          <div class="quick-share-label" data-i18n="popup.share.label">Send to</div>
           <div class="quick-share-buttons" id="quick-share-buttons"></div>
         </div>
 
         <footer class="popup-footer">
-          <a id="open-settings" href="#" tabindex="0">Settings</a>
+          <a id="open-settings" href="#" tabindex="0" data-i18n="popup.footer.settings">
+            Settings
+          </a>
         </footer>
       </main>
     </div>

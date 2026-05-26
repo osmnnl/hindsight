@@ -8,9 +8,11 @@
 // and lets the user jump directly to a specific event in the side
 // panel via the chrome.storage focus-event channel.
 
-import { applyTheme, listenForThemeChanges } from '@/lib/theme';
+import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
 import type { CapturedEvent } from '@/types/events';
 import { isErrorEvent, isFailedNetwork } from '@/types/events';
+import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
+import { generateBundle } from '@/lib/replay-bundle';
 import type {
   ClearEventsRuntimeMessage,
   GetEventsRuntimeMessage,
@@ -18,9 +20,8 @@ import type {
   RecordingState,
   ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { generateBundle } from '@/lib/replay-bundle';
 import { readSharingSettings } from '@/lib/settings';
-import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
+import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
 
@@ -39,8 +40,15 @@ let latestEvents: CapturedEvent[] = [];
 void init();
 
 async function init(): Promise<void> {
+  await initI18n();
+  applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
+  subscribeLocale(() => {
+    applyI18nToDom();
+    renderSummary(latestEvents);
+    void renderQuickShare();
+  });
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tab?.id;
@@ -82,7 +90,9 @@ async function init(): Promise<void> {
   document.getElementById('clear-events')?.addEventListener('click', () => {
     if (activeTabId == null) return;
     const ok = confirm(
-      `Drop every captured event for this tab? ${latestEvents.length} event${latestEvents.length === 1 ? '' : 's'} will be removed. This cannot be undone.`
+      latestEvents.length === 1
+        ? t('popup.confirmClearOne')
+        : t('popup.confirmClear', { n: latestEvents.length })
     );
     if (!ok) return;
     const msg: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId: activeTabId };
@@ -135,7 +145,10 @@ function renderSummary(events: CapturedEvent[]): void {
       errorsEl.textContent = '';
     } else {
       errorsEl.classList.remove('hidden');
-      errorsEl.textContent = `· ${errors.length} error${errors.length === 1 ? '' : 's'}`;
+      errorsEl.textContent =
+        errors.length === 1
+          ? t('popup.summary.errorsSuffixOne')
+          : t('popup.summary.errorsSuffix', { n: errors.length });
     }
   }
 
@@ -268,7 +281,7 @@ function downloadReplayBundle(events: CapturedEvent[]): void {
   const btn = document.getElementById('download-bundle');
   if (btn instanceof HTMLButtonElement) {
     const original = btn.textContent ?? '';
-    btn.textContent = '✓ Bundle downloaded';
+    btn.textContent = t('popup.actions.bundleDownloaded');
     btn.classList.add('copied');
     setTimeout(() => {
       btn.textContent = original;
@@ -308,7 +321,7 @@ async function renderQuickShare(): Promise<void> {
   list.innerHTML = destinations
     .map(
       (d) =>
-        `<button class="quick-share-btn" type="button" data-dest="${d.dest}">→ ${escapeHtml(d.label)}</button>`
+        `<button class="quick-share-btn" type="button" data-dest="${d.dest}">${escapeHtml(t('popup.share.button', { label: d.label }))}</button>`
     )
     .join('');
 
@@ -323,20 +336,29 @@ async function renderQuickShare(): Promise<void> {
         (n, e) => n + (e.meta?.redactions?.length ?? 0),
         0
       );
-      const confirmed = confirm(
-        `Send ${latestEvents.length} event${latestEvents.length === 1 ? '' : 's'} to ${entry.label}?` +
-          (totalRedactions > 0
-            ? `\n${totalRedactions} field${totalRedactions === 1 ? '' : 's'} masked at capture time — payload stays masked.`
-            : '')
-      );
+      const baseConfirm =
+        latestEvents.length === 1
+          ? t('popup.share.confirmOne', { destination: entry.label })
+          : t('popup.share.confirm', { n: latestEvents.length, destination: entry.label });
+      const maskNote =
+        totalRedactions === 0
+          ? ''
+          : totalRedactions === 1
+            ? t('popup.share.confirmMaskedOne')
+            : t('popup.share.confirmMasked', { n: totalRedactions });
+      const confirmed = confirm(baseConfirm + maskNote);
       if (!confirmed) return;
       const original = btn.textContent ?? '';
       btn.disabled = true;
-      btn.textContent = '… sending';
+      btn.textContent = t('popup.share.sending');
       const result = await dispatchToWebhook(dest, entry.url, latestEvents);
       btn.textContent = result.ok
-        ? `✓ Sent${result.truncated ? ' (truncated)' : ''}`
-        : `✗ ${result.error ?? 'failed'}`;
+        ? result.truncated
+          ? t('popup.share.sentTruncated')
+          : t('popup.share.sent')
+        : result.error
+          ? t('popup.share.failed', { error: result.error })
+          : t('popup.share.failedFallback');
       setTimeout(() => {
         btn.disabled = false;
         btn.textContent = original;

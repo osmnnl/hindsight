@@ -14,6 +14,14 @@ import type {
   Redaction,
 } from '@/types/events';
 import { isApiRequest, isErrorEvent, isFailedNetwork } from '@/types/events';
+import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
+import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
+import { toMarkdownReport } from '@/lib/formatters/markdown';
+import { toHar } from '@/lib/har';
+import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
+import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import { narrate } from '@/lib/narrative';
+import { generateBundle } from '@/lib/replay-bundle';
 import {
   type ClearArchiveRuntimeMessage,
   type ClearEventsRuntimeMessage,
@@ -23,16 +31,9 @@ import {
   type RecordingState,
   type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { toHar } from '@/lib/har';
-import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
-import { narrate } from '@/lib/narrative';
-import { generateBundle } from '@/lib/replay-bundle';
 import { readSharingSettings, type SharingSettings } from '@/lib/settings';
-import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
-import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
-import { toMarkdownReport } from '@/lib/formatters/markdown';
-import { buildZip, type ZipEntry } from '@/lib/zip';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
+import { buildZip, type ZipEntry } from '@/lib/zip';
 
 declare const __APP_VERSION__: string;
 
@@ -361,8 +362,17 @@ function persistUiState(): void {
 void init();
 
 async function init(): Promise<void> {
+  await initI18n();
+  applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
+  subscribeLocale(() => {
+    applyI18nToDom();
+    renderRecordingButton();
+    invalidateRenderCache();
+    render();
+    void refreshArchive();
+  });
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
@@ -507,11 +517,11 @@ function renderRecordingButton(): void {
   if (!(btn instanceof HTMLButtonElement)) return;
   if (recordingState.recording) {
     btn.classList.add('recording');
-    btn.textContent = '■ Stop · 00:00';
+    btn.textContent = t('sidepanel.record.timer', { time: '00:00' });
     updateRecordTimer();
   } else {
     btn.classList.remove('recording');
-    btn.textContent = '● Record';
+    btn.textContent = t('sidepanel.record.start');
   }
 }
 
@@ -522,7 +532,7 @@ function updateRecordTimer(): void {
   const elapsed = Math.floor((Date.now() - recordingState.startedAt) / 1000);
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
-  btn.textContent = `■ Stop · ${mm}:${ss}`;
+  btn.textContent = t('sidepanel.record.timer', { time: `${mm}:${ss}` });
 }
 
 /** Called when toggleRecording observes the transition true → false.
@@ -713,7 +723,10 @@ function renderArchive(archive: ArchivedSession[]): void {
   }
   panel.classList.remove('hidden');
   clearLink.classList.remove('hidden');
-  countEl.textContent = `${archive.length} closed session${archive.length === 1 ? '' : 's'}`;
+  countEl.textContent =
+    archive.length === 1
+      ? t('sidepanel.archive.countOne')
+      : t('sidepanel.archive.count', { n: archive.length });
 
   listEl.innerHTML = archive
     .map((a, i) => {
@@ -827,7 +840,7 @@ function renderQueryBar(): void {
 
   const prev = hostSelect.value;
   hostSelect.innerHTML =
-    `<option value="">Any</option>` +
+    `<option value="">${escapeHtml(t('common.any'))}</option>` +
     hosts.map((h) => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join('');
   hostSelect.value = activeHost ?? '';
   // Restore prev only when activeHost is empty AND the prev option
@@ -863,24 +876,24 @@ function render(): void {
     const reason = searchQuery.trim() ? 'search' : activeHost ? 'host' : filterMode;
     const empties: Record<string, { title: string; sub: string }> = {
       failed: {
-        title: 'No errors yet',
-        sub: 'Switch to "All" to see every captured event.',
+        title: t('sidepanel.empty.failed.title'),
+        sub: t('sidepanel.empty.failed.sub'),
       },
       api: {
-        title: 'No API calls yet',
-        sub: 'Framework chunks, static assets, and prefetches are hidden — browse the page and trigger a data fetch.',
+        title: t('sidepanel.empty.api.title'),
+        sub: t('sidepanel.empty.api.sub'),
       },
       all: {
-        title: 'No events yet',
-        sub: 'Browse the page — clicks, requests, navigations, console errors appear here.',
+        title: t('sidepanel.empty.all.title'),
+        sub: t('sidepanel.empty.all.sub'),
       },
       search: {
-        title: 'No matches',
-        sub: 'Nothing in the current filter matches your search. Try clearing it or switch to "All".',
+        title: t('sidepanel.empty.search.title'),
+        sub: t('sidepanel.empty.search.sub'),
       },
       host: {
-        title: 'No events from that host',
-        sub: `Clear the host filter (× next to the picker) to see events from other origins.`,
+        title: t('sidepanel.empty.host.title'),
+        sub: t('sidepanel.empty.host.sub'),
       },
     };
     const e = empties[reason] ?? empties.all;
