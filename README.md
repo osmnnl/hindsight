@@ -83,9 +83,14 @@ storage.
 
 ---
 
+## Install
+
+Hindsight is live on the Chrome Web Store:
+**[Add to Chrome](https://chromewebstore.google.com/detail/hindsight/gmbaaeehmboadpgiekadalnnecjckelp)**.
+
 ## Quick start (development build)
 
-The extension is not yet on the Chrome Web Store. For now:
+To run a local build instead of the store version:
 
 ```sh
 # 1. Install deps
