@@ -6,6 +6,7 @@ import {
   isValidLuhn,
   isValidTckn,
   maskBody,
+  maskConsoleMessage,
   maskHeaders,
   shouldMaskFormField,
   tryCompilePattern,
@@ -177,6 +178,43 @@ describe('maskBody — credit card', () => {
     ]);
     expect(body).toBe(`token: ${MASKED} rest`);
     expect(redactions[0]?.rule).toBe('pattern.upper-hex');
+  });
+});
+
+describe('maskConsoleMessage', () => {
+  it('masks a TCKN in a log line', () => {
+    const { message, redactions } = maskConsoleMessage(`user logged in: ${VALID_TCKN}`);
+    expect(message).toBe(`user logged in: ${MASKED}`);
+    expect(redactions[0]?.scope).toBe('console.message');
+    expect(redactions[0]?.rule).toBe('pattern.tckn');
+  });
+
+  it('masks a credit card dumped into the console', () => {
+    const { message } = maskConsoleMessage(`payment card ${VALID_CC_16} charged`);
+    expect(message).toBe(`payment card ${MASKED} charged`);
+  });
+
+  it('applies all body rules regardless of their scope opt-in', () => {
+    // A body rule scoped only to response.body still fires on a console
+    // message, because a log line has no scope of its own.
+    const responseOnly: BodyPatternRule = {
+      id: 'pattern.upper-hex',
+      label: 'Upper-hex token',
+      scope: ['response.body'],
+      kind: 'body-pattern',
+      pattern: /\b[A-F0-9]{16}\b/g,
+    };
+    const { message } = maskConsoleMessage('token DEADBEEFCAFEBABE', [responseOnly]);
+    expect(message).toBe(`token ${MASKED}`);
+  });
+
+  it('returns empty input unchanged', () => {
+    expect(maskConsoleMessage('')).toEqual({ message: '', redactions: [] });
+  });
+
+  it('leaves a Luhn-invalid number alone', () => {
+    const msg = 'request id 4242424242424241';
+    expect(maskConsoleMessage(msg).message).toBe(msg);
   });
 });
 

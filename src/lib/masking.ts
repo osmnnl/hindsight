@@ -235,6 +235,39 @@ export function maskBody(
   return { body: out, redactions };
 }
 
+export interface MaskConsoleResult {
+  message: string;
+  redactions: Redaction[];
+}
+
+/**
+ * Mask a console message string (PRD §11.2 — capture-time, never at
+ * export). Unlike a request/response body, a console message is
+ * unstructured text with no scope of its own, so every body pattern rule
+ * is applied regardless of its `scope[]` opt-in. Redactions are tagged
+ * with the 'console.message' scope so the transparency UI can attribute
+ * them. Header rules don't apply — there are no headers in a log line.
+ */
+export function maskConsoleMessage(
+  message: string,
+  rules: BodyPatternRule[] = DEFAULT_BODY_RULES
+): MaskConsoleResult {
+  if (!message) return { message, redactions: [] };
+  let out = message;
+  const redactions: Redaction[] = [];
+  for (const rule of rules) {
+    // Defensive clone to avoid sharing lastIndex across calls.
+    const pattern = new RegExp(rule.pattern.source, rule.pattern.flags);
+    out = out.replace(pattern, (match) => {
+      const digitsOnly = match.replace(/[ -]/g, '');
+      if (rule.validate && !rule.validate(digitsOnly)) return match;
+      redactions.push({ scope: 'console.message', path: `console.${rule.id}`, rule: rule.id });
+      return MASKED;
+    });
+  }
+  return { message: out, redactions };
+}
+
 /**
  * Decides whether a single form field value should be masked. The
  * service worker doesn't see form fields today (action.input events

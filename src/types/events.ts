@@ -56,7 +56,13 @@ export type EventType =
  */
 export interface Redaction {
   /** Where the redaction happened. */
-  scope: 'request.headers' | 'request.body' | 'response.headers' | 'response.body' | 'form.value';
+  scope:
+    | 'request.headers'
+    | 'request.body'
+    | 'response.headers'
+    | 'response.body'
+    | 'form.value'
+    | 'console.message';
   /** Header name, JSON path, or form field name where the redaction landed. */
   path: string;
   /** Identifier of the rule that fired (e.g. 'header.authorization', 'pattern.tckn'). */
