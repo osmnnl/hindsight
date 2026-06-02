@@ -71,11 +71,11 @@ body {
   gap: 8px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--accent);
+.brand-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex: none;
 }
 
 .brand-name {
