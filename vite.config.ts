@@ -1,6 +1,8 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { crx, type ManifestV3Export } from '@crxjs/vite-plugin';
 import { fileURLToPath } from 'node:url';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import baseManifest from './manifest.json' with { type: 'json' };
 import pkg from './package.json' with { type: 'json' };
 
@@ -17,8 +19,11 @@ function toFirefoxManifest(): ManifestV3Export {
   // MV3 background runs as an event-page script bundle, not a service worker.
   m.background = { scripts: ['src/background/service-worker.ts'], type: 'module' };
 
-  // Side panel -> sidebar.
-  delete m.side_panel;
+  // Side panel -> sidebar. We KEEP side_panel here so crxjs still treats
+  // sidepanel.html as an HTML entry to bundle (its htmlFiles() scanner knows
+  // side_panel.default_path but not sidebar_action.default_panel). The
+  // Chrome-only side_panel key is then stripped from the emitted manifest by
+  // dropSidePanelKey() below, so Firefox ships only sidebar_action.
   m.sidebar_action = {
     default_panel: 'src/sidepanel/sidepanel.html',
     default_title: 'Hindsight',
@@ -42,9 +47,28 @@ function toFirefoxManifest(): ManifestV3Export {
   return m as ManifestV3Export;
 }
 
+// Remove the Chrome-only side_panel key that we kept solely so crxjs would
+// bundle sidepanel.html. Runs after the build is written to disk, so it edits
+// the final emitted manifest regardless of crxjs's internal hook ordering.
+function dropSidePanelKey(outDir: string): Plugin {
+  return {
+    name: 'hindsight:firefox-drop-side-panel',
+    apply: 'build',
+    writeBundle() {
+      const manifestPath = resolve(outDir, 'manifest.json');
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      if (manifest.side_panel) {
+        delete manifest.side_panel;
+        writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+      }
+    },
+  };
+}
+
 // `vite build --mode firefox` selects the Firefox target; default is Chrome.
 export default defineConfig(({ mode }) => {
   const isFirefox = mode === 'firefox';
+  const outDir = isFirefox ? 'dist-firefox' : 'dist';
 
   return {
     plugins: [
@@ -52,6 +76,7 @@ export default defineConfig(({ mode }) => {
         manifest: isFirefox ? toFirefoxManifest() : (baseManifest as ManifestV3Export),
         browser: isFirefox ? 'firefox' : 'chrome',
       }),
+      ...(isFirefox ? [dropSidePanelKey(outDir)] : []),
     ],
     resolve: {
       alias: {
@@ -67,7 +92,7 @@ export default defineConfig(({ mode }) => {
       target: 'es2022',
       sourcemap: true,
       // Keep the two builds in separate trees so they never clobber.
-      outDir: isFirefox ? 'dist-firefox' : 'dist',
+      outDir,
       rollupOptions: {
         output: {
           // CRXJS handles entry/chunk naming; we just want deterministic asset names.
