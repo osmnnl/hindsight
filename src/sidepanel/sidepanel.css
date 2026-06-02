@@ -1176,6 +1176,39 @@ select:focus-visible {
   color: var(--muted);
   margin: 12px 0 6px;
 }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.section-head h3 {
+  margin: 12px 0 6px;
+}
+.section-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.section-copy:hover {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+.section-copy.copied {
+  color: var(--success);
+  border-color: var(--success);
+}
 .section pre {
   margin: 0;
   padding: 10px 12px;
