@@ -1924,6 +1924,21 @@ function renderSimpleDetailBody(e: CapturedEvent): string {
   `;
 }
 
+/** Inline clipboard glyph for the per-section copy button. Static markup —
+ *  no untrusted data, CSP-safe. */
+const COPY_ICON =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+/** A detail-section header: the title plus a top-right copy button that
+ *  copies the section's <pre> contents verbatim. `title` is a trusted
+ *  literal from the caller, so escaping isn't needed here. */
+function sectionHead(title: string): string {
+  return `<div class="section-head">
+      <h3>${title}</h3>
+      <button class="section-copy" data-copy-section title="Copy" aria-label="Copy">${COPY_ICON}</button>
+    </div>`;
+}
+
 function showNetworkDetail(c: NetworkRequestEvent): void {
   const detail = document.getElementById('detail');
   if (!detail) return;
@@ -1981,7 +1996,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
     ${renderRedactionsPanel(c.meta?.redactions)}
 
     <div class="section">
-      <h3>Request headers</h3>
+      ${sectionHead('Request headers')}
       <pre>${escapeHtml(JSON.stringify(maskHeaders(c.data.request.headers), null, 2))}</pre>
     </div>
 
@@ -1989,19 +2004,19 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       c.data.request.body
         ? `
     <div class="section">
-      <h3>Request body</h3>
+      ${sectionHead('Request body')}
       <pre>${escapeHtml(formatJson(c.data.request.body))}</pre>
     </div>`
         : ''
     }
 
     <div class="section">
-      <h3>Response headers</h3>
+      ${sectionHead('Response headers')}
       <pre>${escapeHtml(JSON.stringify(c.data.response.headers, null, 2))}</pre>
     </div>
 
     <div class="section" style="padding-bottom: 16px;">
-      <h3>Response body</h3>
+      ${sectionHead('Response body')}
       <pre>${escapeHtml(formatJson(c.data.response.body ?? ''))}</pre>
     </div>
   `;
@@ -2047,6 +2062,27 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
         }, 1800);
       } catch {
         btn.textContent = 'Copy failed';
+      }
+    });
+  });
+
+  // Per-section copy — grabs the adjacent <pre> text verbatim so the user
+  // copies exactly what they're looking at (headers / body) without scrolling
+  // back up to the slice bar.
+  detail.querySelectorAll<HTMLButtonElement>('[data-copy-section]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const pre = btn.closest('.section')?.querySelector('pre');
+      if (!pre) return;
+      try {
+        await navigator.clipboard.writeText(pre.textContent ?? '');
+        btn.classList.add('copied');
+        btn.setAttribute('aria-label', 'Copied');
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.setAttribute('aria-label', 'Copy');
+        }, 1600);
+      } catch {
+        /* swallow — clipboard write is best-effort */
       }
     });
   });
