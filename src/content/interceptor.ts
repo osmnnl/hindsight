@@ -86,9 +86,13 @@ import type {
   console.error = wrapConsoleMethod('console.error', console.error, 'error');
   console.warn = wrapConsoleMethod('console.warn', console.warn, 'warn');
   console.info = wrapConsoleMethod('console.info', console.info, 'info');
+  // Verbose levels — always posted from page-world; the service worker
+  // drops them unless CaptureSettings.verboseConsoleEnabled is on.
+  console.log = wrapConsoleMethod('console.log', console.log, 'log');
+  console.debug = wrapConsoleMethod('console.debug', console.debug, 'debug');
 
   function wrapConsoleMethod(
-    eventType: 'console.error' | 'console.warn' | 'console.info',
+    eventType: 'console.error' | 'console.warn' | 'console.info' | 'console.log' | 'console.debug',
     original: (...args: unknown[]) => void,
     level: ConsoleData['level']
   ): (...args: unknown[]) => void {
@@ -158,8 +162,13 @@ import type {
     }
   });
 
+  // Cap a single console message so a dumped megabyte-sized object can't
+  // bloat storage. console.log is opt-in and high-volume; the per-tab
+  // buffer bounds the count, this bounds each entry's size.
+  const MAX_CONSOLE_MESSAGE_LEN = 8192;
+
   function formatConsoleArgs(args: unknown[]): string {
-    return args
+    const joined = args
       .map((a) => {
         if (typeof a === 'string') return a;
         if (a instanceof Error) return a.message;
@@ -170,6 +179,9 @@ import type {
         }
       })
       .join(' ');
+    return joined.length > MAX_CONSOLE_MESSAGE_LEN
+      ? joined.slice(0, MAX_CONSOLE_MESSAGE_LEN) + '…[truncated]'
+      : joined;
   }
 
   function extractStackFromArgs(args: unknown[]): { stack?: string } {

@@ -46,6 +46,8 @@ export type RawCapture =
   | { type: 'console.error'; data: ConsoleData }
   | { type: 'console.warn'; data: ConsoleData }
   | { type: 'console.info'; data: ConsoleData }
+  | { type: 'console.log'; data: ConsoleData }
+  | { type: 'console.debug'; data: ConsoleData }
   | { type: 'console.unhandled'; data: ConsoleData }
   | { type: 'action.click'; data: ActionClickData }
   | { type: 'action.input'; data: ActionInputData }

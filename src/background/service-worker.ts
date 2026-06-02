@@ -32,6 +32,7 @@ import {
   DEFAULT_BODY_RULES,
   DEFAULT_HEADER_RULES,
   maskBody,
+  maskConsoleMessage,
   maskHeaders,
   tryCompilePattern,
   type BodyPatternRule,
@@ -146,8 +147,17 @@ const TIER_3_TYPES: ReadonlySet<EventType> = new Set(['performance.longtask', 'p
  *  back to page-world. */
 const TIER_4_TYPES: ReadonlySet<EventType> = new Set(['cursor', 'action.scroll']);
 
+/** Verbose console levels — opt-in via CaptureSettings.verboseConsoleEnabled
+ *  (default off). Page-world emits them always; the SW drops them unless
+ *  the user turned verbose logging on. */
+const VERBOSE_CONSOLE_TYPES: ReadonlySet<EventType> = new Set(['console.log', 'console.debug']);
+
 function isTier2(type: EventType): boolean {
   return TIER_2_TYPES.has(type);
+}
+
+function isVerboseConsole(type: EventType): boolean {
+  return VERBOSE_CONSOLE_TYPES.has(type);
 }
 
 function isTier3(type: EventType): boolean {
@@ -534,6 +544,10 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   // buffer stays untouched. Tier 1 cannot be disabled per PRD §6.1.1.
   if (!captureCfg.tier2Enabled && isTier2(msg.capture.type)) return;
 
+  // Verbose console (console.log / console.debug) — opt-in, default off.
+  // High-volume; dropped unless the user explicitly enabled it.
+  if (!captureCfg.verboseConsoleEnabled && isVerboseConsole(msg.capture.type)) return;
+
   // Tier 3 toggle (OQ-M3-J) — performance observers gated; screenshot
   // capture stays on because it's triggered server-side from the error
   // path, not from a page-world observer.
@@ -596,6 +610,12 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
       break;
     case 'console.info':
       event = { ...baseEnvelope, type: 'console.info', data: capture.data, ...withMeta(meta) };
+      break;
+    case 'console.log':
+      event = { ...baseEnvelope, type: 'console.log', data: capture.data, ...withMeta(meta) };
+      break;
+    case 'console.debug':
+      event = { ...baseEnvelope, type: 'console.debug', data: capture.data, ...withMeta(meta) };
       break;
     case 'console.unhandled':
       event = { ...baseEnvelope, type: 'console.unhandled', data: capture.data, ...withMeta(meta) };
@@ -807,10 +827,25 @@ function applyMasking(
   bodyRules: BodyPatternRule[],
   debug = false
 ): MaskedResult {
-  // Only network.fetch / network.xhr carry the request/response shape we
-  // mask today. Other types (console, action, navigation) pass through
-  // unchanged; their masking lives in their own capture sites when those
-  // event families land.
+  // Console events carry a flat message string — mask it with the body
+  // pattern rules (TCKN, credit card, custom) before storage. Tokens and
+  // PII routinely get dumped into logs (PRD §11.2: never persist them).
+  if (
+    capture.type === 'console.error' ||
+    capture.type === 'console.warn' ||
+    capture.type === 'console.info' ||
+    capture.type === 'console.log' ||
+    capture.type === 'console.debug' ||
+    capture.type === 'console.unhandled'
+  ) {
+    const { message, redactions } = maskConsoleMessage(capture.data.message, bodyRules);
+    return { capture: { ...capture, data: { ...capture.data, message } }, redactions };
+  }
+
+  // Only network.fetch / network.xhr carry the request/response header +
+  // body shape we mask below. Remaining types (action, navigation, etc.)
+  // pass through unchanged; their masking lives at their own capture
+  // sites when those event families need it.
   if (capture.type !== 'network.fetch' && capture.type !== 'network.xhr') {
     return { capture, redactions: [] };
   }

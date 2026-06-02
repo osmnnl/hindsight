@@ -104,6 +104,11 @@ export interface CaptureSettings {
    *  stays on regardless — OQ-M3-J: screenshot is essential triage
    *  data, not a performance-observer artifact. */
   tier3Enabled: boolean;
+  /** When true, the service worker also keeps console.log / console.debug
+   *  events. Off by default — these are very high-volume and would flood
+   *  the per-tab buffer, evicting the failed requests / errors that are
+   *  the point. Independent of the tiers: opt-in verbose logging. */
+  verboseConsoleEnabled: boolean;
   /** Per-tab rolling buffer cap. */
   maxEventsPerTab: MaxEventsPerTab;
   schemaVersion: number;
@@ -112,6 +117,7 @@ export interface CaptureSettings {
 export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
   tier2Enabled: true,
   tier3Enabled: true,
+  verboseConsoleEnabled: false,
   maxEventsPerTab: 200,
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };
