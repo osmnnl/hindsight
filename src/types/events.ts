@@ -28,6 +28,10 @@ export type EventType =
   | 'console.info'
   | 'action.click'
   | 'action.input'
+  // Verbose console — opt-in (CaptureSettings.verboseConsoleEnabled,
+  // default off). High-volume, so gated separately from the tiers.
+  | 'console.log'
+  | 'console.debug'
   // Tier 3 — conditional
   | 'network.sse'
   | 'screenshot'
@@ -127,7 +131,7 @@ export interface NetworkSseData {
   lastEventId?: string;
 }
 
-export type ConsoleLevel = 'info' | 'warn' | 'error' | 'unhandled';
+export type ConsoleLevel = 'debug' | 'log' | 'info' | 'warn' | 'error' | 'unhandled';
 
 export interface ConsoleData {
   level: ConsoleLevel;
@@ -274,6 +278,8 @@ export type NetworkSseEvent = BaseEvent<'network.sse', NetworkSseData>;
 export type ConsoleErrorEvent = BaseEvent<'console.error', ConsoleData>;
 export type ConsoleWarnEvent = BaseEvent<'console.warn', ConsoleData>;
 export type ConsoleInfoEvent = BaseEvent<'console.info', ConsoleData>;
+export type ConsoleLogEvent = BaseEvent<'console.log', ConsoleData>;
+export type ConsoleDebugEvent = BaseEvent<'console.debug', ConsoleData>;
 export type ConsoleUnhandledEvent = BaseEvent<'console.unhandled', ConsoleData>;
 export type ActionClickEvent = BaseEvent<'action.click', ActionClickData>;
 export type ActionInputEvent = BaseEvent<'action.input', ActionInputData>;
@@ -296,6 +302,8 @@ export type CapturedEvent =
   | ConsoleErrorEvent
   | ConsoleWarnEvent
   | ConsoleInfoEvent
+  | ConsoleLogEvent
+  | ConsoleDebugEvent
   | ConsoleUnhandledEvent
   | ActionClickEvent
   | ActionInputEvent
@@ -326,6 +334,8 @@ export type ConsoleEvent =
   | ConsoleErrorEvent
   | ConsoleWarnEvent
   | ConsoleInfoEvent
+  | ConsoleLogEvent
+  | ConsoleDebugEvent
   | ConsoleUnhandledEvent;
 
 /** All action-family events. */
@@ -346,6 +356,8 @@ const CONSOLE_TYPES = new Set<EventType>([
   'console.error',
   'console.warn',
   'console.info',
+  'console.log',
+  'console.debug',
   'console.unhandled',
 ]);
 
