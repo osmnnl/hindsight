@@ -5,11 +5,13 @@ node_modules/
 
 # Build output
 dist/
+dist-firefox/
 .vite/
 *.tsbuildinfo
 
-# Packaged release artifacts (CWS / Edge Add-ons upload zips)
+# Packaged release artifacts (CWS / Edge Add-ons / AMO upload zips)
 release/
+web-ext-artifacts/
 
 # CWS screenshots — captured locally, not versioned (large binary)
 docs/screenshots/

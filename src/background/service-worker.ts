@@ -38,6 +38,7 @@ import {
   type HeaderMaskingRule,
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
+import { openCapturePanel } from '@/lib/panel';
 import { initI18n, t } from '@/lib/i18n';
 import {
   DEFAULT_ADVANCED_SETTINGS,
@@ -1029,6 +1030,6 @@ chrome.commands?.onCommand?.addListener?.((command) => {
 async function openSidePanelForActiveTab(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab?.id != null) {
-    await chrome.sidePanel.open({ tabId: tab.id });
+    await openCapturePanel(tab.id);
   }
 }
