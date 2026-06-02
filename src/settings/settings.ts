@@ -537,10 +537,12 @@ function flashSaved(target: HTMLElement | null): void {
 async function initCapture(): Promise<void> {
   const tier2 = document.getElementById('tier2-toggle');
   const tier3 = document.getElementById('tier3-toggle');
+  const verboseConsole = document.getElementById('verbose-console-toggle');
   const maxEvents = document.getElementById('max-events');
   if (
     !(tier2 instanceof HTMLInputElement) ||
     !(tier3 instanceof HTMLInputElement) ||
+    !(verboseConsole instanceof HTMLInputElement) ||
     !(maxEvents instanceof HTMLSelectElement)
   ) {
     return;
@@ -551,6 +553,7 @@ async function initCapture(): Promise<void> {
   const current = await readCaptureSettings();
   tier2.checked = current.tier2Enabled;
   tier3.checked = current.tier3Enabled;
+  verboseConsole.checked = current.verboseConsoleEnabled;
   maxEvents.value = String(current.maxEventsPerTab);
 
   tier2.addEventListener('change', () => {
@@ -558,6 +561,9 @@ async function initCapture(): Promise<void> {
   });
   tier3.addEventListener('change', () => {
     void writeCaptureSettings({ tier3Enabled: tier3.checked }).then(flashCapture);
+  });
+  verboseConsole.addEventListener('change', () => {
+    void writeCaptureSettings({ verboseConsoleEnabled: verboseConsole.checked }).then(flashCapture);
   });
   maxEvents.addEventListener('change', () => {
     const v = Number(maxEvents.value) as MaxEventsPerTab;

@@ -119,6 +119,10 @@ const en = {
   'settings.capture.tier3.hint':
     'Performance long tasks (>100 ms) and layout shifts. Screenshots on error stay on regardless of this toggle.',
   'settings.capture.tier3.toggle': 'Capture performance long tasks + layout shifts',
+  'settings.capture.verboseConsole.heading': 'Verbose console logs',
+  'settings.capture.verboseConsole.hint':
+    'Also capture console.log and console.debug, not just errors and warnings. Off by default — logs are high-volume and can crowd out failed requests in the buffer. Messages are masked and capped at 8 KB.',
+  'settings.capture.verboseConsole.toggle': 'Capture console.log + console.debug',
   'settings.capture.buffer.heading': 'Per-tab buffer',
   'settings.capture.buffer.hint':
     'Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move to a 7-day archive (read-only until M3 ships the side panel).',
@@ -475,6 +479,10 @@ const tr = {
   'settings.capture.tier3.hint':
     'Performans long task’ları (>100 ms) ve layout shift’ler. Hata anında ekran görüntüsü bu anahtardan bağımsız olarak açık kalır.',
   'settings.capture.tier3.toggle': 'Performans long task ve layout shift’leri yakala',
+  'settings.capture.verboseConsole.heading': 'Ayrıntılı konsol logları',
+  'settings.capture.verboseConsole.hint':
+    'Yalnızca hata ve uyarıları değil, console.log ve console.debug’ı da yakala. Varsayılan kapalı — loglar çok yoğundur ve tamponda başarısız isteklerin yerini alabilir. Mesajlar maskelenir ve 8 KB ile sınırlanır.',
+  'settings.capture.verboseConsole.toggle': 'console.log + console.debug yakala',
   'settings.capture.buffer.heading': 'Sekme başına tampon',
   'settings.capture.buffer.hint':
     'Döngüsel FIFO tampon. Dolduğunda en eski olay yer açmak için düşürülür. Kapatılan sekmeler 7 günlük arşive taşınır (yan panel M3 ile gelene kadar salt okunur).',

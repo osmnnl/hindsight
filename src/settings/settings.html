@@ -210,6 +210,21 @@
           </div>
 
           <div class="subsection">
+            <h3 data-i18n="settings.capture.verboseConsole.heading">Verbose console logs</h3>
+            <p class="hint" data-i18n="settings.capture.verboseConsole.hint">
+              Also capture console.log and console.debug, not just errors and warnings. Off by
+              default — logs are high-volume and can crowd out failed requests in the buffer.
+              Messages are masked and capped at 8 KB.
+            </p>
+            <label class="scope-check">
+              <input type="checkbox" id="verbose-console-toggle" />
+              <span data-i18n="settings.capture.verboseConsole.toggle">
+                Capture console.log + console.debug
+              </span>
+            </label>
+          </div>
+
+          <div class="subsection">
             <h3 data-i18n="settings.capture.buffer.heading">Per-tab buffer</h3>
             <p class="hint" data-i18n="settings.capture.buffer.hint">
               Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move
