@@ -12,6 +12,7 @@ import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
 import type { CapturedEvent } from '@/types/events';
 import { isErrorEvent, isFailedNetwork } from '@/types/events';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
+import { openCapturePanel } from '@/lib/panel';
 import { generateBundle } from '@/lib/replay-bundle';
 import type {
   ClearEventsRuntimeMessage,
@@ -239,7 +240,7 @@ async function openSidePanel(opts: {
     }
   }
   try {
-    await chrome.sidePanel.open({ tabId: activeTabId });
+    await openCapturePanel(activeTabId);
   } catch {
     /* may fail if user gesture expired */
   }
