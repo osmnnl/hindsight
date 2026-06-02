@@ -87,9 +87,12 @@ import type {
   console.warn = wrapConsoleMethod('console.warn', console.warn, 'warn');
   console.info = wrapConsoleMethod('console.info', console.info, 'info');
   // Verbose levels — always posted from page-world; the service worker
-  // drops them unless CaptureSettings.verboseConsoleEnabled is on.
+  // drops them unless CaptureSettings.verboseConsoleEnabled is on. We're
+  // intentionally wrapping console.log / console.debug to capture them.
+  /* eslint-disable no-console -- wrapping these methods is the whole point */
   console.log = wrapConsoleMethod('console.log', console.log, 'log');
   console.debug = wrapConsoleMethod('console.debug', console.debug, 'debug');
+  /* eslint-enable no-console */
 
   function wrapConsoleMethod(
     eventType: 'console.error' | 'console.warn' | 'console.info' | 'console.log' | 'console.debug',
