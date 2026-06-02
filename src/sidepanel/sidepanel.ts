@@ -1273,6 +1273,17 @@ function formatRow(e: CapturedEvent): {
       duration: '',
     };
   }
+  if (e.type === 'console.log' || e.type === 'console.debug') {
+    return {
+      className: 'log',
+      statusBadge: e.type === 'console.debug' ? 'DBG' : 'LOG',
+      method: 'LOG',
+      urlText: e.data.message,
+      urlTitle: e.data.message,
+      timestamp: e.timestamp,
+      duration: '',
+    };
+  }
   if (e.type === 'action.click') {
     const name = e.data.target.accessibleName ?? e.data.target.tag.toLowerCase();
     return {
@@ -1860,7 +1871,9 @@ function renderSimpleDetailBody(e: CapturedEvent): string {
     e.type === 'console.error' ||
     e.type === 'console.unhandled' ||
     e.type === 'console.warn' ||
-    e.type === 'console.info'
+    e.type === 'console.info' ||
+    e.type === 'console.log' ||
+    e.type === 'console.debug'
   ) {
     const source = e.data.source
       ? `<div class="hint">${escapeHtml(e.data.source.file)}:${e.data.source.line}${e.data.source.column != null ? ':' + e.data.source.column : ''}</div>`

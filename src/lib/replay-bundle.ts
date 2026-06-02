@@ -462,7 +462,7 @@ const VIEWER_JS = `
       lines.push('<h3>Response</h3><pre>' + esc(e.data.response.status + ' ' + e.data.response.statusText + ' · ' + e.data.timing.durationMs + 'ms') + '</pre>');
       lines.push('<h3>Response headers</h3><pre>' + esc(JSON.stringify(e.data.response.headers, null, 2)) + '</pre>');
       if (e.data.response.body) lines.push('<h3>Response body</h3><pre>' + esc(e.data.response.body) + '</pre>');
-    } else if (e.type === 'console.error' || e.type === 'console.unhandled' || e.type === 'console.warn' || e.type === 'console.info') {
+    } else if (e.type === 'console.error' || e.type === 'console.unhandled' || e.type === 'console.warn' || e.type === 'console.info' || e.type === 'console.log' || e.type === 'console.debug') {
       lines.push('<h3>Message</h3><pre>' + esc(e.data.message) + '</pre>');
       if (e.data.source) {
         lines.push('<p class="source-hint">' + esc(e.data.source.file + ':' + e.data.source.line + (e.data.source.column != null ? ':' + e.data.source.column : '')) + '</p>');
