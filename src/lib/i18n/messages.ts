@@ -122,7 +122,8 @@ const en = {
   'settings.capture.categories.heading': 'Show in side panel',
   'settings.capture.categories.hint':
     'Default event categories shown in the side panel. A side panel can override this per-tab; this is the starting point for newly-opened panels.',
-  'settings.capture.categories.network': 'Network requests',
+  'settings.capture.categories.network': 'HTTP requests (fetch / XHR)',
+  'settings.capture.categories.realtime': 'WebSocket / SSE',
   'settings.capture.categories.console': 'Console (errors, warnings, info)',
   'settings.capture.categories.navigation': 'Navigations',
   'settings.capture.categories.action': 'User actions (clicks, input, recording)',
@@ -488,7 +489,8 @@ const tr = {
   'settings.capture.categories.heading': 'Yan panelde göster',
   'settings.capture.categories.hint':
     'Yan panelde varsayılan olarak gösterilecek olay kategorileri. Bir yan panel bunu sekmeye özel olarak geçersiz kılabilir; bu, yeni açılan paneller için başlangıç noktasıdır.',
-  'settings.capture.categories.network': 'Ağ istekleri',
+  'settings.capture.categories.network': 'HTTP istekleri (fetch / XHR)',
+  'settings.capture.categories.realtime': 'WebSocket / SSE',
   'settings.capture.categories.console': 'Konsol (hata, uyarı, info)',
   'settings.capture.categories.navigation': 'Gezinmeler',
   'settings.capture.categories.action': 'Kullanıcı aksiyonları (tık, giriş, kayıt)',

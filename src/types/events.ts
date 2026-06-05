@@ -480,6 +480,7 @@ export function isApiRequest(e: CapturedEvent): boolean {
 
 export type EventCategory =
   | 'network'
+  | 'realtime'
   | 'console'
   | 'navigation'
   | 'action'
@@ -490,6 +491,7 @@ export type EventCategory =
  *  everything" selection). */
 export const EVENT_CATEGORIES: readonly EventCategory[] = [
   'network',
+  'realtime',
   'console',
   'navigation',
   'action',
@@ -497,16 +499,19 @@ export const EVENT_CATEGORIES: readonly EventCategory[] = [
   'screenshot',
 ] as const;
 
-/** Map an event to its coarse category. Recording-mode extras (cursor,
- *  mutation, recording.start/stop) ride along with `action` since they're
- *  all user-activity / recording-session events. */
+/** Map an event to its coarse category. HTTP request/response events
+ *  (fetch, XHR — the ones with status codes) are `network`; persistent /
+ *  streaming connections (WebSocket, SSE) are `realtime`. Recording-mode
+ *  extras (cursor, mutation, recording.start/stop) ride along with
+ *  `action` since they're all user-activity / recording-session events. */
 export function categoryOf(e: CapturedEvent): EventCategory {
   switch (e.type) {
     case 'network.fetch':
     case 'network.xhr':
+      return 'network';
     case 'network.websocket':
     case 'network.sse':
-      return 'network';
+      return 'realtime';
     case 'console.error':
     case 'console.warn':
     case 'console.info':

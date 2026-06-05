@@ -179,8 +179,8 @@ describe('categoryOf', () => {
   const cases: Array<[CapturedEvent['type'], EventCategory]> = [
     ['network.fetch', 'network'],
     ['network.xhr', 'network'],
-    ['network.websocket', 'network'],
-    ['network.sse', 'network'],
+    ['network.websocket', 'realtime'],
+    ['network.sse', 'realtime'],
     ['console.error', 'console'],
     ['console.warn', 'console'],
     ['console.info', 'console'],
