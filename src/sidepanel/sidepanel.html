@@ -51,6 +51,59 @@
           >
             All
           </button>
+          <div class="category-filter">
+            <button
+              id="category-filter-btn"
+              class="ghost"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              data-i18n-attr="title:sidepanel.categories.title"
+            >
+              ⚑
+            </button>
+            <div id="category-popover" class="category-popover hidden" role="menu">
+              <div class="category-popover-title" data-i18n="sidepanel.categories.title">
+                Show categories
+              </div>
+              <label class="cat-check"
+                ><input type="checkbox" data-category="network" />
+                <span data-i18n="settings.capture.categories.network"
+                  >HTTP requests (fetch / XHR)</span
+                ></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="realtime" />
+                <span data-i18n="settings.capture.categories.realtime">WebSocket / SSE</span></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="console" />
+                <span data-i18n="settings.capture.categories.console"
+                  >Console (errors, warnings, info)</span
+                ></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="navigation" />
+                <span data-i18n="settings.capture.categories.navigation">Navigations</span></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="action" />
+                <span data-i18n="settings.capture.categories.action"
+                  >User actions (clicks, input, recording)</span
+                ></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="performance" />
+                <span data-i18n="settings.capture.categories.performance"
+                  >Performance (long tasks, layout shifts)</span
+                ></label
+              >
+              <label class="cat-check"
+                ><input type="checkbox" data-category="screenshot" />
+                <span data-i18n="settings.capture.categories.screenshot">Screenshots</span></label
+              >
+            </div>
+          </div>
           <button
             id="record-toggle"
             class="ghost"

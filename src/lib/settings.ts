@@ -14,6 +14,7 @@
 // / Detection / Sharing / Advanced sprouts as those UIs land.
 
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/types';
+import { EVENT_CATEGORIES, type EventCategory } from '@/types/events';
 import type { RuleScope } from '@/lib/masking';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,11 @@ export interface CaptureSettings {
    *  stays on regardless — OQ-M3-J: screenshot is essential triage
    *  data, not a performance-observer artifact. */
   tier3Enabled: boolean;
+  /** Global default for the side panel's show / hide category filter.
+   *  A newly-opened side panel starts with these categories visible; the
+   *  user can then override per-tab (that override lives in session
+   *  storage, not here). Defaults to every category. */
+  visibleCategories: EventCategory[];
   /** Per-tab rolling buffer cap. */
   maxEventsPerTab: MaxEventsPerTab;
   schemaVersion: number;
@@ -112,6 +118,7 @@ export interface CaptureSettings {
 export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
   tier2Enabled: true,
   tier3Enabled: true,
+  visibleCategories: [...EVENT_CATEGORIES],
   maxEventsPerTab: 200,
   schemaVersion: SETTINGS_SCHEMA_VERSION,
 };

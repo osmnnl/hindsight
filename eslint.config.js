@@ -7,7 +7,13 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'network-capture-extension/**', '.husky/**'],
+    ignores: [
+      'dist/**',
+      'dist-firefox/**',
+      'node_modules/**',
+      'network-capture-extension/**',
+      '.husky/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
