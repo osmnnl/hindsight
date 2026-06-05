@@ -210,6 +210,46 @@
           </div>
 
           <div class="subsection">
+            <h3 data-i18n="settings.capture.categories.heading">Show in side panel</h3>
+            <p class="hint" data-i18n="settings.capture.categories.hint">
+              Default event categories shown in the side panel. A side panel can override this
+              per-tab; this is the starting point for newly-opened panels.
+            </p>
+            <div id="category-defaults">
+              <label class="scope-check">
+                <input type="checkbox" data-category="network" />
+                <span data-i18n="settings.capture.categories.network">Network requests</span>
+              </label>
+              <label class="scope-check">
+                <input type="checkbox" data-category="console" />
+                <span data-i18n="settings.capture.categories.console"
+                  >Console (errors, warnings, info)</span
+                >
+              </label>
+              <label class="scope-check">
+                <input type="checkbox" data-category="navigation" />
+                <span data-i18n="settings.capture.categories.navigation">Navigations</span>
+              </label>
+              <label class="scope-check">
+                <input type="checkbox" data-category="action" />
+                <span data-i18n="settings.capture.categories.action"
+                  >User actions (clicks, input, recording)</span
+                >
+              </label>
+              <label class="scope-check">
+                <input type="checkbox" data-category="performance" />
+                <span data-i18n="settings.capture.categories.performance"
+                  >Performance (long tasks, layout shifts)</span
+                >
+              </label>
+              <label class="scope-check">
+                <input type="checkbox" data-category="screenshot" />
+                <span data-i18n="settings.capture.categories.screenshot">Screenshots</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="subsection">
             <h3 data-i18n="settings.capture.buffer.heading">Per-tab buffer</h3>
             <p class="hint" data-i18n="settings.capture.buffer.hint">
               Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move
