@@ -473,6 +473,65 @@ export function isApiRequest(e: CapturedEvent): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Coarse event categories — the side panel + settings "show / hide" filter
+// (multi-select). Every EventType maps to exactly one category so nothing
+// falls through the filter.
+// ---------------------------------------------------------------------------
+
+export type EventCategory =
+  | 'network'
+  | 'console'
+  | 'navigation'
+  | 'action'
+  | 'performance'
+  | 'screenshot';
+
+/** Display order + the canonical full set (used as the default "show
+ *  everything" selection). */
+export const EVENT_CATEGORIES: readonly EventCategory[] = [
+  'network',
+  'console',
+  'navigation',
+  'action',
+  'performance',
+  'screenshot',
+] as const;
+
+/** Map an event to its coarse category. Recording-mode extras (cursor,
+ *  mutation, recording.start/stop) ride along with `action` since they're
+ *  all user-activity / recording-session events. */
+export function categoryOf(e: CapturedEvent): EventCategory {
+  switch (e.type) {
+    case 'network.fetch':
+    case 'network.xhr':
+    case 'network.websocket':
+    case 'network.sse':
+      return 'network';
+    case 'console.error':
+    case 'console.warn':
+    case 'console.info':
+    case 'console.unhandled':
+      return 'console';
+    case 'navigation':
+      return 'navigation';
+    case 'action.click':
+    case 'action.input':
+    case 'action.scroll':
+    case 'action.focus':
+    case 'cursor':
+    case 'mutation':
+    case 'recording.start':
+    case 'recording.stop':
+      return 'action';
+    case 'performance.longtask':
+    case 'performance.cls':
+      return 'performance';
+    case 'screenshot':
+      return 'screenshot';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Session envelope
 // ---------------------------------------------------------------------------
 

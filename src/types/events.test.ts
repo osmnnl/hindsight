@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CapturedEvent, NetworkFetchEvent } from './events';
-import { isApiRequest } from './events';
+import type { CapturedEvent, EventCategory, NetworkFetchEvent } from './events';
+import { EVENT_CATEGORIES, categoryOf, isApiRequest } from './events';
 
 const BASE_TS = Date.UTC(2026, 4, 21, 14, 0, 0);
 
@@ -158,5 +158,49 @@ describe('isApiRequest', () => {
 
   it('rejects an .map sourcemap fetch', () => {
     expect(isApiRequest(fetchEvt('https://cdn.example.com/bundle.js.map'))).toBe(false);
+  });
+});
+
+describe('categoryOf', () => {
+  function ev(type: CapturedEvent['type']): CapturedEvent {
+    // categoryOf only reads `type`; the rest is filler.
+    return {
+      id: 'x',
+      timestamp: BASE_TS,
+      sessionId: 's',
+      sequenceNumber: 1,
+      tabId: 1,
+      url: 'https://app.example.com/',
+      type,
+      data: {},
+    } as unknown as CapturedEvent;
+  }
+
+  const cases: Array<[CapturedEvent['type'], EventCategory]> = [
+    ['network.fetch', 'network'],
+    ['network.xhr', 'network'],
+    ['network.websocket', 'network'],
+    ['network.sse', 'network'],
+    ['console.error', 'console'],
+    ['console.warn', 'console'],
+    ['console.info', 'console'],
+    ['console.unhandled', 'console'],
+    ['navigation', 'navigation'],
+    ['action.click', 'action'],
+    ['action.input', 'action'],
+    ['action.scroll', 'action'],
+    ['action.focus', 'action'],
+    ['cursor', 'action'],
+    ['mutation', 'action'],
+    ['recording.start', 'action'],
+    ['recording.stop', 'action'],
+    ['performance.longtask', 'performance'],
+    ['performance.cls', 'performance'],
+    ['screenshot', 'screenshot'],
+  ];
+
+  it.each(cases)('maps %s -> %s', (type, expected) => {
+    expect(categoryOf(ev(type))).toBe(expected);
+    expect(EVENT_CATEGORIES).toContain(expected);
   });
 });
