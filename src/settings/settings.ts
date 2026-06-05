@@ -29,6 +29,7 @@ import {
   type SharingSettings,
   type ThemePreference,
 } from '@/lib/settings';
+import { EVENT_CATEGORIES, type EventCategory } from '@/types/events';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 const SAVE_FLASH_MS = 1400;
@@ -559,6 +560,24 @@ async function initCapture(): Promise<void> {
   tier3.addEventListener('change', () => {
     void writeCaptureSettings({ tier3Enabled: tier3.checked }).then(flashCapture);
   });
+
+  // Category defaults — the show/hide set a newly-opened side panel starts with.
+  const categoryBoxes = Array.from(
+    document.querySelectorAll<HTMLInputElement>('#category-defaults input[data-category]')
+  );
+  const visible = new Set(current.visibleCategories);
+  for (const box of categoryBoxes) {
+    box.checked = visible.has(box.dataset.category as EventCategory);
+    box.addEventListener('change', () => {
+      const selected = categoryBoxes
+        .filter((b) => b.checked)
+        .map((b) => b.dataset.category as EventCategory)
+        // Keep canonical order so storage stays stable.
+        .filter((c) => EVENT_CATEGORIES.includes(c));
+      void writeCaptureSettings({ visibleCategories: selected }).then(flashCapture);
+    });
+  }
+
   maxEvents.addEventListener('change', () => {
     const v = Number(maxEvents.value) as MaxEventsPerTab;
     void writeCaptureSettings({ maxEventsPerTab: v }).then(flashCapture);

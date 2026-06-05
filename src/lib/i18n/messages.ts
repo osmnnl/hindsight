@@ -119,6 +119,16 @@ const en = {
   'settings.capture.tier3.hint':
     'Performance long tasks (>100 ms) and layout shifts. Screenshots on error stay on regardless of this toggle.',
   'settings.capture.tier3.toggle': 'Capture performance long tasks + layout shifts',
+  'settings.capture.categories.heading': 'Show in side panel',
+  'settings.capture.categories.hint':
+    'Default event categories shown in the side panel. A side panel can override this per-tab; this is the starting point for newly-opened panels.',
+  'settings.capture.categories.network': 'HTTP requests (fetch / XHR)',
+  'settings.capture.categories.realtime': 'WebSocket / SSE',
+  'settings.capture.categories.console': 'Console (errors, warnings, info)',
+  'settings.capture.categories.navigation': 'Navigations',
+  'settings.capture.categories.action': 'User actions (clicks, input, recording)',
+  'settings.capture.categories.performance': 'Performance (long tasks, layout shifts)',
+  'settings.capture.categories.screenshot': 'Screenshots',
   'settings.capture.buffer.heading': 'Per-tab buffer',
   'settings.capture.buffer.hint':
     'Rolling FIFO buffer. When full, the oldest event drops to make room. Closed tabs move to a 7-day archive (read-only until M3 ships the side panel).',
@@ -238,6 +248,7 @@ const en = {
     'Hide static assets and framework internals — show only API/data fetches',
   'sidepanel.filter.all': 'All',
   'sidepanel.filter.all.title': 'Show every captured event',
+  'sidepanel.categories.title': 'Show categories (this tab only)',
   'sidepanel.detailSearch.placeholder': 'Find in detail…',
   'sidepanel.detailSearch.prev': 'Previous match',
   'sidepanel.detailSearch.next': 'Next match',
@@ -478,6 +489,16 @@ const tr = {
   'settings.capture.tier3.hint':
     'Performans long task’ları (>100 ms) ve layout shift’ler. Hata anında ekran görüntüsü bu anahtardan bağımsız olarak açık kalır.',
   'settings.capture.tier3.toggle': 'Performans long task ve layout shift’leri yakala',
+  'settings.capture.categories.heading': 'Yan panelde göster',
+  'settings.capture.categories.hint':
+    'Yan panelde varsayılan olarak gösterilecek olay kategorileri. Bir yan panel bunu sekmeye özel olarak geçersiz kılabilir; bu, yeni açılan paneller için başlangıç noktasıdır.',
+  'settings.capture.categories.network': 'HTTP istekleri (fetch / XHR)',
+  'settings.capture.categories.realtime': 'WebSocket / SSE',
+  'settings.capture.categories.console': 'Konsol (hata, uyarı, info)',
+  'settings.capture.categories.navigation': 'Gezinmeler',
+  'settings.capture.categories.action': 'Kullanıcı aksiyonları (tık, giriş, kayıt)',
+  'settings.capture.categories.performance': 'Performans (long task, layout shift)',
+  'settings.capture.categories.screenshot': 'Ekran görüntüleri',
   'settings.capture.buffer.heading': 'Sekme başına tampon',
   'settings.capture.buffer.hint':
     'Döngüsel FIFO tampon. Dolduğunda en eski olay yer açmak için düşürülür. Kapatılan sekmeler 7 günlük arşive taşınır (yan panel M3 ile gelene kadar salt okunur).',
@@ -597,6 +618,7 @@ const tr = {
     'Statik varlıkları ve framework içeriklerini gizle — sadece API/veri çağrılarını göster',
   'sidepanel.filter.all': 'Hepsi',
   'sidepanel.filter.all.title': 'Yakalanan tüm olayları göster',
+  'sidepanel.categories.title': 'Kategorileri göster (yalnızca bu sekme)',
   'sidepanel.detailSearch.placeholder': 'Detayda ara…',
   'sidepanel.detailSearch.prev': 'Önceki eşleşme',
   'sidepanel.detailSearch.next': 'Sonraki eşleşme',

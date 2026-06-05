@@ -13,7 +13,14 @@ import type {
   NetworkXhrEvent,
   Redaction,
 } from '@/types/events';
-import { isApiRequest, isErrorEvent, isFailedNetwork } from '@/types/events';
+import {
+  categoryOf,
+  EVENT_CATEGORIES,
+  isApiRequest,
+  isErrorEvent,
+  isFailedNetwork,
+  type EventCategory,
+} from '@/types/events';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { toMarkdownReport } from '@/lib/formatters/markdown';
@@ -32,7 +39,7 @@ import {
   type RecordingState,
   type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { readSharingSettings, type SharingSettings } from '@/lib/settings';
+import { readCaptureSettings, readSharingSettings, type SharingSettings } from '@/lib/settings';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 import { buildZip, type ZipEntry } from '@/lib/zip';
 
@@ -56,6 +63,13 @@ interface UiState {
 }
 
 const UI_STATE_KEY = 'sidepanel/ui-state';
+
+// Per-tab category-filter overrides live in session storage (ephemeral,
+// auto-cleared on browser close) keyed by tabId. The global default lives
+// in CaptureSettings.visibleCategories; a tab only gets an entry here once
+// the user changes the filter in that tab's side panel.
+const CATEGORY_OVERRIDES_KEY = 'sidepanel/category-overrides';
+type CategoryOverrides = Record<number, EventCategory[]>;
 
 /** Page-URL host for non-network events, request-URL host for network.
  *  Lets the host picker filter both 3rd-party analytics requests and
@@ -101,6 +115,11 @@ function filteredEvents(
   if (mode === 'failed') out = all.filter(isErrorEvent);
   else if (mode === 'api') out = all.filter(isApiRequest);
   else out = all;
+  // Category show/hide layer (AND with mode). Skip the work when every
+  // category is visible — the common default.
+  if (visibleCategories.size < EVENT_CATEGORIES.length) {
+    out = out.filter((e) => visibleCategories.has(categoryOf(e)));
+  }
   if (host) out = out.filter((e) => eventHost(e) === host);
   const q = query.trim().toLowerCase();
   if (q) {
@@ -327,6 +346,9 @@ async function writeTextAndImage(
 let tabId: number | undefined;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
+// Which coarse categories to show. Layered on top of filterMode (AND).
+// Starts as "everything"; loaded per-tab / from settings on init.
+let visibleCategories = new Set<EventCategory>(EVENT_CATEGORIES);
 let activeHost: string | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -360,6 +382,119 @@ function persistUiState(): void {
   }, 200);
 }
 
+/** Resolve the effective category set for this tab: a per-tab session
+ *  override if one exists, otherwise the global default from settings.
+ *  Falls back to "show everything" if anything goes wrong. */
+async function loadCategoryFilter(): Promise<void> {
+  try {
+    if (tabId != null) {
+      const stored = await chrome.storage.session.get(CATEGORY_OVERRIDES_KEY);
+      const overrides = (stored[CATEGORY_OVERRIDES_KEY] as CategoryOverrides | undefined) ?? {};
+      const tabOverride = overrides[tabId];
+      if (Array.isArray(tabOverride)) {
+        visibleCategories = sanitizeCategories(tabOverride);
+        return;
+      }
+    }
+    const capture = await readCaptureSettings();
+    visibleCategories = sanitizeCategories(capture.visibleCategories);
+  } catch {
+    visibleCategories = new Set(EVENT_CATEGORIES);
+  }
+}
+
+/** Keep only known categories; empty / all-invalid falls back to the full
+ *  set so the user is never stuck with a blank panel. */
+function sanitizeCategories(list: readonly string[]): Set<EventCategory> {
+  const valid = list.filter((c): c is EventCategory =>
+    (EVENT_CATEGORIES as readonly string[]).includes(c)
+  );
+  return valid.length > 0 ? new Set(valid) : new Set(EVENT_CATEGORIES);
+}
+
+/** Apply a new category set: re-render and persist it as this tab's
+ *  per-tab override in session storage (does NOT touch the global
+ *  settings default). */
+function setCategories(next: Set<EventCategory>): void {
+  visibleCategories = next;
+  syncCategoryUi();
+  invalidateRenderCache();
+  render();
+  if (tabId == null) return;
+  const id = tabId;
+  void (async () => {
+    try {
+      const stored = await chrome.storage.session.get(CATEGORY_OVERRIDES_KEY);
+      const overrides = (stored[CATEGORY_OVERRIDES_KEY] as CategoryOverrides | undefined) ?? {};
+      overrides[id] = EVENT_CATEGORIES.filter((c) => next.has(c));
+      await chrome.storage.session.set({ [CATEGORY_OVERRIDES_KEY]: overrides });
+    } catch {
+      /* per-tab persistence is best-effort */
+    }
+  })();
+}
+
+/** One-time wiring for the category filter popover: open/close + checkbox
+ *  changes. */
+function wireCategoryPopover(): void {
+  const btn = document.getElementById('category-filter-btn');
+  const popover = document.getElementById('category-popover');
+  if (!btn || !popover) return;
+
+  const close = (): void => {
+    popover.classList.add('hidden');
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  const toggle = (): void => {
+    const willOpen = popover.classList.contains('hidden');
+    popover.classList.toggle('hidden', !willOpen);
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggle();
+  });
+  // Click-away + Escape close the popover.
+  document.addEventListener('click', (e) => {
+    if (!popover.classList.contains('hidden') && !popover.contains(e.target as Node)) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+  });
+
+  popover.querySelectorAll<HTMLInputElement>('input[data-category]').forEach((box) => {
+    box.addEventListener('change', () => {
+      const next = new Set<EventCategory>();
+      popover.querySelectorAll<HTMLInputElement>('input[data-category]').forEach((b) => {
+        if (b.checked) next.add(b.dataset.category as EventCategory);
+      });
+      setCategories(next);
+    });
+  });
+}
+
+/** Reflect visibleCategories onto the popover checkboxes + the filter
+ *  button's "modified" indicator. */
+function syncCategoryUi(): void {
+  document
+    .querySelectorAll<HTMLInputElement>('#category-popover input[data-category]')
+    .forEach((box) => {
+      box.checked = visibleCategories.has(box.dataset.category as EventCategory);
+    });
+  const btn = document.getElementById('category-filter-btn');
+  if (btn) {
+    const filtered = visibleCategories.size < EVENT_CATEGORIES.length;
+    btn.classList.toggle('active', filtered);
+    btn.setAttribute(
+      'aria-label',
+      filtered
+        ? `${t('sidepanel.categories.title')} (${visibleCategories.size}/${EVENT_CATEGORIES.length})`
+        : t('sidepanel.categories.title')
+    );
+  }
+}
+
 void init();
 
 async function init(): Promise<void> {
@@ -380,6 +515,9 @@ async function init(): Promise<void> {
 
   await loadUiState();
   syncFilterChipsToState();
+  await loadCategoryFilter();
+  syncCategoryUi();
+  wireCategoryPopover();
 
   document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
