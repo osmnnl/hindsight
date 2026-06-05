@@ -1863,6 +1863,140 @@ function enhanceDetailView(detail: HTMLElement): void {
   // 3 — let the last section fill remaining height.
   const last = sections[sections.length - 1];
   if (last) last.classList.add('section-grow');
+
+  // 4 — in-detail find (highlight + jump).
+  wireDetailSearch(detail);
+}
+
+/** Wrap every case-insensitive match of `query` in <mark class="search-hit">,
+ *  walking text nodes (skipping the search bar + existing marks). Returns the
+ *  marks in document order. */
+function highlightInDetail(container: HTMLElement, query: string): HTMLElement[] {
+  clearDetailHighlights(container);
+  const hits: HTMLElement[] = [];
+  if (!query) return hits;
+  const needle = query.toLowerCase();
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!node.nodeValue || !parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('.detail-search')) return NodeFilter.FILTER_REJECT;
+      if (parent.tagName === 'MARK' || parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE') {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return node.nodeValue.toLowerCase().includes(needle)
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  for (const tn of textNodes) {
+    const text = tn.nodeValue ?? '';
+    const lower = text.toLowerCase();
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    let idx = lower.indexOf(needle);
+    while (idx >= 0) {
+      if (idx > pos) frag.appendChild(document.createTextNode(text.slice(pos, idx)));
+      const mark = document.createElement('mark');
+      mark.className = 'search-hit';
+      mark.textContent = text.slice(idx, idx + query.length);
+      frag.appendChild(mark);
+      hits.push(mark);
+      pos = idx + query.length;
+      idx = lower.indexOf(needle, pos);
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    tn.parentNode?.replaceChild(frag, tn);
+  }
+
+  // Reveal matches hidden inside collapsed sections / tree nodes.
+  for (const hit of hits) {
+    let el: HTMLElement | null = hit.parentElement;
+    while (el && el !== container) {
+      el.classList.remove('collapsed', 'jt-collapsed');
+      el = el.parentElement;
+    }
+  }
+  return hits;
+}
+
+/** Undo highlightInDetail: unwrap every mark and merge text nodes back. */
+function clearDetailHighlights(container: HTMLElement): void {
+  container.querySelectorAll('mark.search-hit').forEach((mark) => {
+    const parent = mark.parentNode;
+    if (!parent) return;
+    parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
+    parent.normalize();
+  });
+}
+
+/** Inject a "find in detail" bar into the sticky header and wire highlight +
+ *  prev/next navigation (Enter / Shift+Enter, ↑ / ↓ buttons). */
+function wireDetailSearch(detail: HTMLElement): void {
+  const top = detail.querySelector<HTMLElement>('.detail-top');
+  if (!top || top.querySelector('.detail-search')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'detail-search';
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.placeholder = t('sidepanel.detailSearch.placeholder');
+  const count = document.createElement('span');
+  count.className = 'search-count';
+  const prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'search-nav';
+  prev.textContent = '↑';
+  prev.setAttribute('aria-label', t('sidepanel.detailSearch.prev'));
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'search-nav';
+  next.textContent = '↓';
+  next.setAttribute('aria-label', t('sidepanel.detailSearch.next'));
+  bar.append(input, count, prev, next);
+  top.appendChild(bar);
+
+  let hits: HTMLElement[] = [];
+  let active = -1;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const setActive = (i: number): void => {
+    if (hits.length === 0) {
+      count.textContent = input.value.trim() ? '0/0' : '';
+      return;
+    }
+    hits[active]?.classList.remove('active');
+    active = ((i % hits.length) + hits.length) % hits.length;
+    const hit = hits[active];
+    if (hit) {
+      hit.classList.add('active');
+      hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    count.textContent = `${active + 1}/${hits.length}`;
+  };
+
+  const run = (): void => {
+    hits = highlightInDetail(detail, input.value.trim());
+    active = -1;
+    if (hits.length > 0) setActive(0);
+    else count.textContent = input.value.trim() ? '0/0' : '';
+  };
+
+  input.addEventListener('input', () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(run, 120);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setActive(active + (e.shiftKey ? -1 : 1));
+    }
+  });
+  prev.addEventListener('click', () => setActive(active - 1));
+  next.addEventListener('click', () => setActive(active + 1));
 }
 
 /** Detail view for non-network event families. Smaller surface than the
