@@ -20,6 +20,7 @@ import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
 import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
 import {
@@ -1820,6 +1821,50 @@ function showDetail(e: CapturedEvent): void {
   }
 }
 
+/**
+ * Post-process a freshly-rendered detail pane (called after innerHTML is
+ * set + existing listeners attached):
+ *   1. Replace each JSON <pre> with an interactive collapsible tree,
+ *      stashing the original text on the section for the copy button.
+ *   2. Make every section collapsible (header toggles its body).
+ *   3. Tag the last content section so it grows to fill the pane (no more
+ *      dead space below a short body).
+ */
+function enhanceDetailView(detail: HTMLElement): void {
+  // 1 — JSON <pre> → tree.
+  detail.querySelectorAll('pre').forEach((pre) => {
+    const text = pre.textContent ?? '';
+    if (!text.trim()) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return; // not JSON (HTML/plain text) — leave the <pre> as-is
+    }
+    if (parsed === null || typeof parsed !== 'object') return; // primitives read fine as text
+    const section = pre.closest('.section');
+    if (section instanceof HTMLElement) section.dataset.copyText = text;
+    const tree = buildJsonTree(parsed, { defaultExpandDepth: 2 });
+    pre.replaceWith(tree);
+  });
+
+  // 2 — collapsible sections.
+  const sections = detail.querySelectorAll<HTMLElement>('.section');
+  sections.forEach((section) => {
+    const head = section.querySelector<HTMLElement>('.section-head, h3');
+    if (!head) return;
+    section.classList.add('collapsible');
+    head.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-copy-section]')) return;
+      section.classList.toggle('collapsed');
+    });
+  });
+
+  // 3 — let the last section fill remaining height.
+  const last = sections[sections.length - 1];
+  if (last) last.classList.add('section-grow');
+}
+
 /** Detail view for non-network event families. Smaller surface than the
  *  network view (no Request/Response panels, no HAR/cURL) but still wired
  *  to the redactions panel and the bulk-bar restore on Back. */
@@ -1853,6 +1898,7 @@ function showSimpleDetail(e: CapturedEvent): void {
     if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
   });
   document.getElementById('bulk-bar')?.classList.add('hidden');
+  enhanceDetailView(detail);
 }
 
 function renderSimpleDetailBody(e: CapturedEvent): string {
@@ -2070,11 +2116,19 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   // copies exactly what they're looking at (headers / body) without scrolling
   // back up to the slice bar.
   detail.querySelectorAll<HTMLButtonElement>('[data-copy-section]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const pre = btn.closest('.section')?.querySelector('pre');
-      if (!pre) return;
+    btn.addEventListener('click', async (e) => {
+      // Don't let the click bubble to the (collapsible) section header.
+      e.stopPropagation();
+      const section = btn.closest('.section');
+      // enhanceDetailView() replaces a JSON <pre> with a tree and stashes
+      // the original text on the section; fall back to a live <pre>.
+      const text =
+        (section as HTMLElement | null)?.dataset.copyText ??
+        section?.querySelector('pre')?.textContent ??
+        '';
+      if (!text) return;
       try {
-        await navigator.clipboard.writeText(pre.textContent ?? '');
+        await navigator.clipboard.writeText(text);
         btn.classList.add('copied');
         btn.setAttribute('aria-label', 'Copied');
         setTimeout(() => {
@@ -2105,6 +2159,8 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       void replayRequest(c, btn);
     });
   });
+
+  enhanceDetailView(detail);
 }
 
 /** Methods that mutate server state — gated behind an explicit confirm()

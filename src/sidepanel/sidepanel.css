@@ -1224,6 +1224,127 @@ select:focus-visible {
   word-break: break-word;
 }
 
+/* ---------- collapsible detail sections ---------- */
+.section.collapsible > h3,
+.section.collapsible > .section-head {
+  cursor: pointer;
+  user-select: none;
+}
+.section.collapsible > h3::before,
+.section.collapsible > .section-head > h3::before {
+  content: '▾';
+  display: inline-block;
+  width: 12px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.section.collapsed > h3::before,
+.section.collapsed > .section-head > h3::before {
+  content: '▸';
+}
+.section.collapsed > pre,
+.section.collapsed > .json-tree {
+  display: none;
+}
+
+/* Last section grows to fill the pane — no dead space below a short body.
+   .detail is a flex column, so flex-grow distributes the slack. */
+.section.section-grow {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.section.section-grow > pre,
+.section.section-grow > .json-tree {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 120px;
+}
+.section.section-grow.collapsed {
+  flex: 0 0 auto;
+}
+
+/* ---------- interactive JSON tree (PRD §6.3 detail view) ---------- */
+.json-tree {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  max-height: 200px;
+  overflow: auto;
+}
+.jt-children {
+  padding-left: 12px;
+  margin-left: 4px;
+  border-left: 1px solid var(--border);
+}
+.jt-branch.jt-collapsed > .jt-children {
+  display: none;
+}
+.jt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.jt-branch > .jt-row {
+  cursor: pointer;
+}
+.jt-branch > .jt-row:hover {
+  background: var(--surface-2);
+  border-radius: 3px;
+}
+.jt-toggle,
+.jt-spacer {
+  display: inline-block;
+  width: 12px;
+  flex: none;
+  color: var(--muted);
+  font-size: 9px;
+}
+.jt-toggle::before {
+  content: '▾';
+}
+.jt-branch.jt-collapsed > .jt-row .jt-toggle::before {
+  content: '▸';
+}
+.jt-key {
+  color: var(--accent);
+}
+.jt-colon {
+  color: var(--muted);
+}
+.jt-preview {
+  color: var(--muted);
+  display: none;
+}
+.jt-branch.jt-collapsed > .jt-row .jt-preview {
+  display: inline;
+}
+.jt-value.jt-string {
+  color: var(--success);
+}
+.jt-value.jt-number {
+  color: var(--warn);
+}
+.jt-value.jt-boolean {
+  color: var(--accent);
+}
+.jt-value.jt-null {
+  color: var(--muted);
+}
+.jt-more {
+  color: var(--muted);
+  font-style: italic;
+  padding-left: 14px;
+}
+
 /* scrollbar tweak */
 ::-webkit-scrollbar {
   width: 8px;
