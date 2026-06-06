@@ -39,7 +39,12 @@ import {
   type RecordingState,
   type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { readCaptureSettings, readSharingSettings, type SharingSettings } from '@/lib/settings';
+import {
+  readCaptureSettings,
+  readSharingSettings,
+  writeGeneralSettings,
+  type SharingSettings,
+} from '@/lib/settings';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 import { buildZip, type ZipEntry } from '@/lib/zip';
 
@@ -497,11 +502,51 @@ function syncCategoryUi(): void {
 
 void init();
 
+/** True if the panel is currently showing the dark theme (explicit
+ *  [data-theme] wins; otherwise fall back to the OS preference). */
+function isShowingDark(): boolean {
+  const explicit = document.documentElement.dataset.theme;
+  if (explicit === 'dark') return true;
+  if (explicit === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Show the icon for the theme you'd switch TO: a sun while dark, a moon
+ *  while light. */
+function syncThemeToggleIcon(btn: HTMLElement): void {
+  const dark = isShowingDark();
+  btn.classList.toggle('show-sun', dark);
+  btn.classList.toggle('show-moon', !dark);
+}
+
+/** Quick light/dark switch in the side panel header. Writes to the shared
+ *  general settings so the choice persists and syncs to the popup +
+ *  settings page (via listenForThemeChanges). Always sets an explicit
+ *  theme — the Settings dropdown still offers "Match system". */
+function wireThemeToggle(): void {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  syncThemeToggleIcon(btn);
+  btn.addEventListener('click', () => {
+    const next = isShowingDark() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next); // instant feedback
+    syncThemeToggleIcon(btn);
+    void writeGeneralSettings({ theme: next }).catch(() => {});
+  });
+  // Stay in sync when the theme changes elsewhere (settings page edit, or
+  // listenForThemeChanges re-applying after a storage change).
+  new MutationObserver(() => syncThemeToggleIcon(btn)).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+}
+
 async function init(): Promise<void> {
   await initI18n();
   applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
+  wireThemeToggle();
   subscribeLocale(() => {
     applyI18nToDom();
     renderRecordingButton();
