@@ -108,6 +108,12 @@ body {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
+  /* backdrop-filter creates a stacking context; lift the whole bar (and
+     its category popover) above the scrubber / query bar below it. The
+     detail overlay sits higher still (see .detail) so it still covers the
+     bar when open. */
+  position: relative;
+  z-index: 30;
 }
 
 .brand {
@@ -130,6 +136,23 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* theme toggle — shows the icon for the theme you'd switch TO */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+.theme-toggle .ti {
+  display: none;
+}
+.theme-toggle.show-sun .ti-sun {
+  display: block;
+}
+.theme-toggle.show-moon .ti-moon {
+  display: block;
 }
 
 /* ---------- category show/hide filter ---------- */
@@ -898,6 +921,8 @@ select:focus-visible {
   padding: 0;
   display: flex;
   flex-direction: column;
+  /* Above the topbar (z-index 30) so the detail overlay covers it. */
+  z-index: 100;
 }
 .detail.hidden {
   display: none;
