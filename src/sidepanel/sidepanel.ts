@@ -344,6 +344,12 @@ async function writeTextAndImage(
 }
 
 let tabId: number | undefined;
+// The browser window this side panel belongs to. We only follow tab
+// activations within this window (each window has its own panel).
+let panelWindowId: number | undefined;
+// Bumped on every tab switch so a slow refresh from an earlier switch can
+// bail instead of rendering stale data.
+let switchSeq = 0;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
 // Which coarse categories to show. Layered on top of filterMode (AND).
@@ -512,6 +518,15 @@ async function init(): Promise<void> {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
+  panelWindowId = tab?.windowId;
+
+  // Follow the active tab (DevTools-style): when the user switches tabs in
+  // this window, re-point the panel at the new tab. Ignore activations in
+  // other windows — each window has its own panel.
+  chrome.tabs.onActivated.addListener((info) => {
+    if (panelWindowId != null && info.windowId !== panelWindowId) return;
+    void switchToTab(info.tabId);
+  });
 
   await loadUiState();
   syncFilterChipsToState();
@@ -816,6 +831,36 @@ function eventsSignature(list: CapturedEvent[]): string {
  *  those affect rendering without touching the events array. */
 function invalidateRenderCache(): void {
   lastEventsSignature = '';
+}
+
+/** Re-point the panel at a newly-activated tab and reload its data. The
+ *  side panel is a persistent page, so following the active tab is just
+ *  swapping the tab we read from — no reopen needed. */
+async function switchToTab(newTabId: number | undefined): Promise<void> {
+  if (newTabId == null || newTabId === tabId) return;
+  const seq = ++switchSeq;
+  tabId = newTabId;
+
+  // The open detail view belonged to the previous tab — drop back to the list.
+  const detail = document.getElementById('detail');
+  if (detail && !detail.classList.contains('hidden')) {
+    detail.classList.add('hidden');
+    detail.innerHTML = '';
+  }
+  // Host filter is origin-specific; reset it for the new tab (not persisted —
+  // the stored preference is only re-applied on an explicit pick).
+  activeHost = null;
+
+  // Per-tab category override (falls back to the global default).
+  await loadCategoryFilter();
+  if (seq !== switchSeq) return;
+  syncCategoryUi();
+
+  // Force a render even if the new tab's event count happens to match.
+  invalidateRenderCache();
+  await refresh();
+  if (seq !== switchSeq) return;
+  await refreshRecordingState();
 }
 
 async function refresh(): Promise<void> {
