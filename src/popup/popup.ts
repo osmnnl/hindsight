@@ -90,17 +90,19 @@ async function init(): Promise<void> {
 
   document.getElementById('clear-events')?.addEventListener('click', () => {
     if (activeTabId == null) return;
-    const ok = confirm(
-      latestEvents.length === 1
-        ? t('popup.confirmClearOne')
-        : t('popup.confirmClear', { n: latestEvents.length })
-    );
-    if (!ok) return;
-    const msg: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId: activeTabId };
-    void chrome.runtime.sendMessage(msg).then(() => {
-      latestEvents = [];
-      renderSummary([]);
-    });
+    void (async () => {
+      const ok = await inlineConfirm(
+        latestEvents.length === 1
+          ? t('popup.confirmClearOne')
+          : t('popup.confirmClear', { n: latestEvents.length })
+      );
+      if (!ok || activeTabId == null) return;
+      const msg: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId: activeTabId };
+      void chrome.runtime.sendMessage(msg).then(() => {
+        latestEvents = [];
+        renderSummary([]);
+      });
+    })();
   });
 
   if (activeTabId == null) return;
@@ -132,6 +134,59 @@ async function refresh(tabId: number): Promise<void> {
   }
   latestEvents = events;
   renderSummary(events);
+}
+
+/**
+ * In-popup confirmation overlay. Replaces window.confirm(), which Firefox
+ * renders as a detached/clipped native dialog over the browser-action popup
+ * (and can dismiss the popup). Resolves true on Confirm, false on Cancel /
+ * Esc / backdrop click. CSP-safe (createElement + textContent only).
+ */
+function inlineConfirm(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+
+    const card = document.createElement('div');
+    card.className = 'confirm-card';
+
+    const msg = document.createElement('p');
+    msg.className = 'confirm-msg';
+    msg.textContent = message;
+
+    const actions = document.createElement('div');
+    actions.className = 'confirm-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'confirm-cancel';
+    cancelBtn.textContent = t('common.cancel');
+
+    const okBtn = document.createElement('button');
+    okBtn.className = 'confirm-ok';
+    okBtn.textContent = t('common.confirm');
+
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') finish(false);
+    };
+    function finish(value: boolean): void {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(value);
+    }
+
+    cancelBtn.addEventListener('click', () => finish(false));
+    okBtn.addEventListener('click', () => finish(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish(false);
+    });
+    document.addEventListener('keydown', onKey);
+
+    actions.append(cancelBtn, okBtn);
+    card.append(msg, actions);
+    overlay.append(card);
+    (document.getElementById('app') ?? document.body).appendChild(overlay);
+    okBtn.focus();
+  });
 }
 
 function renderSummary(events: CapturedEvent[]): void {
@@ -354,7 +409,7 @@ async function renderQuickShare(): Promise<void> {
           : totalRedactions === 1
             ? t('popup.share.confirmMaskedOne')
             : t('popup.share.confirmMasked', { n: totalRedactions });
-      const confirmed = confirm(baseConfirm + maskNote);
+      const confirmed = await inlineConfirm(baseConfirm + maskNote);
       if (!confirmed) return;
       const original = btn.textContent ?? '';
       btn.disabled = true;

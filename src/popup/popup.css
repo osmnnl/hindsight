@@ -492,6 +492,88 @@ main {
   display: none;
 }
 
+/* ---------- in-popup confirm overlay (replaces window.confirm) ---------- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: confirm-in 0.16s var(--ease);
+}
+
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-card {
+  width: 100%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.confirm-msg {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirm-actions button {
+  border-radius: 999px;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  transition:
+    transform 0.1s var(--ease),
+    filter 0.18s var(--ease);
+}
+
+.confirm-actions button:active {
+  transform: scale(0.97);
+}
+
+.confirm-actions .confirm-ok {
+  background: var(--error);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.confirm-actions .confirm-ok:hover {
+  filter: brightness(1.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm-overlay {
+    animation: none;
+  }
+}
+
 /* A11y: respect reduced-motion — kill the pulse + near-zero transitions. */
 @media (prefers-reduced-motion: reduce) {
   .recording-dot {
