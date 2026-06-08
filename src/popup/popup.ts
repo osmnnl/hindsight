@@ -10,7 +10,7 @@
 
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
 import type { CapturedEvent } from '@/types/events';
-import { isErrorEvent, isFailedNetwork } from '@/types/events';
+import { isFailedNetwork } from '@/types/events';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { openCapturePanel } from '@/lib/panel';
 import { generateBundle } from '@/lib/replay-bundle';
@@ -138,7 +138,10 @@ function renderSummary(events: CapturedEvent[]): void {
   const totalEl = document.querySelector('.count-total strong');
   if (totalEl) totalEl.textContent = String(events.length);
 
-  const errors = events.filter(isErrorEvent);
+  // Popup quick-list focuses on failed network requests only — console /
+  // unhandled-error noise (white-screen heuristics etc.) lives in the side
+  // panel, not this at-a-glance view.
+  const errors = events.filter(isFailedNetwork);
   const errorsEl = document.querySelector<HTMLElement>('.count-errors');
   if (errorsEl) {
     if (errors.length === 0) {
@@ -229,6 +232,14 @@ async function openSidePanel(opts: {
   focusFailed?: boolean;
 }): Promise<void> {
   if (activeTabId == null) return;
+  // Open FIRST, before any await — Firefox's sidebarAction.open() (and
+  // Chrome's sidePanel.open()) must fire synchronously inside the click's
+  // user gesture; an awaited storage write beforehand consumes the gesture
+  // and the open is rejected. The focus keys are written after; the side
+  // panel reacts to them via storage.onChanged.
+  const opening = openCapturePanel(activeTabId).catch(() => {
+    /* may fail if user gesture expired */
+  });
   const writes: Record<string, unknown> = {};
   if (opts.focusEventId) writes[FOCUS_EVENT_KEY] = opts.focusEventId;
   if (opts.focusFailed) writes[FOCUS_FILTER_KEY] = 'failed';
@@ -239,11 +250,7 @@ async function openSidePanel(opts: {
       /* swallow */
     }
   }
-  try {
-    await openCapturePanel(activeTabId);
-  } catch {
-    /* may fail if user gesture expired */
-  }
+  await opening;
   window.close();
 }
 

@@ -50,17 +50,41 @@ function toFirefoxManifest(): ManifestV3Export {
 // Remove the Chrome-only side_panel key that we kept solely so crxjs would
 // bundle sidepanel.html. Runs after the build is written to disk, so it edits
 // the final emitted manifest regardless of crxjs's internal hook ordering.
-function dropSidePanelKey(outDir: string): Plugin {
+function firefoxManifestFixups(outDir: string): Plugin {
   return {
-    name: 'hindsight:firefox-drop-side-panel',
+    name: 'hindsight:firefox-manifest-fixups',
     apply: 'build',
     writeBundle() {
       const manifestPath = resolve(outDir, 'manifest.json');
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      let changed = false;
+
+      // 1. Drop the Chrome-only side_panel key (kept only so crxjs would
+      //    bundle sidepanel.html). Firefox ships sidebar_action instead.
       if (manifest.side_panel) {
         delete manifest.side_panel;
-        writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+        changed = true;
       }
+
+      // 2. Remove the world: "MAIN" content script. crxjs has already built
+      //    the interceptor chunk + listed it in web_accessible_resources;
+      //    the MAIN-world LOADER it generates uses a relative dynamic import
+      //    (`import("./interceptor…")`) that Firefox resolves against the
+      //    PAGE origin, not the extension, so the module 404s and capture
+      //    silently breaks. Instead the ISOLATED bridge injects the
+      //    interceptor via a moz-extension <script> (see bridge.ts), where
+      //    relative sub-imports resolve correctly.
+      if (Array.isArray(manifest.content_scripts)) {
+        const next = manifest.content_scripts.filter(
+          (cs: { world?: string }) => cs.world !== 'MAIN'
+        );
+        if (next.length !== manifest.content_scripts.length) {
+          manifest.content_scripts = next;
+          changed = true;
+        }
+      }
+
+      if (changed) writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     },
   };
 }
@@ -76,7 +100,7 @@ export default defineConfig(({ mode }) => {
         manifest: isFirefox ? toFirefoxManifest() : (baseManifest as ManifestV3Export),
         browser: isFirefox ? 'firefox' : 'chrome',
       }),
-      ...(isFirefox ? [dropSidePanelKey(outDir)] : []),
+      ...(isFirefox ? [firefoxManifestFixups(outDir)] : []),
     ],
     resolve: {
       alias: {

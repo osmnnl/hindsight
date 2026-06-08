@@ -472,7 +472,9 @@ main {
   padding-top: 10px;
   border-top: 1px solid var(--border);
   margin-top: 2px;
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .popup-footer a {
