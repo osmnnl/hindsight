@@ -10,7 +10,7 @@
 
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
 import type { CapturedEvent } from '@/types/events';
-import { isErrorEvent, isFailedNetwork } from '@/types/events';
+import { isFailedNetwork } from '@/types/events';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { openCapturePanel } from '@/lib/panel';
 import { generateBundle } from '@/lib/replay-bundle';
@@ -138,7 +138,10 @@ function renderSummary(events: CapturedEvent[]): void {
   const totalEl = document.querySelector('.count-total strong');
   if (totalEl) totalEl.textContent = String(events.length);
 
-  const errors = events.filter(isErrorEvent);
+  // Popup quick-list focuses on failed network requests only — console /
+  // unhandled-error noise (white-screen heuristics etc.) lives in the side
+  // panel, not this at-a-glance view.
+  const errors = events.filter(isFailedNetwork);
   const errorsEl = document.querySelector<HTMLElement>('.count-errors');
   if (errorsEl) {
     if (errors.length === 0) {
