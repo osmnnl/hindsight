@@ -1028,6 +1028,14 @@ chrome.commands?.onCommand?.addListener?.((command) => {
 });
 
 async function openSidePanelForActiveTab(): Promise<void> {
+  // Firefox: the sidebar is window-global and sidebarAction.open() must fire
+  // synchronously within the command's user gesture — open it before any
+  // await (no tab id needed).
+  if (!chrome.sidePanel?.open) {
+    await openCapturePanel(undefined);
+    return;
+  }
+  // Chrome: the side panel is per-tab, so we need the active tab id first.
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab?.id != null) {
     await openCapturePanel(tab.id);
