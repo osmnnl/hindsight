@@ -1057,6 +1057,49 @@ select:focus-visible {
   border-color: var(--success);
   color: #052013;
 }
+
+/* Masked-token chip: locked look + hover tooltip explaining how to unmask. */
+.slice-locked-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.copy-slices button.slice.slice-locked {
+  color: var(--muted);
+  border-style: dashed;
+  cursor: help;
+}
+.copy-slices button.slice.slice-locked:hover {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: transparent;
+}
+.slice-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 240px;
+  padding: 9px 11px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  font-size: 11.5px;
+  line-height: 1.45;
+  font-weight: 400;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity 0.16s var(--ease),
+    transform 0.16s var(--ease);
+}
+.slice-locked-wrap:hover .slice-tip,
+.slice-locked-wrap:focus-within .slice-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
 .copy-row button.warning:hover {
   background: rgba(245, 158, 11, 0.08);
 }
