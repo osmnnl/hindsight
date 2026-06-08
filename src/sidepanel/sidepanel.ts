@@ -26,7 +26,12 @@ import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/w
 import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
-import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import {
+  DEFAULT_BODY_RULES,
+  DEFAULT_FORM_RULES,
+  DEFAULT_HEADER_RULES,
+  MASKED,
+} from '@/lib/masking';
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
@@ -2356,6 +2361,10 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   const curlText = toCurl(c);
   const respText = c.data.response.body ?? '';
   const isOversize = bugReportText.length > SLACK_SAFE_THRESHOLD;
+  // When Authorization masking is on (the default), the stored token is
+  // ***MASKED*** — copying it is useless and misleading. Lock the Token
+  // chip and explain how to unmask instead of copying the placeholder.
+  const tokenMasked = extractAccessToken(c).includes(MASKED);
 
   detail.classList.remove('hidden');
   detail.innerHTML = `
@@ -2386,7 +2395,14 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-copy="response" class="slice" title="Response body · ${fmtSize(respText.length)}">Response</button>
       <button data-copy="req-resp" class="slice" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
       <button data-copy="curl" class="slice" title="cURL command · ${fmtSize(curlText.length)}">cURL</button>
-      <button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>
+      ${
+        tokenMasked
+          ? `<span class="slice-locked-wrap">
+        <button data-token-locked class="slice slice-locked" type="button" aria-label="${escapeHtml(t('sidepanel.token.lockedAria'))}">🔒 Token</button>
+        <span class="slice-tip" role="tooltip">${escapeHtml(t('sidepanel.token.lockedTip'))}</span>
+      </span>`
+          : `<button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>`
+      }
     </div>
     <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
@@ -2477,6 +2493,14 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   // Per-section copy — grabs the adjacent <pre> text verbatim so the user
   // copies exactly what they're looking at (headers / body) without scrolling
   // back up to the slice bar.
+  // Masked Token chip — never copies the ***MASKED*** placeholder; clicking
+  // opens Settings so the user can disable Authorization masking.
+  detail.querySelectorAll<HTMLButtonElement>('[data-token-locked]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      chrome.runtime.openOptionsPage?.();
+    });
+  });
+
   detail.querySelectorAll<HTMLButtonElement>('[data-copy-section]').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       // Don't let the click bubble to the (collapsible) section header.
