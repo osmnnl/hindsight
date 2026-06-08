@@ -132,6 +132,24 @@ body {
   flex: none;
 }
 
+/* tracked-tab host indicator — which tab the panel is currently reflecting */
+.tab-host {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-host.hidden {
+  display: none;
+}
+
 .filters {
   display: flex;
   align-items: center;
@@ -736,11 +754,11 @@ select:focus-visible {
   border-left: 2px solid var(--warn);
 }
 .item.flag-cascade {
-  background: rgba(99, 102, 241, 0.05);
-  border-left: 2px solid #6366f1;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
 }
 .item.flag-anomaly {
-  border-left-color: #ec4899;
+  border-left-color: #ff2d55;
 }
 
 /* Cluster banner (PRD §6.2.3) — sits above each cluster's events,
@@ -758,7 +776,7 @@ select:focus-visible {
 }
 
 .cluster-banner:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--accent-soft);
 }
 
 .cluster-banner.severity-error {
@@ -808,7 +826,7 @@ select:focus-visible {
 
 .item.cluster-member {
   padding-left: 28px;
-  background: rgba(99, 102, 241, 0.04);
+  background: var(--accent-soft);
 }
 
 .item.failed .status {
@@ -1162,8 +1180,8 @@ select:focus-visible {
 }
 
 .privacy-modal-redactions {
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   border-radius: 6px;
   padding: 10px 12px;
   margin-bottom: 12px;
@@ -1296,7 +1314,7 @@ select:focus-visible {
   margin: 8px 14px 0;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--accent-soft);
   padding: 0;
   font-size: 12px;
 }

@@ -1092,6 +1092,21 @@ function render(): void {
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
 
+  // Tracked-tab indicator: now that the panel follows the active tab, show
+  // the host it's currently reflecting so the user always knows the context.
+  const hostEl = document.getElementById('tab-host');
+  if (hostEl) {
+    const last = events[events.length - 1];
+    let host = '';
+    try {
+      host = last?.url ? new URL(last.url).host : '';
+    } catch {
+      host = '';
+    }
+    hostEl.textContent = host;
+    hostEl.classList.toggle('hidden', host === '');
+  }
+
   // Query bar visible whenever we have at least 2 events — same gate
   // as the scrubber. Avoids the awkward "empty panel + search box"
   // first impression.
@@ -2497,7 +2512,11 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   // opens Settings so the user can disable Authorization masking.
   detail.querySelectorAll<HTMLButtonElement>('[data-token-locked]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage?.();
+      // Open Settings straight on the Privacy section so the user can find
+      // the Authorization masking rule without hunting.
+      void chrome.tabs.create({
+        url: chrome.runtime.getURL('src/settings/settings.html#privacy'),
+      });
     });
   });
 
