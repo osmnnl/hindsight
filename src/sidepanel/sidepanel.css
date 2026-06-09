@@ -172,6 +172,16 @@ body {
 .theme-toggle.show-moon .ti-moon {
   display: block;
 }
+.pin-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+.pin-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 /* ---------- category show/hide filter ---------- */
 .category-filter {
@@ -711,17 +721,39 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 40px 24px;
+  padding: 48px 28px;
   text-align: center;
-  gap: 6px;
+  gap: 7px;
+  animation: empty-in 0.4s var(--ease) both;
+}
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  opacity: 0.55;
 }
 .empty-title {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
 }
 .empty-sub {
   color: var(--muted);
   font-size: 12px;
+  max-width: 30ch;
+  line-height: 1.5;
+}
+@keyframes empty-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .item {
@@ -941,9 +973,27 @@ select:focus-visible {
   flex-direction: column;
   /* Above the topbar (z-index 30) so the detail overlay covers it. */
   z-index: 100;
+  /* Slide + fade in when opened (display flips from none, re-triggering). */
+  animation: detail-in 0.24s var(--ease);
 }
 .detail.hidden {
   display: none;
+}
+@keyframes detail-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail,
+  .empty {
+    animation: none;
+  }
 }
 
 .detail-top {
@@ -1074,6 +1124,33 @@ select:focus-visible {
   background: var(--success);
   border-color: var(--success);
   color: #052013;
+}
+
+/* Copy-success feedback: a brief confirm pulse on any copied button. */
+.bulk-actions button.copied,
+.copy-row button.copied,
+.copy-slices button.slice.copied,
+.section-copy.copied {
+  animation: copied-pulse 0.32s var(--ease);
+}
+@keyframes copied-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bulk-actions button.copied,
+  .copy-row button.copied,
+  .copy-slices button.slice.copied,
+  .section-copy.copied {
+    animation: none;
+  }
 }
 
 /* Masked-token chip: locked look + hover tooltip explaining how to unmask. */

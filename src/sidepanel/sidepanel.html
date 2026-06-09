@@ -143,6 +143,27 @@
             </svg>
           </button>
           <button
+            id="pin-toggle"
+            class="ghost pin-toggle"
+            type="button"
+            data-i18n-attr="aria-label:sidepanel.pin.toggle;title:sidepanel.pin.toggle"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M9 3h6v2l-1 5 3 3v2H7v-2l3-3-1-5V3z" />
+              <line x1="12" y1="15" x2="12" y2="21" />
+            </svg>
+          </button>
+          <button
             id="record-toggle"
             class="ghost"
             data-i18n="sidepanel.record.start"
@@ -245,6 +266,19 @@
 
       <div id="list" class="list">
         <div class="empty">
+          <svg
+            class="empty-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
           <div class="empty-title" data-i18n="sidepanel.empty.title">No events yet</div>
           <div class="empty-sub" data-i18n="sidepanel.empty.sub">
             Browse the page — events will appear here.
