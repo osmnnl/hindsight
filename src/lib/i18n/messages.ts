@@ -253,6 +253,7 @@ const en = {
   'sidepanel.detailSearch.prev': 'Previous match',
   'sidepanel.detailSearch.next': 'Next match',
   'sidepanel.theme.toggle': 'Toggle light / dark theme',
+  'sidepanel.pin.toggle': 'Pin to this tab (stop following the active tab)',
   'sidepanel.token.lockedAria': 'Token is masked — open Settings to unmask',
   'sidepanel.token.lockedTip':
     'Authorization is masked for this request (***MASKED***). To copy the token, open Settings → Privacy, turn off the Authorization masking rule, then re-capture the request. Click to open Settings.',
@@ -627,6 +628,7 @@ const tr = {
   'sidepanel.detailSearch.prev': 'Önceki eşleşme',
   'sidepanel.detailSearch.next': 'Sonraki eşleşme',
   'sidepanel.theme.toggle': 'Açık / koyu temayı değiştir',
+  'sidepanel.pin.toggle': 'Bu sekmeye sabitle (aktif sekme takibini durdur)',
   'sidepanel.token.lockedAria': 'Token maskeli — açmak için Ayarlar’ı aç',
   'sidepanel.token.lockedTip':
     'Bu istekte Authorization maskeli (***MASKED***). Token’ı kopyalayabilmek için Ayarlar → Privacy’den Authorization maskeleme kuralını kapat, sonra isteği yeniden yakala. Ayarları açmak için tıkla.',

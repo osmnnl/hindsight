@@ -34,6 +34,7 @@ import {
 } from '@/lib/masking';
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
+import { graphqlLabel } from '@/lib/request-label';
 import { generateBundle } from '@/lib/replay-bundle';
 import {
   type ClearArchiveRuntimeMessage,
@@ -360,6 +361,9 @@ let panelWindowId: number | undefined;
 // Bumped on every tab switch so a slow refresh from an earlier switch can
 // bail instead of rendering stale data.
 let switchSeq = 0;
+// When pinned, the panel stops following the active tab and stays on the
+// tab it was pinned to (counterpart to the default follow-active-tab).
+let pinned = false;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
 // Which coarse categories to show. Layered on top of filterMode (AND).
@@ -552,6 +556,26 @@ function wireThemeToggle(): void {
   });
 }
 
+/** Pin / unpin the panel to the current tab. While pinned, tab switches are
+ *  ignored; unpinning immediately re-points at whatever tab is now active. */
+function wirePinToggle(): void {
+  const btn = document.getElementById('pin-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    pinned = !pinned;
+    btn.classList.toggle('active', pinned);
+    btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+    if (!pinned) {
+      void chrome.tabs
+        .query({ active: true, currentWindow: true })
+        .then(([t]) => {
+          if (t?.id != null) void switchToTab(t.id);
+        })
+        .catch(() => {});
+    }
+  });
+}
+
 async function init(): Promise<void> {
   await initI18n();
   applyI18nToDom();
@@ -574,6 +598,7 @@ async function init(): Promise<void> {
   // this window, re-point the panel at the new tab. Ignore activations in
   // other windows — each window has its own panel.
   chrome.tabs.onActivated.addListener((info) => {
+    if (pinned) return;
     if (panelWindowId != null && info.windowId !== panelWindowId) return;
     void switchToTab(info.tabId);
   });
@@ -583,6 +608,7 @@ async function init(): Promise<void> {
   await loadCategoryFilter();
   syncCategoryUi();
   wireCategoryPopover();
+  wirePinToggle();
 
   document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
@@ -1148,6 +1174,10 @@ function render(): void {
     const e = empties[reason] ?? empties.all;
     list.innerHTML = `
       <div class="empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
         <div class="empty-title">${escapeHtml(e!.title)}</div>
         <div class="empty-sub">${escapeHtml(e!.sub)}</div>
       </div>`;
@@ -1494,7 +1524,8 @@ function formatRow(e: CapturedEvent): {
       className: classNameFromFlags(failed ? 'failed' : 'success', e),
       statusBadge: String(e.data.response.status || 'ERR'),
       method: e.data.request.method,
-      urlText: shortUrl(e.data.request.url),
+      urlText:
+        graphqlLabel(e.data.request.url, e.data.request.body) ?? shortUrl(e.data.request.url),
       urlTitle: e.data.request.url,
       timestamp: e.data.timing.startedAt,
       duration: `${e.data.timing.durationMs}ms`,
@@ -2410,6 +2441,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-copy="response" class="slice" title="Response body · ${fmtSize(respText.length)}">Response</button>
       <button data-copy="req-resp" class="slice" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
       <button data-copy="curl" class="slice" title="cURL command · ${fmtSize(curlText.length)}">cURL</button>
+      <button data-copy="fetch" class="slice" title="Reproduce as a runnable fetch() call">fetch()</button>
       ${
         tokenMasked
           ? `<span class="slice-locked-wrap">
@@ -2639,16 +2671,39 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
 
 // ---------- formatters ----------
 
-type CopyFormat = 'report' | 'curl' | 'response' | 'url' | 'request' | 'req-resp' | 'token';
+type CopyFormat =
+  | 'report'
+  | 'curl'
+  | 'fetch'
+  | 'response'
+  | 'url'
+  | 'request'
+  | 'req-resp'
+  | 'token';
 
 function formatForCopy(c: NetworkRequestEvent, format: CopyFormat): string {
   if (format === 'curl') return toCurl(c);
+  if (format === 'fetch') return toFetch(c);
   if (format === 'response') return c.data.response.body ?? '';
   if (format === 'url') return c.data.request.url;
   if (format === 'request') return toRequestText(c);
   if (format === 'req-resp') return toRequestResponseText(c);
   if (format === 'token') return extractAccessToken(c);
   return toBugReport(c);
+}
+
+/** Reproduce the request as a runnable fetch() call — paste into a console
+ *  or a .js file. Headers are masked (same as cURL). */
+function toFetch(c: NetworkRequestEvent): string {
+  const init: string[] = [`  method: ${JSON.stringify(c.data.request.method)}`];
+  const headers = maskHeaders(c.data.request.headers);
+  if (Object.keys(headers).length > 0) {
+    init.push(`  headers: ${JSON.stringify(headers, null, 2).replace(/\n/g, '\n  ')}`);
+  }
+  if (c.data.request.body != null && c.data.request.body !== '') {
+    init.push(`  body: ${JSON.stringify(String(c.data.request.body))}`);
+  }
+  return `fetch(${JSON.stringify(c.data.request.url)}, {\n${init.join(',\n')},\n});`;
 }
 
 /** Plain text request dump — method + URL + headers + body, no cURL
