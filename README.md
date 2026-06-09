@@ -85,8 +85,9 @@ storage.
 
 ## Install
 
-Hindsight is live on the Chrome Web Store:
-**[Add to Chrome](https://chromewebstore.google.com/detail/hindsight/gmbaaeehmboadpgiekadalnnecjckelp)**.
+Hindsight is live on both stores:
+**[Add to Chrome](https://chromewebstore.google.com/detail/hindsight/gmbaaeehmboadpgiekadalnnecjckelp)**
+· **[Add to Firefox](https://addons.mozilla.org/en-US/firefox/addon/hindsight/)**.
 
 ## Quick start (development build)
 

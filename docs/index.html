@@ -17,7 +17,7 @@
     <meta property="og:url" content="https://osmnnl.github.io/hindsight/" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f5b042'/%3E%3Ctext x='50%25' y='52%25' text-anchor='middle' dominant-baseline='central' font-family='ui-monospace,monospace' font-size='17' font-weight='800' fill='%231a1303'%3EH%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ffffff'/%3E%3Ctext x='50%25' y='52%25' text-anchor='middle' dominant-baseline='central' font-family='ui-monospace,monospace' font-size='17' font-weight='800' fill='%23000000'%3EH%3C/text%3E%3C/svg%3E"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,18 +27,18 @@
     />
     <style>
       :root {
-        --bg: #000000;
-        --bg-elev: #0a0a0c;
-        --surface: #131316;
-        --surface-2: #1c1c20;
-        --hairline: rgba(255, 255, 255, 0.08);
-        --hairline-strong: rgba(255, 255, 255, 0.14);
-        --text: #f5f5f7;
-        --text-soft: #a1a1a6;
-        --text-mute: #6e6e73;
-        --accent: #f5b042;
-        --accent-soft: #ffd494;
-        --accent-deep: #c4842a;
+        --bg: #ffffff;
+        --bg-elev: #fbfbfd;
+        --surface: #f5f5f7;
+        --surface-2: #ececef;
+        --hairline: rgba(0, 0, 0, 0.09);
+        --hairline-strong: rgba(0, 0, 0, 0.16);
+        --text: #1d1d1f;
+        --text-soft: #515154;
+        --text-mute: #86868b;
+        --accent: #000000;
+        --accent-soft: #1d1d1f;
+        --accent-deep: #3a3a3c;
         --max: 1120px;
         --max-wide: 1280px;
         --sans:
@@ -48,9 +48,9 @@
         --radius: 18px;
         --radius-lg: 28px;
         --radius-pill: 980px;
-        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-        --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
-        --shadow-lg: 0 40px 80px -20px rgba(0, 0, 0, 0.7), 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 40px 80px -24px rgba(0, 0, 0, 0.16), 0 20px 40px -12px rgba(0, 0, 0, 0.1);
         --ease: cubic-bezier(0.4, 0, 0.2, 1);
         --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       }
@@ -90,7 +90,7 @@
         font-family: var(--mono);
         font-size: 0.86em;
         color: var(--accent);
-        background: rgba(245, 176, 66, 0.08);
+        background: rgba(0, 0, 0, 0.08);
         padding: 1px 7px;
         border-radius: 5px;
         letter-spacing: -0.01em;
@@ -102,7 +102,7 @@
 
       ::selection {
         background: var(--accent);
-        color: #1a1303;
+        color: #ffffff;
       }
 
       /* i18n — high-specificity hide rule beats component display values */
@@ -127,7 +127,7 @@
         position: sticky;
         top: 0;
         z-index: 50;
-        background: rgba(0, 0, 0, 0.72);
+        background: rgba(255, 255, 255, 0.72);
         backdrop-filter: saturate(180%) blur(24px);
         -webkit-backdrop-filter: saturate(180%) blur(24px);
         border-bottom: 1px solid var(--hairline);
@@ -157,7 +157,7 @@
         height: 22px;
         border-radius: 6px;
         background: var(--accent);
-        color: #1a1303;
+        color: #ffffff;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -177,10 +177,54 @@
       .nav-link:hover {
         color: var(--text);
       }
+      .nav-cta {
+        padding: 7px 15px;
+        border-radius: var(--radius-pill);
+        font-weight: 600;
+        font-size: 12.5px;
+        letter-spacing: -0.01em;
+        border: 1px solid var(--hairline-strong);
+        color: var(--text);
+        white-space: nowrap;
+        transition:
+          transform 200ms var(--ease),
+          border-color 200ms var(--ease),
+          background 200ms var(--ease);
+      }
+      .nav-cta:hover {
+        border-color: var(--text);
+        transform: translateY(-1px);
+      }
+      .nav-cta-primary {
+        background: var(--text);
+        color: #ffffff;
+        border-color: var(--text);
+      }
+      .nav-cta-primary:hover {
+        filter: brightness(0.9);
+      }
+      /* right-edge reading-progress indicator */
+      .scroll-progress {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 2px;
+        height: 100vh;
+        z-index: 60;
+        background: rgba(0, 0, 0, 0.05);
+        pointer-events: none;
+      }
+      .scroll-progress-fill {
+        width: 100%;
+        height: 0;
+        background: var(--text);
+        border-radius: 0 0 2px 2px;
+        transition: height 90ms linear;
+      }
       .lang-switch {
         display: inline-flex;
         align-items: center;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(0, 0, 0, 0.06);
         border-radius: var(--radius-pill);
         padding: 3px;
       }
@@ -200,7 +244,7 @@
           color 200ms var(--ease);
       }
       .lang-switch button.active {
-        background: rgba(255, 255, 255, 0.16);
+        background: rgba(0, 0, 0, 0.16);
         color: var(--text);
       }
       .lang-switch button:hover:not(.active) {
@@ -224,8 +268,8 @@
         transform: translateX(-50%);
         background: radial-gradient(
           closest-side,
-          rgba(245, 176, 66, 0.18),
-          rgba(245, 176, 66, 0.04) 50%,
+          rgba(0, 0, 0, 0.18),
+          rgba(0, 0, 0, 0.04) 50%,
           transparent 75%
         );
         pointer-events: none;
@@ -243,7 +287,7 @@
         font-size: 13.5px;
         font-weight: 500;
         color: var(--text-soft);
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(0, 0, 0, 0.04);
         border: 1px solid var(--hairline);
         padding: 7px 14px 7px 12px;
         border-radius: var(--radius-pill);
@@ -255,7 +299,7 @@
         height: 6px;
         border-radius: 50%;
         background: var(--accent);
-        box-shadow: 0 0 12px rgba(245, 176, 66, 0.8);
+        box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
         animation: pulse 2.4s ease-in-out infinite;
       }
       @keyframes pulse {
@@ -278,7 +322,7 @@
         text-wrap: balance;
       }
       .hero h1 .accent {
-        background: linear-gradient(180deg, #ffd494 0%, #f5b042 60%, #c4842a 100%);
+        background: linear-gradient(180deg, #1d1d1f 0%, #1d1d1f 55%, #6e6e73 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -339,30 +383,30 @@
       }
       .btn-primary {
         background: var(--accent);
-        color: #1a1303;
+        color: #ffffff;
         font-weight: 600;
         box-shadow:
           0 1px 0 rgba(255, 255, 255, 0.18) inset,
-          0 8px 24px -4px rgba(245, 176, 66, 0.35);
+          0 8px 22px -6px rgba(0, 0, 0, 0.28);
       }
       .btn-primary:hover {
         background: var(--accent-soft);
         transform: translateY(-1px);
         box-shadow:
           0 1px 0 rgba(255, 255, 255, 0.22) inset,
-          0 14px 32px -4px rgba(245, 176, 66, 0.45);
+          0 14px 30px -8px rgba(0, 0, 0, 0.34);
       }
       .btn-primary:active {
         transform: translateY(0);
       }
       .btn-secondary {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(0, 0, 0, 0.08);
         color: var(--text);
         border-color: var(--hairline);
         backdrop-filter: blur(10px);
       }
       .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.12);
         border-color: var(--hairline-strong);
       }
       .btn-arrow::after {
@@ -385,7 +429,7 @@
         perspective: 1400px;
       }
       .device-frame {
-        background: linear-gradient(180deg, #1c1c20 0%, #111114 100%);
+        background: linear-gradient(180deg, #fbfbfd 0%, #f0f0f3 100%);
         border: 1px solid var(--hairline-strong);
         border-radius: 20px;
         overflow: hidden;
@@ -398,7 +442,7 @@
         align-items: center;
         gap: 10px;
         padding: 12px 16px;
-        background: rgba(255, 255, 255, 0.025);
+        background: rgba(0, 0, 0, 0.025);
         border-bottom: 1px solid var(--hairline);
       }
       .traffic {
@@ -434,7 +478,7 @@
       .device-rec {
         font-family: var(--mono);
         font-size: 11px;
-        color: var(--accent);
+        color: #ff3b30;
         display: inline-flex;
         align-items: center;
         gap: 5px;
@@ -444,8 +488,8 @@
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: var(--accent);
-        box-shadow: 0 0 8px var(--accent);
+        background: #ff3b30;
+        box-shadow: 0 0 8px #ff3b30;
         animation: pulse 1.6s ease-in-out infinite;
       }
       .device-body {
@@ -465,7 +509,7 @@
         transition: background 200ms var(--ease);
       }
       .event:hover {
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(0, 0, 0, 0.03);
       }
       .event + .event {
         margin-top: 1px;
@@ -486,18 +530,18 @@
       }
       .ev-type.net {
         background: rgba(99, 161, 255, 0.14);
-        color: #8ab4ff;
+        color: #0071e3;
       }
       .ev-type.err {
         background: rgba(255, 99, 99, 0.14);
-        color: #ff9a9a;
+        color: #d70015;
       }
       .ev-type.act {
         background: rgba(141, 230, 161, 0.14);
-        color: #9be3a8;
+        color: #1d8a34;
       }
       .ev-type.shot {
-        background: rgba(245, 176, 66, 0.14);
+        background: rgba(0, 0, 0, 0.14);
         color: var(--accent);
       }
       .ev-msg {
@@ -517,10 +561,10 @@
         font-variant-numeric: tabular-nums;
       }
       .ev-status.ok {
-        color: #9be3a8;
+        color: #1d8a34;
       }
       .ev-status.fail {
-        color: #ff9a9a;
+        color: #d70015;
       }
 
       /* — Sections — */
@@ -580,7 +624,7 @@
       .bento-card.featured {
         grid-column: span 6;
         background:
-          radial-gradient(120% 200% at 100% 0%, rgba(245, 176, 66, 0.14) 0%, transparent 50%),
+          radial-gradient(120% 200% at 100% 0%, rgba(0, 0, 0, 0.14) 0%, transparent 50%),
           var(--surface);
       }
       .bento-card.half {
@@ -590,7 +634,7 @@
         width: 44px;
         height: 44px;
         border-radius: 12px;
-        background: rgba(245, 176, 66, 0.12);
+        background: rgba(0, 0, 0, 0.12);
         color: var(--accent);
         display: inline-flex;
         align-items: center;
@@ -681,13 +725,13 @@
         margin-right: 14px;
       }
       .cf-visual .kw {
-        color: #ff9a9a;
+        color: #d70015;
       }
       .cf-visual .str {
-        color: #9be3a8;
+        color: #1d8a34;
       }
       .cf-visual .key {
-        color: #8ab4ff;
+        color: #0071e3;
       }
       .cf-visual .acc {
         color: var(--accent);
@@ -710,7 +754,7 @@
         margin-top: 2px;
       }
       .cf-mini-list li:hover {
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(0, 0, 0, 0.03);
       }
       .cf-mini-list .ev-time {
         font-family: var(--mono);
@@ -722,11 +766,11 @@
         background:
           linear-gradient(
             135deg,
-            rgba(245, 176, 66, 0.18) 0%,
+            rgba(0, 0, 0, 0.18) 0%,
             transparent 40%,
             rgba(138, 180, 255, 0.12) 100%
           ),
-          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 12px),
+          repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 12px),
           var(--bg-elev);
         border: 1px solid var(--hairline);
         position: relative;
@@ -739,7 +783,7 @@
         left: 14px;
         width: 38%;
         height: 14px;
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(0, 0, 0, 0.08);
         border-radius: 4px;
       }
       .ss-frame::after {
@@ -749,7 +793,7 @@
         left: 18px;
         font-family: var(--mono);
         font-size: 12px;
-        color: #ff9a9a;
+        color: #d70015;
         background: rgba(255, 99, 99, 0.12);
         border: 1px solid rgba(255, 99, 99, 0.3);
         padding: 6px 12px;
@@ -760,7 +804,7 @@
         grid-template-columns: auto 1fr auto;
         gap: 16px;
         padding: 12px 16px;
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(0, 0, 0, 0.03);
         border-radius: 12px;
         align-items: center;
         font-family: var(--mono);
@@ -774,14 +818,14 @@
       }
       .perf-chip .bar {
         height: 4px;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(0, 0, 0, 0.06);
         border-radius: 999px;
         overflow: hidden;
       }
       .perf-chip .bar i {
         display: block;
         height: 100%;
-        background: linear-gradient(90deg, #ff9a9a, #febc2e, #9be3a8);
+        background: linear-gradient(90deg, #d70015, #febc2e, #1d8a34);
         border-radius: 999px;
       }
       .perf-chip .val {
@@ -791,11 +835,10 @@
       /* — Privacy moment — */
       .privacy {
         background:
-          radial-gradient(120% 80% at 50% 0%, rgba(245, 176, 66, 0.06) 0%, transparent 60%),
-          var(--bg);
+          radial-gradient(120% 80% at 50% 0%, rgba(0, 0, 0, 0.06) 0%, transparent 60%), var(--bg);
       }
       .privacy h2 .accent {
-        background: linear-gradient(180deg, #ffd494, #f5b042);
+        background: linear-gradient(180deg, #1d1d1f, #000000);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -824,7 +867,7 @@
         color: var(--text-soft);
       }
       .mask-pre .m {
-        background: rgba(245, 176, 66, 0.14);
+        background: rgba(0, 0, 0, 0.14);
         color: var(--accent);
         padding: 1px 10px;
         border-radius: 5px;
@@ -921,7 +964,7 @@
       }
       .step-title code {
         font-size: 0.85em;
-        background: rgba(255, 255, 255, 0.07);
+        background: rgba(0, 0, 0, 0.07);
         color: var(--text);
         padding: 2px 7px;
       }
@@ -938,31 +981,68 @@
       }
 
       /* — Other extensions — */
+      /* "More from osmnnl" — lifted band so it stands apart from the page */
+      .others-section {
+        margin-top: 48px;
+        padding: 104px 0;
+        background: var(--bg-elev);
+        border-top: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .others-section .section-head h2 {
+        font-size: clamp(34px, 5vw, 56px);
+      }
+      .others-lead {
+        margin-top: 18px;
+        max-width: 560px;
+        font-size: 17px;
+        color: var(--text-soft);
+      }
       .others {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 16px;
+        gap: 20px;
+        margin-top: 8px;
       }
       .other {
+        position: relative;
         background: var(--surface);
-        border: 1px solid var(--hairline);
+        border: 1px solid var(--hairline-strong);
         border-radius: var(--radius-lg);
-        padding: 40px;
+        padding: 44px;
+        overflow: hidden;
         transition:
           border-color 280ms var(--ease),
-          transform 280ms var(--ease-out);
+          transform 280ms var(--ease-out),
+          background 280ms var(--ease);
+      }
+      .other::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 80% at 100% 0%, rgba(0, 0, 0, 0.06), transparent 60%);
+        opacity: 0;
+        transition: opacity 280ms var(--ease);
+        pointer-events: none;
       }
       .other:hover {
-        border-color: var(--hairline-strong);
-        transform: translateY(-2px);
+        border-color: var(--text);
+        transform: translateY(-4px);
+      }
+      .other:hover::before {
+        opacity: 1;
       }
       .other-kicker {
+        display: inline-block;
         font-family: var(--mono);
-        font-size: 11.5px;
+        font-size: 11px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: var(--text-mute);
-        margin-bottom: 16px;
+        color: var(--text-soft);
+        border: 1px solid var(--hairline-strong);
+        border-radius: var(--radius-pill);
+        padding: 4px 11px;
+        margin-bottom: 20px;
       }
       .other h3 {
         font-size: 28px;
@@ -1099,10 +1179,20 @@
       }
       @media (max-width: 640px) {
         .nav-inner {
-          gap: 12px;
+          gap: 10px;
+          padding: 0 14px;
         }
         .nav-right {
-          gap: 12px;
+          gap: 8px;
+        }
+        /* Keep both install CTAs visible; drop the secondary GitHub link
+           and tighten the pills so they fit a phone width. */
+        .nav-github {
+          display: none;
+        }
+        .nav-cta {
+          padding: 6px 11px;
+          font-size: 11.5px;
         }
         .hero {
           padding-top: 60px;
@@ -1175,10 +1265,37 @@
             </button>
             <button type="button" data-set-lang="tr" role="tab" aria-selected="false">TR</button>
           </div>
-          <a href="https://github.com/osmnnl/hindsight" class="nav-link">GitHub</a>
+          <a href="https://github.com/osmnnl/hindsight" class="nav-link nav-github">GitHub</a>
+          <a
+            href="https://chromewebstore.google.com/detail/hindsight/gmbaaeehmboadpgiekadalnnecjckelp"
+            class="nav-cta nav-cta-primary"
+            data-lang="en"
+            >Add to Chrome</a
+          >
+          <a
+            href="https://chromewebstore.google.com/detail/hindsight/gmbaaeehmboadpgiekadalnnecjckelp"
+            class="nav-cta nav-cta-primary"
+            data-lang="tr"
+            >Chrome'a Ekle</a
+          >
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+            class="nav-cta"
+            data-lang="en"
+            >Add to Firefox</a
+          >
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+            class="nav-cta"
+            data-lang="tr"
+            >Firefox'a Ekle</a
+          >
         </div>
       </div>
     </nav>
+    <div class="scroll-progress" aria-hidden="true">
+      <div class="scroll-progress-fill" id="scroll-progress-fill"></div>
+    </div>
 
     <main>
       <!-- HERO -->
@@ -1217,6 +1334,18 @@
               >Chrome'a Ekle</a
             >
             <a
+              href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+              class="btn btn-secondary"
+              data-lang="en"
+              >Add to Firefox</a
+            >
+            <a
+              href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+              class="btn btn-secondary"
+              data-lang="tr"
+              >Firefox'a Ekle</a
+            >
+            <a
               href="https://github.com/osmnnl/hindsight"
               class="btn btn-secondary btn-arrow"
               data-lang="en"
@@ -1230,7 +1359,7 @@
             >
           </div>
           <div class="hero-meta">
-            <span>v0.5.0</span>
+            <span>v0.6.1</span>
             <span class="dot-sep">·</span>
             <span data-lang="en">No backend</span>
             <span data-lang="tr">Backend yok</span>
@@ -1622,7 +1751,7 @@
                       height: 96px;
                       margin: 0 auto 18px;
                       border-radius: 50%;
-                      background: rgba(245, 176, 66, 0.12);
+                      background: rgba(0, 0, 0, 0.12);
                       display: flex;
                       align-items: center;
                       justify-content: center;
@@ -1800,12 +1929,12 @@
             </h2>
             <p class="section-lead">
               <span data-lang="en"
-                >Now live on the Chrome Web Store — one click to install. Prefer a manual build? The
-                four steps below still work.</span
+                >Now live on the Chrome Web Store and Firefox Add-ons — one click to install. Prefer
+                a manual build? The four steps below still work.</span
               >
               <span data-lang="tr"
-                >Artık Chrome Web Store'da — tek tıkla kur. Manuel kurulumu mu tercih edersin?
-                Aşağıdaki dört adım hâlâ geçerli.</span
+                >Artık Chrome Web Store ve Firefox Eklentileri'nde — tek tıkla kur. Manuel kurulumu
+                mu tercih edersin? Aşağıdaki dört adım hâlâ geçerli.</span
               >
             </p>
             <div class="hero-actions" style="margin-top: 1.5rem">
@@ -1820,6 +1949,18 @@
                 class="btn btn-primary"
                 data-lang="tr"
                 >Chrome'a Ekle</a
+              >
+              <a
+                href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+                class="btn btn-secondary"
+                data-lang="en"
+                >Add to Firefox</a
+              >
+              <a
+                href="https://addons.mozilla.org/en-US/firefox/addon/hindsight/"
+                class="btn btn-secondary"
+                data-lang="tr"
+                >Firefox'a Ekle</a
               >
             </div>
           </div>
@@ -1890,7 +2031,7 @@
       </section>
 
       <!-- OTHERS -->
-      <section>
+      <section class="others-section">
         <div class="container">
           <div class="section-head reveal">
             <div class="eyebrow">
@@ -1898,9 +2039,18 @@
               <span data-lang="tr">osmnnl'den dahası</span>
             </div>
             <h2>
-              <span data-lang="en">Other extensions worth your toolbar.</span>
+              <span data-lang="en">Extensions worth your toolbar.</span>
               <span data-lang="tr">Araç çubuğuna değer eklentiler.</span>
             </h2>
+            <p class="others-lead">
+              <span data-lang="en"
+                >Small, sharp tools built with the same privacy-first, no-account philosophy.</span
+              >
+              <span data-lang="tr"
+                >Aynı gizlilik öncelikli, hesapsız felsefeyle yapılmış küçük ama keskin
+                araçlar.</span
+              >
+            </p>
           </div>
 
           <div class="others reveal">
@@ -2073,6 +2223,31 @@
           document.querySelectorAll('.reveal').forEach(function (el) {
             el.classList.add('in');
           });
+        }
+
+        // Right-edge reading-progress indicator.
+        var progressFill = document.getElementById('scroll-progress-fill');
+        if (progressFill) {
+          var ticking = false;
+          var updateProgress = function () {
+            var doc = document.documentElement;
+            var max = doc.scrollHeight - doc.clientHeight;
+            var pct = max > 0 ? (doc.scrollTop / max) * 100 : 0;
+            progressFill.style.height = pct.toFixed(2) + '%';
+            ticking = false;
+          };
+          window.addEventListener(
+            'scroll',
+            function () {
+              if (!ticking) {
+                ticking = true;
+                window.requestAnimationFrame(updateProgress);
+              }
+            },
+            { passive: true }
+          );
+          window.addEventListener('resize', updateProgress, { passive: true });
+          updateProgress();
         }
       })();
     </script>
