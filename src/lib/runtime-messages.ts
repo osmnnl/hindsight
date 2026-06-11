@@ -79,6 +79,26 @@ export interface CaptureRuntimeMessage {
   redactions?: Redaction[];
 }
 
+/** One queued capture inside a CAPTURE_BATCH — the per-event slice of
+ *  CaptureRuntimeMessage (pageUrl/pageTitle are shared batch-level). */
+export interface QueuedCapture {
+  capture: RawCapture;
+  redactions?: Redaction[];
+}
+
+/**
+ * Batched captures (v0.6.2 perf fix). The bridge coalesces ~250 ms of
+ * page-world captures into ONE runtime IPC instead of one per event —
+ * each sendMessage costs a full serialization pass on the renderer main
+ * thread plus a service-worker wake-up.
+ */
+export interface CaptureBatchRuntimeMessage {
+  kind: 'CAPTURE_BATCH';
+  captures: QueuedCapture[];
+  pageUrl: string;
+  pageTitle: string;
+}
+
 export interface GetEventsRuntimeMessage {
   kind: 'GET_EVENTS';
   tabId: number;
@@ -107,7 +127,9 @@ export interface ToggleRecordingRuntimeMessage {
 
 export interface GetRecordingRuntimeMessage {
   kind: 'GET_RECORDING';
-  tabId: number;
+  /** Omitted by content scripts (which can't know their own tab id) —
+   *  the service worker falls back to sender.tab.id. */
+  tabId?: number;
 }
 
 export interface RecordingState {
@@ -115,8 +137,17 @@ export interface RecordingState {
   startedAt?: number;
 }
 
+/** SW → content-script broadcast on recording toggle, so the bridge can
+ *  gate Tier 4 (cursor/scroll) traffic at the source instead of paying
+ *  a runtime IPC per dropped event. */
+export interface RecordingStateBroadcast {
+  kind: 'RECORDING_STATE';
+  recording: boolean;
+}
+
 export type RuntimeMessage =
   | CaptureRuntimeMessage
+  | CaptureBatchRuntimeMessage
   | GetEventsRuntimeMessage
   | ClearEventsRuntimeMessage
   | GetArchiveRuntimeMessage
@@ -130,6 +161,10 @@ export type RuntimeMessage =
 
 export function isCaptureMessage(m: RuntimeMessage): m is CaptureRuntimeMessage {
   return m.kind === 'CAPTURE';
+}
+
+export function isCaptureBatchMessage(m: RuntimeMessage): m is CaptureBatchRuntimeMessage {
+  return m.kind === 'CAPTURE_BATCH';
 }
 
 export function isGetEventsMessage(m: RuntimeMessage): m is GetEventsRuntimeMessage {
