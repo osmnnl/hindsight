@@ -6,6 +6,7 @@
 // envelopes over window.postMessage to the ISOLATED-world bridge.
 
 import { createFetchPatch, createWebSocketPatch, createXhrPatch } from '@/lib/network-patch';
+import { CONSOLE_ARG_CAP, capText, stringifyCapped } from '@/lib/capture-limits';
 import { buildTargetDescriptor } from '@/lib/dom-descriptor';
 import {
   CAPTURE_BRIDGE_TAG,
@@ -139,13 +140,9 @@ import type {
         message = reason.message;
         stack = reason.stack;
       } else if (typeof reason === 'string') {
-        message = reason;
+        message = capText(reason, CONSOLE_ARG_CAP);
       } else {
-        try {
-          message = JSON.stringify(reason);
-        } catch {
-          message = String(reason);
-        }
+        message = stringifyCapped(reason, CONSOLE_ARG_CAP);
       }
       const data: ConsoleData = {
         level: 'unhandled',
@@ -159,15 +156,15 @@ import type {
   });
 
   function formatConsoleArgs(args: unknown[]): string {
+    // Capped per-arg: pages that console.error entire API payloads or
+    // framework state otherwise push unbounded strings through the
+    // pipeline on every log call. stringifyCapped also BOUNDS the
+    // serialization work itself, not just the result length.
     return args
       .map((a) => {
-        if (typeof a === 'string') return a;
+        if (typeof a === 'string') return capText(a, CONSOLE_ARG_CAP);
         if (a instanceof Error) return a.message;
-        try {
-          return JSON.stringify(a);
-        } catch {
-          return String(a);
-        }
+        return stringifyCapped(a, CONSOLE_ARG_CAP);
       })
       .join(' ');
   }
@@ -242,7 +239,11 @@ import type {
         const value = masked ? MASKED : el.value;
 
         const data: ActionInputData = {
-          target: buildTargetDescriptor(el),
+          // rect: false — getBoundingClientRect forces a synchronous
+          // style/layout pass; per-keystroke that's a forced reflow on
+          // every typed character. The rect adds little value for input
+          // events (clicks keep theirs — low frequency, used by replay).
+          target: buildTargetDescriptor(el, { rect: false }),
           value,
           ...(el instanceof HTMLInputElement ? { inputType: el.type } : {}),
         };

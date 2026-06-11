@@ -17,6 +17,7 @@ import {
   sweepArchive,
 } from '@/lib/storage';
 import {
+  isCaptureBatchMessage,
   isCaptureMessage,
   isClearArchiveMessage,
   isClearEventsMessage,
@@ -26,6 +27,7 @@ import {
   isToggleRecordingMessage,
   type CaptureRuntimeMessage,
   type RecordingState,
+  type RecordingStateBroadcast,
   type RuntimeMessage,
 } from '@/lib/runtime-messages';
 import {
@@ -231,6 +233,27 @@ chrome.runtime.onMessage.addListener(
       return;
     }
 
+    if (isCaptureBatchMessage(msg)) {
+      const tabId = sender.tab?.id;
+      if (tabId == null) return;
+      // Sequential on purpose: handleCapture mints sequence numbers and
+      // appends to the same per-tab buffer, so in-batch order must hold.
+      void (async () => {
+        for (const item of msg.captures) {
+          await handleCapture(tabId, {
+            kind: 'CAPTURE',
+            capture: item.capture,
+            pageUrl: msg.pageUrl,
+            pageTitle: msg.pageTitle,
+            ...(item.redactions ? { redactions: item.redactions } : {}),
+          }).catch(() => {
+            /* one bad capture must not drop the rest of the batch */
+          });
+        }
+      })();
+      return;
+    }
+
     if (isGetEventsMessage(msg)) {
       readEvents(msg.tabId)
         .then(sendResponse)
@@ -268,7 +291,10 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (isGetRecordingMessage(msg)) {
-      sendResponse(getRecordingState(msg.tabId));
+      // Content scripts can't know their own tab id — fall back to the
+      // sender (the bridge's Tier 4 gate uses this at page load).
+      const tabId = msg.tabId ?? sender.tab?.id;
+      sendResponse(tabId == null ? { recording: false } : getRecordingState(tabId));
       return;
     }
   }
@@ -369,6 +395,19 @@ const recordingScreenshotTimers = new Map<number, ReturnType<typeof setInterval>
 /** PRD §6.5.1 Tier 4 recording-tick cadence. */
 const RECORDING_SHOT_INTERVAL_MS = 2000;
 
+/** Tell the tab's bridge the recording state changed so its Tier 4 gate
+ *  (cursor/scroll dropped before the IPC) tracks toggles live. */
+function broadcastRecordingState(tabId: number, recording: boolean): void {
+  const msg: RecordingStateBroadcast = { kind: 'RECORDING_STATE', recording };
+  try {
+    void chrome.tabs.sendMessage(tabId, msg).catch(() => {
+      /* tab has no content script (chrome:// etc.) — fine */
+    });
+  } catch {
+    /* tab gone — fine */
+  }
+}
+
 async function toggleRecording(tabId: number): Promise<RecordingState> {
   const current = recordingByTab.get(tabId);
   if (current) {
@@ -379,6 +418,7 @@ async function toggleRecording(tabId: number): Promise<RecordingState> {
       recordingScreenshotTimers.delete(tabId);
     }
     await persistRecordingState();
+    broadcastRecordingState(tabId, false);
     const durationMs = Date.now() - current.startedAt;
     await emitRecordingEvent(tabId, 'recording.stop', { durationMs });
     return { recording: false };
@@ -387,6 +427,7 @@ async function toggleRecording(tabId: number): Promise<RecordingState> {
   recordingByTab.set(tabId, { startedAt });
   armRecordingTimer(tabId);
   await persistRecordingState();
+  broadcastRecordingState(tabId, true);
   await emitRecordingEvent(tabId, 'recording.start', { startedAt });
   return { recording: true, startedAt };
 }

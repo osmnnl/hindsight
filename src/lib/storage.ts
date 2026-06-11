@@ -45,16 +45,29 @@ export const FLUSH_INTERVAL_MS = 250;
 // Session metadata — get-or-create + sequence number minting.
 // ---------------------------------------------------------------------------
 
+/** In-memory mirror of persisted session metadata, keyed by tab. Every
+ *  capture calls getOrCreateSession; without the cache that was one
+ *  chrome.storage.local round-trip per event. The SW is the only writer
+ *  of session keys, so the mirror can't go stale across contexts; an SW
+ *  eviction simply drops it and the next read rehydrates from disk. */
+const metaByTab = new Map<number, SessionMetadata>();
+
 /**
  * Returns the session metadata for `tabId`, creating it on first use.
  * Side effect: persists newly-minted sessions so subsequent service worker
  * wake-ups see the same sessionId.
  */
 export async function getOrCreateSession(tabId: number, origin: string): Promise<SessionMetadata> {
+  const cached = metaByTab.get(tabId);
+  if (cached && cached.schemaVersion === EVENTS_SCHEMA_VERSION) {
+    return cached;
+  }
+
   const key = StorageKeys.sessionMeta(tabId);
   const stored = await chrome.storage.local.get(key);
   const existing = stored[key] as SessionMetadata | undefined;
   if (existing && existing.schemaVersion === EVENTS_SCHEMA_VERSION) {
+    metaByTab.set(tabId, existing);
     return existing;
   }
 
@@ -68,6 +81,7 @@ export async function getOrCreateSession(tabId: number, origin: string): Promise
     schemaVersion: EVENTS_SCHEMA_VERSION,
   };
   await chrome.storage.local.set({ [key]: fresh });
+  metaByTab.set(tabId, fresh);
   return fresh;
 }
 
@@ -151,12 +165,17 @@ export async function flushTab(
 
   const metaKey = StorageKeys.sessionMeta(tabId);
   const eventsKey = StorageKeys.sessionEvents(tabId);
-  const stored = await chrome.storage.local.get(metaKey);
-  const meta = stored[metaKey] as SessionMetadata | undefined;
+  let meta = metaByTab.get(tabId);
+  if (!meta) {
+    const stored = await chrome.storage.local.get(metaKey);
+    meta = stored[metaKey] as SessionMetadata | undefined;
+  }
 
   const writes: Record<string, unknown> = { [eventsKey]: nextEvents };
   if (meta && meta.lastSequence < pending.lastSequence) {
-    writes[metaKey] = { ...meta, lastSequence: pending.lastSequence };
+    const updated = { ...meta, lastSequence: pending.lastSequence };
+    writes[metaKey] = updated;
+    metaByTab.set(tabId, updated);
   }
   await chrome.storage.local.set(writes);
   persistedByTab.set(tabId, nextEvents);
@@ -195,6 +214,7 @@ export async function clearSession(tabId: number): Promise<void> {
   }
   pendingByTab.delete(tabId);
   persistedByTab.delete(tabId);
+  metaByTab.delete(tabId);
   await chrome.storage.local.remove([
     StorageKeys.sessionMeta(tabId),
     StorageKeys.sessionEvents(tabId),

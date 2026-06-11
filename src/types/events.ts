@@ -112,8 +112,13 @@ export interface NetworkWebSocketData {
   phase: 'connect' | 'open' | 'message' | 'close' | 'error';
   url: string;
   direction?: 'send' | 'recv';
-  /** Frame size in bytes. Frame content is metadata-only by default (PRD §6.1.1 Tier 2). */
+  /** Total bytes across the frames this capture covers. Frame content is
+   *  metadata-only by default (PRD §6.1.1 Tier 2). */
   byteSize?: number;
+  /** Number of frames coalesced into this capture (v0.6.2 perf fix —
+   *  chatty sockets summarize once per second instead of per frame).
+   *  Absent on pre-0.6.2 events; treat as 1. */
+  frameCount?: number;
   code?: number;
   reason?: string;
 }

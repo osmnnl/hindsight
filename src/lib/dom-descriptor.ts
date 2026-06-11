@@ -15,12 +15,19 @@ const MAX_CLASSES = 6;
  *  (paragraph-long announcements) but they're noise in a bug report. */
 const MAX_ACCESSIBLE_NAME = 120;
 
+export interface DescriptorOptions {
+  /** Capture the bounding rect (default true). High-frequency callers
+   *  (per-keystroke input capture) pass false — getBoundingClientRect
+   *  forces a synchronous style/layout pass on the page. */
+  rect?: boolean;
+}
+
 /**
  * Build a stable, accessibility-leaning descriptor for the given
  * element. Returns the descriptor regardless of how the event got here
  * (click, input, focus); callers attach action-specific fields on top.
  */
-export function buildTargetDescriptor(el: Element): TargetDescriptor {
+export function buildTargetDescriptor(el: Element, opts?: DescriptorOptions): TargetDescriptor {
   const tag = el.tagName.toUpperCase();
   const descriptor: TargetDescriptor = { tag };
 
@@ -35,8 +42,10 @@ export function buildTargetDescriptor(el: Element): TargetDescriptor {
   const classes = classListSample(el);
   if (classes.length > 0) descriptor.classes = classes;
 
-  const rect = boundingRect(el);
-  if (rect) descriptor.rect = rect;
+  if (opts?.rect !== false) {
+    const rect = boundingRect(el);
+    if (rect) descriptor.rect = rect;
+  }
 
   return descriptor;
 }
