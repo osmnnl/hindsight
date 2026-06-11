@@ -15,8 +15,14 @@ import type {
   NetworkXhrData,
 } from '@/types/events';
 import type { RawCapture } from '@/lib/runtime-messages';
+import { BODY_CAP, capText, TRUNCATION_MARKER } from '@/lib/capture-limits';
 
 export type Post = (capture: RawCapture) => void;
+
+/** Detached body reads stop after this long even if the stream is still
+ *  open (slow trickle below the size cap). Bounds both the capture
+ *  latency and the tee-buffer memory for long-lived responses. */
+const BODY_READ_TIMEOUT_MS = 10_000;
 
 // ---------------------------------------------------------------------------
 // fetch
@@ -60,14 +66,17 @@ export function createFetchPatch(originalFetch: typeof fetch, post: Post): typeo
     }
 
     let response: Response | undefined;
+    let failed = false;
+    let caughtError: unknown;
     let networkError: string | null = null;
     try {
       response = await originalFetch.apply(this, args);
     } catch (err) {
+      failed = true;
+      caughtError = err;
       networkError = String((err as Error)?.stack ?? (err as Error)?.message ?? err);
     }
 
-    let responseBody: string | null = null;
     let responseHeaders: Record<string, string> = {};
     let status = 0;
     let statusText = '';
@@ -76,29 +85,130 @@ export function createFetchPatch(originalFetch: typeof fetch, post: Post): typeo
         responseHeaders = headersToObject(response.headers);
         status = response.status;
         statusText = response.statusText;
-        const cloned = response.clone();
-        responseBody = await safeReadBody(cloned);
-      } catch (e) {
-        responseBody = `[error reading response: ${(e as Error).message}]`;
+      } catch {
+        /* never break the page */
       }
     }
 
-    const data: NetworkFetchData = {
-      request: { method, url, headers: requestHeaders, body: requestBody } satisfies NetworkRequest,
-      response: {
-        status,
-        statusText,
-        headers: responseHeaders,
-        body: responseBody,
-      } satisfies NetworkResponse,
-      timing: { startedAt, durationMs: Date.now() - startedAt } satisfies NetworkTiming,
-      error: networkError,
+    const finish = (responseBody: string | null): void => {
+      const data: NetworkFetchData = {
+        request: {
+          method,
+          url,
+          headers: requestHeaders,
+          body: requestBody,
+        } satisfies NetworkRequest,
+        response: {
+          status,
+          statusText,
+          headers: responseHeaders,
+          body: responseBody,
+        } satisfies NetworkResponse,
+        timing: { startedAt, durationMs: Date.now() - startedAt } satisfies NetworkTiming,
+        error: networkError,
+      };
+      post({ type: 'network.fetch', data });
     };
-    post({ type: 'network.fetch', data });
 
-    if (networkError) throw new Error(networkError);
+    // Body capture is DETACHED: the page gets its Response back
+    // immediately (preserving time-to-first-byte and streaming), and the
+    // capture posts whenever the capped clone read completes. The old
+    // `await` here held every fetch hostage until the full body
+    // downloaded — and never resolved at all for open streams (SSE).
+    if (response) {
+      captureResponseBody(response, finish);
+    } else {
+      finish(null);
+    }
+
+    // Re-throw the ORIGINAL error object — wrapping it in `new Error()`
+    // broke `err.name === 'AbortError'` checks in page code, which fire
+    // constantly as SPAs abort in-flight requests during navigation.
+    if (failed) throw caughtError;
     return response as Response;
   } as typeof fetch;
+}
+
+/**
+ * Decides whether/how to read the response body and posts the capture
+ * via `finish` when done. Never blocks the caller: textual bodies are
+ * read from a clone on a detached promise, capped at BODY_CAP bytes of
+ * output and BODY_READ_TIMEOUT_MS of wall time; streams (SSE) and
+ * binary bodies are never cloned at all, so they cost nothing.
+ */
+function captureResponseBody(response: Response, finish: (body: string | null) => void): void {
+  let ct = '';
+  try {
+    ct = response.headers.get('content-type') ?? '';
+  } catch {
+    /* opaque response — fall through to the binary branch */
+  }
+
+  if (ct.includes('text/event-stream')) {
+    finish('[stream: text/event-stream — body not captured]');
+    return;
+  }
+  const isTextual =
+    ct.includes('application/json') ||
+    ct.startsWith('text/') ||
+    ct.includes('xml') ||
+    ct.includes('form-urlencoded');
+  if (!isTextual) {
+    finish(`[binary content: ${ct || 'unknown'}]`);
+    return;
+  }
+  if (response.body == null) {
+    // No body to read (204, HEAD, opaque) — capture headers only.
+    finish('');
+    return;
+  }
+
+  let cloned: Response;
+  try {
+    cloned = response.clone();
+  } catch (e) {
+    finish(`[error reading response: ${(e as Error).message}]`);
+    return;
+  }
+  void readBodyCapped(cloned).then(finish, (e: unknown) => {
+    finish(`[error reading response: ${(e as Error)?.message ?? String(e)}]`);
+  });
+}
+
+/**
+ * Reads at most BODY_CAP characters from the clone via a streaming
+ * reader, then cancels. Cancelling releases the tee buffer — unlike
+ * `text()`, which materialized the ENTIRE body (50 MB responses, open
+ * streams) before the old code sliced it down.
+ */
+async function readBodyCapped(cloned: Response): Promise<string> {
+  const body = cloned.body;
+  if (!body) {
+    return capText(await cloned.text());
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let out = '';
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    void reader.cancel().catch(() => {});
+  }, BODY_READ_TIMEOUT_MS);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) out += decoder.decode(value, { stream: true });
+      if (out.length >= BODY_CAP) {
+        void reader.cancel().catch(() => {});
+        return out.slice(0, BODY_CAP) + TRUNCATION_MARKER;
+      }
+    }
+    out += decoder.decode();
+    return timedOut ? out + '\n…[stream still open — capture stopped]' : out;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -162,8 +272,12 @@ export function createXhrPatch(
           let responseBody: string;
           try {
             const rt = xhr.responseType;
-            if (rt === '' || rt === 'text') responseBody = xhr.responseText;
-            else if (rt === 'json') responseBody = JSON.stringify(xhr.response);
+            // Same BODY_CAP as the fetch path — the XHR body previously
+            // went through uncapped, so a multi-MB responseText was
+            // copied 4× on the main thread (capture → postMessage →
+            // runtime IPC → storage) per request.
+            if (rt === '' || rt === 'text') responseBody = capText(xhr.responseText);
+            else if (rt === 'json') responseBody = capJsonResponse(xhr, responseHeaders);
             else responseBody = `[non-text responseType: ${rt}]`;
           } catch (e) {
             responseBody = `[error reading body: ${(e as Error).message}]`;
@@ -229,39 +343,51 @@ export function headersToObject(
   return {};
 }
 
-export async function safeReadBody(response: Response): Promise<string> {
-  try {
-    const ct = response.headers.get('content-type') ?? '';
-    if (
-      ct.includes('application/json') ||
-      ct.startsWith('text/') ||
-      ct.includes('xml') ||
-      ct.includes('form-urlencoded')
-    ) {
-      const text = await response.text();
-      return text.length > 200_000 ? text.slice(0, 200_000) + '\n…[truncated]' : text;
+/**
+ * Builds the capture string for `responseType === 'json'` XHRs without
+ * paying an unbounded synchronous `JSON.stringify` on the page's main
+ * thread: responses advertising a large content-length are summarized
+ * instead of serialized, and the result is capped like every other body.
+ */
+export function capJsonResponse(
+  xhr: Pick<XMLHttpRequest, 'response'>,
+  responseHeaders: Record<string, string>
+): string {
+  let contentLength = NaN;
+  for (const key of Object.keys(responseHeaders)) {
+    if (key.toLowerCase() === 'content-length') {
+      contentLength = Number(responseHeaders[key]);
+      break;
     }
-    return `[binary content: ${ct || 'unknown'}]`;
-  } catch (e) {
-    return `[error reading body: ${(e as Error).message}]`;
+  }
+  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
+    return `[json response: ~${contentLength} bytes — too large to capture]`;
+  }
+  try {
+    const s: string | undefined = JSON.stringify(xhr.response);
+    return s == null ? 'null' : capText(s);
+  } catch {
+    return '[unserializable json response]';
   }
 }
 
 export function serializeBody(body: BodyInit | Document | null | undefined): string | null {
   if (body == null) return null;
-  if (typeof body === 'string') return body;
+  // Request bodies are capped like response bodies — file-upload-sized
+  // strings otherwise ride the full pipeline uncapped.
+  if (typeof body === 'string') return capText(body);
   if (body instanceof FormData) {
     const obj: Record<string, string> = {};
     body.forEach((v, k) => {
-      obj[k] = typeof v === 'string' ? v : '[File]';
+      obj[k] = typeof v === 'string' ? capText(v) : '[File]';
     });
-    return JSON.stringify(obj);
+    return capText(JSON.stringify(obj));
   }
-  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof URLSearchParams) return capText(body.toString());
   if (body instanceof Blob) return `[Blob: ${body.size} bytes, ${body.type}]`;
   if (body instanceof ArrayBuffer) return `[ArrayBuffer: ${body.byteLength} bytes]`;
   try {
-    return JSON.stringify(body);
+    return capText(JSON.stringify(body));
   } catch {
     return '[unserializable body]';
   }
@@ -284,6 +410,11 @@ export function serializeBody(body: BodyInit | Document | null | undefined): str
  * does not introduce recursion because `super(...)` resolves through
  * the captured class.
  */
+/** Frame summaries flush at most this often per socket. Chatty sockets
+ *  (trading feeds, collaborative editors) push hundreds of frames/sec —
+ *  one capture per frame meant one postMessage + one runtime IPC each. */
+const WS_FLUSH_INTERVAL_MS = 1_000;
+
 export function createWebSocketPatch(
   OriginalWebSocket: typeof WebSocket,
   post: Post
@@ -297,6 +428,41 @@ export function createWebSocketPatch(
         post({ type: 'network.websocket', data });
       };
 
+      // Per-socket frame coalescing: aggregate counts/bytes per
+      // direction and emit ONE summary capture per flush window instead
+      // of one capture per frame. Lifecycle phases (connect/open/close/
+      // error) still emit immediately — they're rare and meaningful.
+      const agg = {
+        send: { frames: 0, bytes: 0 },
+        recv: { frames: 0, bytes: 0 },
+      };
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+      const flushFrames = (): void => {
+        if (flushTimer != null) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        for (const direction of ['send', 'recv'] as const) {
+          const a = agg[direction];
+          if (a.frames === 0) continue;
+          emit({
+            phase: 'message',
+            url: wsUrl,
+            direction,
+            byteSize: a.bytes,
+            frameCount: a.frames,
+          });
+          a.frames = 0;
+          a.bytes = 0;
+        }
+      };
+      const queueFrame = (direction: 'send' | 'recv', byteSize: number | undefined): void => {
+        const a = agg[direction];
+        a.frames += 1;
+        a.bytes += byteSize ?? 0;
+        if (flushTimer == null) flushTimer = setTimeout(flushFrames, WS_FLUSH_INTERVAL_MS);
+      };
+
       emit({ phase: 'connect', url: wsUrl });
 
       this.addEventListener('open', () => {
@@ -304,20 +470,16 @@ export function createWebSocketPatch(
       });
 
       this.addEventListener('message', (e: MessageEvent) => {
-        const byteSize = wsByteSize(e.data);
-        emit({
-          phase: 'message',
-          url: wsUrl,
-          direction: 'recv',
-          ...(byteSize != null ? { byteSize } : {}),
-        });
+        queueFrame('recv', wsByteSize(e.data));
       });
 
       this.addEventListener('error', () => {
+        flushFrames();
         emit({ phase: 'error', url: wsUrl });
       });
 
       this.addEventListener('close', (e: CloseEvent) => {
+        flushFrames();
         emit({
           phase: 'close',
           url: wsUrl,
@@ -325,24 +487,18 @@ export function createWebSocketPatch(
           ...(e.reason ? { reason: e.reason } : {}),
         });
       });
-    }
 
-    override send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
-      try {
-        const byteSize = wsByteSize(data);
-        post({
-          type: 'network.websocket',
-          data: {
-            phase: 'message',
-            url: this.url,
-            direction: 'send',
-            ...(byteSize != null ? { byteSize } : {}),
-          },
-        });
-      } catch {
-        /* never break the page */
-      }
-      super.send(data);
+      // Instance-level wrap (not a prototype override) so `queueFrame`
+      // stays reachable from the constructor closure.
+      const originalSend = this.send.bind(this);
+      this.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView): void => {
+        try {
+          queueFrame('send', wsByteSize(data));
+        } catch {
+          /* never break the page */
+        }
+        originalSend(data);
+      };
     }
   }
 
