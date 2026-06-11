@@ -26,9 +26,15 @@ import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/w
 import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
-import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import {
+  DEFAULT_BODY_RULES,
+  DEFAULT_FORM_RULES,
+  DEFAULT_HEADER_RULES,
+  MASKED,
+} from '@/lib/masking';
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
+import { graphqlLabel } from '@/lib/request-label';
 import { generateBundle } from '@/lib/replay-bundle';
 import {
   type ClearArchiveRuntimeMessage,
@@ -39,7 +45,12 @@ import {
   type RecordingState,
   type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { readCaptureSettings, readSharingSettings, type SharingSettings } from '@/lib/settings';
+import {
+  readCaptureSettings,
+  readSharingSettings,
+  writeGeneralSettings,
+  type SharingSettings,
+} from '@/lib/settings';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 import { buildZip, type ZipEntry } from '@/lib/zip';
 
@@ -350,6 +361,9 @@ let panelWindowId: number | undefined;
 // Bumped on every tab switch so a slow refresh from an earlier switch can
 // bail instead of rendering stale data.
 let switchSeq = 0;
+// When pinned, the panel stops following the active tab and stays on the
+// tab it was pinned to (counterpart to the default follow-active-tab).
+let pinned = false;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
 // Which coarse categories to show. Layered on top of filterMode (AND).
@@ -503,11 +517,71 @@ function syncCategoryUi(): void {
 
 void init();
 
+/** True if the panel is currently showing the dark theme (explicit
+ *  [data-theme] wins; otherwise fall back to the OS preference). */
+function isShowingDark(): boolean {
+  const explicit = document.documentElement.dataset.theme;
+  if (explicit === 'dark') return true;
+  if (explicit === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Show the icon for the theme you'd switch TO: a sun while dark, a moon
+ *  while light. */
+function syncThemeToggleIcon(btn: HTMLElement): void {
+  const dark = isShowingDark();
+  btn.classList.toggle('show-sun', dark);
+  btn.classList.toggle('show-moon', !dark);
+}
+
+/** Quick light/dark switch in the side panel header. Writes to the shared
+ *  general settings so the choice persists and syncs to the popup +
+ *  settings page (via listenForThemeChanges). Always sets an explicit
+ *  theme — the Settings dropdown still offers "Match system". */
+function wireThemeToggle(): void {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  syncThemeToggleIcon(btn);
+  btn.addEventListener('click', () => {
+    const next = isShowingDark() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next); // instant feedback
+    syncThemeToggleIcon(btn);
+    void writeGeneralSettings({ theme: next }).catch(() => {});
+  });
+  // Stay in sync when the theme changes elsewhere (settings page edit, or
+  // listenForThemeChanges re-applying after a storage change).
+  new MutationObserver(() => syncThemeToggleIcon(btn)).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+}
+
+/** Pin / unpin the panel to the current tab. While pinned, tab switches are
+ *  ignored; unpinning immediately re-points at whatever tab is now active. */
+function wirePinToggle(): void {
+  const btn = document.getElementById('pin-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    pinned = !pinned;
+    btn.classList.toggle('active', pinned);
+    btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+    if (!pinned) {
+      void chrome.tabs
+        .query({ active: true, currentWindow: true })
+        .then(([t]) => {
+          if (t?.id != null) void switchToTab(t.id);
+        })
+        .catch(() => {});
+    }
+  });
+}
+
 async function init(): Promise<void> {
   await initI18n();
   applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
+  wireThemeToggle();
   subscribeLocale(() => {
     applyI18nToDom();
     renderRecordingButton();
@@ -524,6 +598,7 @@ async function init(): Promise<void> {
   // this window, re-point the panel at the new tab. Ignore activations in
   // other windows — each window has its own panel.
   chrome.tabs.onActivated.addListener((info) => {
+    if (pinned) return;
     if (panelWindowId != null && info.windowId !== panelWindowId) return;
     void switchToTab(info.tabId);
   });
@@ -533,6 +608,7 @@ async function init(): Promise<void> {
   await loadCategoryFilter();
   syncCategoryUi();
   wireCategoryPopover();
+  wirePinToggle();
 
   document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
@@ -1042,6 +1118,21 @@ function render(): void {
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
 
+  // Tracked-tab indicator: now that the panel follows the active tab, show
+  // the host it's currently reflecting so the user always knows the context.
+  const hostEl = document.getElementById('tab-host');
+  if (hostEl) {
+    const last = events[events.length - 1];
+    let host = '';
+    try {
+      host = last?.url ? new URL(last.url).host : '';
+    } catch {
+      host = '';
+    }
+    hostEl.textContent = host;
+    hostEl.classList.toggle('hidden', host === '');
+  }
+
   // Query bar visible whenever we have at least 2 events — same gate
   // as the scrubber. Avoids the awkward "empty panel + search box"
   // first impression.
@@ -1083,6 +1174,10 @@ function render(): void {
     const e = empties[reason] ?? empties.all;
     list.innerHTML = `
       <div class="empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
         <div class="empty-title">${escapeHtml(e!.title)}</div>
         <div class="empty-sub">${escapeHtml(e!.sub)}</div>
       </div>`;
@@ -1429,7 +1524,8 @@ function formatRow(e: CapturedEvent): {
       className: classNameFromFlags(failed ? 'failed' : 'success', e),
       statusBadge: String(e.data.response.status || 'ERR'),
       method: e.data.request.method,
-      urlText: shortUrl(e.data.request.url),
+      urlText:
+        graphqlLabel(e.data.request.url, e.data.request.body) ?? shortUrl(e.data.request.url),
       urlTitle: e.data.request.url,
       timestamp: e.data.timing.startedAt,
       duration: `${e.data.timing.durationMs}ms`,
@@ -2311,6 +2407,10 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   const curlText = toCurl(c);
   const respText = c.data.response.body ?? '';
   const isOversize = bugReportText.length > SLACK_SAFE_THRESHOLD;
+  // When Authorization masking is on (the default), the stored token is
+  // ***MASKED*** — copying it is useless and misleading. Lock the Token
+  // chip and explain how to unmask instead of copying the placeholder.
+  const tokenMasked = extractAccessToken(c).includes(MASKED);
 
   detail.classList.remove('hidden');
   detail.innerHTML = `
@@ -2341,7 +2441,15 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-copy="response" class="slice" title="Response body · ${fmtSize(respText.length)}">Response</button>
       <button data-copy="req-resp" class="slice" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
       <button data-copy="curl" class="slice" title="cURL command · ${fmtSize(curlText.length)}">cURL</button>
-      <button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>
+      <button data-copy="fetch" class="slice" title="Reproduce as a runnable fetch() call">fetch()</button>
+      ${
+        tokenMasked
+          ? `<span class="slice-locked-wrap">
+        <button data-token-locked class="slice slice-locked" type="button" aria-label="${escapeHtml(t('sidepanel.token.lockedAria'))}">🔒 Token</button>
+        <span class="slice-tip" role="tooltip">${escapeHtml(t('sidepanel.token.lockedTip'))}</span>
+      </span>`
+          : `<button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>`
+      }
     </div>
     <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
@@ -2432,6 +2540,18 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   // Per-section copy — grabs the adjacent <pre> text verbatim so the user
   // copies exactly what they're looking at (headers / body) without scrolling
   // back up to the slice bar.
+  // Masked Token chip — never copies the ***MASKED*** placeholder; clicking
+  // opens Settings so the user can disable Authorization masking.
+  detail.querySelectorAll<HTMLButtonElement>('[data-token-locked]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      // Open Settings straight on the Privacy section so the user can find
+      // the Authorization masking rule without hunting.
+      void chrome.tabs.create({
+        url: chrome.runtime.getURL('src/settings/settings.html#privacy'),
+      });
+    });
+  });
+
   detail.querySelectorAll<HTMLButtonElement>('[data-copy-section]').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       // Don't let the click bubble to the (collapsible) section header.
@@ -2551,16 +2671,39 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
 
 // ---------- formatters ----------
 
-type CopyFormat = 'report' | 'curl' | 'response' | 'url' | 'request' | 'req-resp' | 'token';
+type CopyFormat =
+  | 'report'
+  | 'curl'
+  | 'fetch'
+  | 'response'
+  | 'url'
+  | 'request'
+  | 'req-resp'
+  | 'token';
 
 function formatForCopy(c: NetworkRequestEvent, format: CopyFormat): string {
   if (format === 'curl') return toCurl(c);
+  if (format === 'fetch') return toFetch(c);
   if (format === 'response') return c.data.response.body ?? '';
   if (format === 'url') return c.data.request.url;
   if (format === 'request') return toRequestText(c);
   if (format === 'req-resp') return toRequestResponseText(c);
   if (format === 'token') return extractAccessToken(c);
   return toBugReport(c);
+}
+
+/** Reproduce the request as a runnable fetch() call — paste into a console
+ *  or a .js file. Headers are masked (same as cURL). */
+function toFetch(c: NetworkRequestEvent): string {
+  const init: string[] = [`  method: ${JSON.stringify(c.data.request.method)}`];
+  const headers = maskHeaders(c.data.request.headers);
+  if (Object.keys(headers).length > 0) {
+    init.push(`  headers: ${JSON.stringify(headers, null, 2).replace(/\n/g, '\n  ')}`);
+  }
+  if (c.data.request.body != null && c.data.request.body !== '') {
+    init.push(`  body: ${JSON.stringify(String(c.data.request.body))}`);
+  }
+  return `fetch(${JSON.stringify(c.data.request.url)}, {\n${init.join(',\n')},\n});`;
 }
 
 /** Plain text request dump — method + URL + headers + body, no cURL

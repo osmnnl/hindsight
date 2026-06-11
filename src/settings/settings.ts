@@ -70,16 +70,22 @@ async function init(): Promise<void> {
 
 function setupSectionNav(): void {
   const links = document.querySelectorAll<HTMLButtonElement>('.section-link:not(.disabled)');
+  const activate = (target: string): void => {
+    links.forEach((l) => l.classList.toggle('active', l.dataset.section === target));
+    document.querySelectorAll<HTMLElement>('.section').forEach((s) => {
+      s.classList.toggle('active', s.id === `section-${target}`);
+    });
+  };
   links.forEach((link) => {
     link.addEventListener('click', () => {
       const target = link.dataset.section;
-      if (!target) return;
-      links.forEach((l) => l.classList.toggle('active', l === link));
-      document.querySelectorAll<HTMLElement>('.section').forEach((s) => {
-        s.classList.toggle('active', s.id === `section-${target}`);
-      });
+      if (target) activate(target);
     });
   });
+  // Deep link, e.g. settings.html#privacy (used by the side panel's locked
+  // token chip to land the user straight on the masking rules).
+  const hash = location.hash.replace('#', '');
+  if (hash && document.getElementById(`section-${hash}`)) activate(hash);
 }
 
 // ---------------------------------------------------------------------------
