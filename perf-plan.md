@@ -1,15 +1,112 @@
-# Performans Kök-Neden Analizi — `hindsight-perf-rootcause`
+# Hindsight Performans — Plan & Kök-Neden Analizi
 
-> **Kaynak:** Bu dosya, 2026-06-29T20:57:45.711Z tarihli workflow çalışmasından (runId `wf_6791487f-4a3`) kurtarıldı.
-> Orijinal yapılandırılmış çıktı: `~/.claude/projects/-Users-osmanunal-repos-osman-Hindsight/12acf8aa-.../workflows/wf_6791487f-4a3.json`
-> Durum: **completed** · 37 agent · ~22d 33s · 2.57M token · 410 tool çağrısı
-> Problem: Hindsight çok-sekme + yoğun istek altında sayfa donması (jank). Eklenti kaldırılınca anında düzeliyor.
-
-**Önemli:** Bu analiz yalnızca KÖK-NEDEN teşhisidir. Hiçbir kod değişikliği uygulanmadı; repo temiz.
+> **Tek kaynak (master) doküman.** Bu dosya üç şeyi bir arada tutar:
+> (1) ne yapıldı, (2) ne planlanıyor, (3) tüm kök-neden analizi.
+>
+> - **Son güncelleme:** 2026-06-30
+> - **Dal:** `perf/xhr-detach`
+> - **Problem:** Hindsight çok-sekme × yoğun istek altında sayfa donuyor (jank); eklenti kaldırılınca anında düzeliyor.
+> - **Analiz kaynağı:** `hindsight-perf-rootcause` workflow (runId `wf_6791487f-4a3`, 2026-06-29T20:57:45.711Z) — 37 agent · ~22d 33s · 2.57M token. Ham çıktı: `~/.claude/projects/-Users-osmanunal-repos-osman-Hindsight/12acf8aa-.../workflows/wf_6791487f-4a3.json`.
 
 ---
 
-## Yönetici Özeti
+## 1. Durum Panosu
+
+| #     | Kök-neden                                                                                                              | Thread        | Efor | Durum                                                      |
+| ----- | ---------------------------------------------------------------------------------------------------------------------- | ------------- | ---- | ---------------------------------------------------------- |
+| **1** | `post()` her olayda koşulsuz `window.postMessage(msg, '*')` — batch/Tier-4 kapısı bunun sonrasında                     | renderer-main | M    | 📋 Planlandı (MessagePort) — önce Playwright bench gerekli |
+| **2** | XHR `loadend` tamamen senkron (gövde materialize + stringify + post)                                                   | renderer-main | S    | ✅ **Yapıldı** — `c8c1aaa`                                 |
+| **3** | cursor/scroll recording kapalıyken bile 10Hz post; Tier-4 kapısı yanlış katmanda                                       | renderer-main | S    | 📋 Planlandı — #1'den sonra                                |
+| **4** | `renderBadge` + `CAPTURE_BATCH` seri await + `flushTab` tam-dizi yeniden-yazma — SW/storage çok-sekme amplifikasyonu   | sw            | M    | 📋 Planlandı — ölçüme göre, en son                         |
+| **5** | sidepanel/popup her 1000ms `GET_EVENTS`; SW tüm buffer'ı (recording'de base64 ekran görüntüleriyle) saniyede klonluyor | sw            | ?    | 🔍 Denetçi notu — doğrulanacak                             |
+
+> Efor: S=küçük, M=orta. Sıralama gerekçesi §3'te.
+
+---
+
+## 2. Yapılanlar
+
+### 2.0 Analizin kurtarılması
+
+37-agent'lık `hindsight-perf-rootcause` workflow'u teşhisi tamamladı ama çıktısı hiçbir yere yazılmamıştı — yalnızca workflow journal'ında duruyordu. Sentez bu dosyaya (§5) kurtarıldı.
+
+### 2.1 Kök-neden #2 — XHR gövde okuması detach edildi ✅
+
+**Commit:** `c8c1aaa` `perf(capture): read XHR response body detached off the loadend turn`
+
+**Sorun:** XHR `loadend` handler'ı tamamen senkron'du — `xhr.responseText` tüm gövdeyi string'e materialize ediyor, ardından `capText`/`JSON.stringify`, ardından `post()`; hepsi sayfanın renderer ana thread'inde, sayfanın kendi load handler'ının önünde, istek başına. `fetch` `ad53e40`'ta detach edilmişti; XHR `BODY_CAP`'i aldı ama detach'i almadı (o commit'te bırakılan asimetri).
+
+**Çözüm:** `loadend` artık yalnızca ucuz/zaman-duyarlı durumu (`status`, `statusText`, bitiş zaman damgası) senkron okuyor; gövde materialize + cap + `post()` bir `queueMicrotask`'a erteleniyor. Yakalanan veri **birebir aynı** (aynı `BODY_CAP`, aynı maskeleme, aynı alanlar); yalnızca okuma zamanı kayıyor. `durationMs` `loadend`'de damgalandığı için zamanlama etkilenmiyor.
+
+**Dokunulan dosyalar:**
+
+- `src/lib/network-patch.ts` — `createXhrPatch` `loadend` handler'ı detach edildi.
+- `src/lib/network-patch.test.ts` — 3 yeni test: detach sıralaması (post, senkron `loadend` turundan SONRA, sayfanın kendi dinleyicisinin arkasında düşer), `BODY_CAP`, status/header/method doğruluğu. Bu testler fix'ten **önceki** kodda başarısız olur.
+- `bench/xhr-overhead.bench.ts` — sahte gövde 11 byte yerine gerçekçi ~32KB; p95 kapısı artık per-call senkron overhead'in gövde boyutundan bağımsız sabit kaldığını koruyor.
+
+**Doğrulama — 6 CI kapısı yeşil:**
+
+```
+typecheck ✓   lint ✓   format:check ✓
+test ✓ 195/195   build ✓   bench ✓
+```
+
+XHR per-call sync overhead **p95 = 0.0010ms** (32KB gövdeyle bile, PRD §13.1 bütçesi 0.5ms) — gövde işi artık senkron yolda olmadığı için boyuta bağlı kalmıyor.
+
+---
+
+## 3. Yol Haritası (kalan iş)
+
+Analizin önerdiği sıra — gerekçeleriyle:
+
+### Adım 1 (yapıldı): #2 XHR detach
+
+En hızlı kazanç/risk oranı, düşük risk, fetch'in kanıtlanmış desenini uygular. ✅ `c8c1aaa`.
+
+### Adım 2 (sıradaki): #1 MessagePort köprüsü
+
+- **Yaklaşım:** `post()` çıkışını `'*'` broadcast yerine namespace'li özel bir `MessagePort`'a taşı. ISOLATED bridge sayfa açılırken MAIN'e bir `MessagePort` transfer eder; `interceptor` `port.postMessage(message)` ile **yalnızca** bridge'e gönderir — sayfanın hiçbir `message` dinleyicisi uyanmaz.
+- **Neden #2'den sonra:** Daha riskli (handshake sırası, Firefox MAIN-world enjeksiyon yolu, pagehide/visibilitychange flush korunmalı). #2'nin verdiği güvenle yapılmalı.
+- **ÖN KOŞUL:** Yeni bir **Playwright renderer-bench** (proposedBenches A, §5). Mevcut tsx bench'ler `post`'u no-op çalıştırdığı için bu yolu görmez; regresyonu yakalayacak tek şey gerçek-Chromium bench'idir.
+- **Bonus:** `'*'` broadcast capture payload'ını sayfanın kendi script'lerine sızdırıyordu; özel kanal bunu kapatır → **gizliliği iyileştirir** (PRD §11.1).
+- **Doğrulama:** yeni renderer-bench'te `D` (sayfa dinleyici sayısı) ekseni düzleşmeli + 6 CI kapısı yeşil.
+
+### Adım 3: #3 cursor/scroll MAIN-world gate
+
+- **Yaklaşım:** recording mirror'ını MAIN-world'e akıt ve cursor/scroll'u `post()`'tan ÖNCE düşür.
+- **Neden #1'den sonra:** #1'in `MessagePort` altyapısı üzerine neredeyse bedava oturur (mirror aynı port'tan akıtılır). #1'den önce yapılırsa ayrı bir mirror mekanizması gerekir (gereksiz iş).
+
+### Adım 4 (en son, ölçüme göre): #4 SW/storage amplifikasyon
+
+- **Üç ucuz mikro-düzeltme:** (1) `renderBadge`'i son değere göre diff'le (değişmediyse `chrome.action` IPC'lerini atla), (2) `detection`'da gereksiz slice tahsisinden kaçın, (3) `flushTab` yazma sıklığını trafik altında adaptive backoff ile uyarla — **bilgi kaybı olmadan**.
+- **Neden en son:** SW yükü sayfa thread'ini tek başına dondurmaz (ayrı process); #1–3 renderer yükünü düşürdükten sonra çok-sekme janku hâlâ varsa ele alınır. `flushTab` backoff en riskli (PRD §13.2 eviction ile hizalanmalı) → en sona.
+
+### Doğrulanacak: #5 sidepanel/popup polling
+
+Denetçinin yakaladığı, sentezin atladığı sorun. `sidepanel.ts` + `popup.ts` her 1000ms `GET_EVENTS` gönderiyor; SW `readEvents` ile tüm ≤200-olay buffer'ını (recording'de base64 ekran görüntüleri dahil) açık panel başına saniyede SW thread'inde klonluyor. Render-skip kapısı yalnızca DOM render'ı atlıyor, IPC'yi veya SW-tarafı clone'u değil. Önce ölçülüp doğrulanmalı.
+
+---
+
+## 4. Doğrulama Protokolü
+
+Her adım için, birleştirmeden önce 6 kapının hepsi yeşil olmalı (CLAUDE.md §4):
+
+```
+npm run typecheck    npm run lint         npm run format:check
+npm test             npm run build        npm run bench
+```
+
+- **Goal-driven:** her düzeltme için önce başarısız olan testi/bench'i yaz, sonra geçir.
+- **#1 için kritik:** mevcut tsx bench'leri (`post`=no-op) bu yolu ölçmez. MessagePort'a dokunmadan ÖNCE Playwright renderer-bench'i eklenmeli, yoksa regresyon yakalanmaz.
+- **Privacy/no-info-loss:** hiçbir düzeltme payload'ı kırpmaz, maskelemeyi zayıflatmaz veya storage'daki bilgiyi azaltmaz (PRD §11.1/§11.2/§4.1). Yalnızca zamanlama/taşıma kanalı değişir.
+
+---
+
+## 5. Tam Kök-Neden Analizi
+
+> Bu bölüm `hindsight-perf-rootcause` workflow'unun sentez çıktısının tamamıdır (denetimle doğrulanmış). §1–4 bunun üzerine kuruludur.
+
+### 5.1 Yönetici Özeti
 
 Semptomun (çok-sekme × çok-istek × kaldırınca-anında-düzelme) baskın kök-nedeni, kodla doğrulandı: sayfa MAIN-world'ündeki post() (interceptor.ts:28-39) HER yakalanan olayda KOŞULSUZ window.postMessage(message, '\*') yapıyor (interceptor.ts:35). v0.6.2'nin batch'i ve Tier-4 kapısı bunun TAMAMEN SONRASINDA, ISOLATED-world bridge'inde (bridge.ts:123-142). Yani structured-clone + sayfanın kendi 'message' dinleyicilerine fan-out maliyeti renderer ana thread'inde, kapı/batch'ten ÖNCE, her olayda ödeniyor. 910bc50 interceptor.ts'e HİÇ dokunmadı (git ile doğrulandı) — yalnızca postMessage SONRASI runtime IPC sayısını azalttı. Bu, sayfa jank'ının doğduğu thread'de üç koşulu da açıklayan tek mekanizmadır.
 
@@ -21,7 +118,7 @@ Dört bench de (fetch/xhr/masking/filter) tsx/Node'da, post()=no-op ile veya saf
 
 Cerrahi düzeltmeler gizliliği veya storage'daki bilgiyi zayıflatmadan uygulanabilir: postMessage'i namespace'li bir özel kanala (MessagePort) taşımak fan-out'u ortadan kaldırır; XHR'a fetch'in detach desenini uygulamak senkron stall'ı keser; cursor/scroll'u MAIN-world'de recording mirror'ı ile post()'tan ÖNCE düşürmek taban yükü siler.
 
-## Nedensellik Zinciri (uçtan uca)
+### 5.2 Nedensellik Zinciri (uçtan uca)
 
 UÇTAN UCA HİKÂYE (kodla doğrulanmış):
 
@@ -39,11 +136,9 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
 
 7. KALDIRINCA ANINDA DÜZELME (c): eklenti kaldırılınca MAIN-world yamaları (window.fetch/XHR/WebSocket, dinleyiciler) ve postMessage tamamen gider; bridge+SW+storage işleme durur. Renderer ana thread'inde hiçbir capture maliyeti kalmaz → jank ANINDA biter. Üç koşul da tek tutarlı modelle açıklanır; baskın eksen renderer-main postMessage, amplifikasyon ekseni paylaşılan SW/storage.
 
----
+### 5.3 Kök Nedenler (detay)
 
-## Kök Nedenler (öncelik sırasına göre)
-
-### #1 — post() her olayda renderer ana thread'inde KOŞULSUZ senkron window.postMessage(msg,'\*') yapar — structured-clone + sayfanın TÜM message dinleyicilerine fan-out; batch ve Tier-4 gate bunun SONRASINDA
+#### #1 — post() her olayda renderer ana thread'inde KOŞULSUZ senkron window.postMessage(msg,'\*') yapar — structured-clone + sayfanın TÜM message dinleyicilerine fan-out; batch ve Tier-4 gate bunun SONRASINDA
 
 - **Thread:** `renderer-main` · **Güven:** high · **Efor:** M
 - **Mekanizma:** interceptor.ts:28-39 post() koşulsuz window.postMessage(message,'_') (interceptor.ts:35) çağırır. Tüm capture siteleri buradan geçer: fetch (network-patch.ts:110), XHR (network-patch.ts:302), click (interceptor.ts:68), her tuş input (interceptor.ts:254), console (interceptor.ts:104/128/152), SPA-nav (interceptor.ts:209), longtask (interceptor.ts:309), CLS (interceptor.ts:323), cursor (interceptor.ts:353), scroll (interceptor.ts:368). manifest world:MAIN olduğundan bu kod sayfanın renderer ana thread'indedir. window.postMessage payload'ı çağrı thread'inde SENKRON structured-clone eder; '_' + hedef-pencere-kendisi olduğundan MessageEvent sayfanın KENDİ window 'message' dinleyicilerine de teslim edilir (task olarak kuyruğa alınır, AYNI ana thread'de koşar). v0.6.2 batch'i (bridge.ts:99-142) ve Tier-4 gate'i (bridge.ts:130) İKİSİ DE ISOLATED-world bridge'inde, postMessage event'i alındıktan SONRA — yani clone+fan-out maliyeti gate/batch'ten ÖNCE, her olayda, renderer ana thread'inde tam ödenir.
@@ -54,7 +149,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
   - _Risk:_ Orta. MAIN↔ISOLATED port handshake'in sırası kritik (port gelmeden olay düşmesin → bootstrap kuyruğu). Firefox MAIN-world enjeksiyon yolu (bridge.ts:28-57) port init'i de tetiklemeli. pagehide/visibilitychange flush yolları (bridge.ts:146-149) korunmalı. Mevcut '\*' postMessage'a bağlı hiçbir başka tüketici yok (yalnızca bridge dinliyor) — geri uyum riski düşük.
   - _PRD/gizlilik:_ Gizlilik/bilgi-kaybı çelişkisi YOK — payload AYNI, yalnızca taşıma kanalı değişiyor; hiçbir veri kırpılmıyor/maskeleme değişmiyor. PRD §11.1/§5.3 (CSP) uyumlu: MessageChannel inline script/eval gerektirmez. Aksine GİZLİLİĞİ İYİLEŞTİRİR: '\*' broadcast capture payload'ını (≤200KB gövde, header'lar) sayfanın kendi script'lerine sızdırıyordu; özel kanal bunu kapatır. Bench: yeni bir renderer-bench (Playwright) eklenmeli (proposedBenches A), aksi halde mevcut tsx bench'ler bu yolu görmediği için regresyonu yakalamaz.
 
-### #2 — XHR loadend yolu ana thread'de TAMAMEN SENKRON: responseText materialize + JSON.stringify + post — fetch'in ad53e40'ta aldığı detach optimizasyonunu ALMADI
+#### #2 — XHR loadend yolu ana thread'de TAMAMEN SENKRON: responseText materialize + JSON.stringify + post — fetch'in ad53e40'ta aldığı detach optimizasyonunu ALMADI
 
 - **Thread:** `renderer-main` · **Güven:** high · **Efor:** S
 - **Mekanizma:** createXhrPatch loadend handler'ı (network-patch.ts:269-306) yield etmeyen tek senkron blok: parseRawHeaders → (rt===''||'text') capText(xhr.responseText) (network-patch.ts:279, responseText getter'ı yanıtın TAMAMINI string'e materialize eder, cap SONUCU slice'lar, text yolunda content-length guard'ı YOK) VEYA (rt==='json') capJsonResponse→JSON.stringify(xhr.response) (network-patch.ts:367) → senkron post() (network-patch.ts:302). Karşıtlık: fetch sayfa Response'unu HEMEN döndürür ve gövdeyi captureResponseBody→readBodyCapped().then(finish) ile DETACHED okur (network-patch.ts:113-122,173,184-212). ad53e40 fetch'i detach etti + XHR'a yalnızca capText/capJsonResponse cap'i ekledi, okuma+stringify+post zincirini senkron loadend'den ÇIKARMADI.
@@ -65,7 +160,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
   - _Risk:_ Düşük-orta. queueMicrotask loadend'den sonra çalışır; xhr.responseText/response DONE state'te kalıcıdır, erişim güvenli. Tek incelik: post() artık senkron değil, ama zaten fetch de detached — sıra garantisi handleCapture'ın sequenceNumber'ı (service-worker.ts:602) ile değil, batch içi FIFO ile korunur; aynı XHR örneğinde tek post olduğu için yarış yok. Bench: xhr-overhead.bench.ts gövde boyutunu parametrik yapmalı (proposedBenches B).
   - _PRD/gizlilik:_ Gizlilik/bilgi-kaybı çelişkisi YOK — aynı cap (BODY_CAP=200000), aynı maskeleme (SW'de applyMasking değişmez), aynı veri. Yalnızca okuma anı senkron→detached'a kayar. PRD §13.1 fetch/XHR p95<0.5ms gate'i KORUNUR (hatta iyileşir). 'No information loss' §4.1 korunur: detach yalnızca zamanlama, içerik aynı.
 
-### #3 — cursor/scroll recording KAPALIYKEN bile 10Hz+10Hz senkron postMessage('\*') yapar — Tier-4 gate yanlış katmanda (bridge, postMessage'ten SONRA)
+#### #3 — cursor/scroll recording KAPALIYKEN bile 10Hz+10Hz senkron postMessage('\*') yapar — Tier-4 gate yanlış katmanda (bridge, postMessage'ten SONRA)
 
 - **Thread:** `renderer-main` · **Güven:** high · **Efor:** S
 - **Mekanizma:** mousemove (interceptor.ts:346-356) ve scroll (interceptor.ts:358-371) 10Hz throttle'dan sonra recording state'i KONTROL ETMEDEN koşulsuz post()→postMessage çağırır. Tier-4 gate bridge.ts:130'da (ISOLATED, postMessage SONRASI) recording yoksa düşürür — yalnızca sonraki runtime IPC'yi nötrler, renderer-main postMessage clone+fan-out maliyetini DEĞİL. Recording mirror yalnızca ISOLATED'da (bridge.ts:66-83); MAIN'in erişimi yok. Kayıt kapalı (varsayılan) her ön-plan sekmesinde fare/scroll oldukça sürekli ~20Hz saf-israf clone+fan-out.
@@ -76,7 +171,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
   - _Risk:_ Düşük. Davranış değişmiyor (cursor/scroll recording dışında zaten düşüyordu); yalnızca düşme noktası postMessage öncesine alınıyor. SW asleep iken default recordingActive=false güvenli (kayıt zaten yok). #1 ile birlikte yapılırsa neredeyse bedava.
   - _PRD/gizlilik:_ Gizlilik/bilgi-kaybı çelişkisi YOK — Tier-4 zaten recording-only (PRD §6.1.1); recording dışında bu olaylar storage'a hiç girmiyordu. Erken düşürme bilgi kaybı DEĞİL. PRD §6.1.1 Tier-4 semantiği KORUNUR.
 
-### #4 — renderBadge HER capture'da koşulsuz 2 awaited chrome.action IPC + 2×O(N) tarama; CAPTURE_BATCH seri await; storage flushTab 250ms tam-dizi yeniden-yazma — paylaşılan SW/storage çok-sekme amplifikasyonu (sayfa jank'ının DOLAYLI kötüleştiricisi)
+#### #4 — renderBadge HER capture'da koşulsuz 2 awaited chrome.action IPC + 2×O(N) tarama; CAPTURE_BATCH seri await; storage flushTab 250ms tam-dizi yeniden-yazma — paylaşılan SW/storage çok-sekme amplifikasyonu (sayfa jank'ının DOLAYLI kötüleştiricisi)
 
 - **Thread:** `sw` · **Güven:** medium · **Efor:** M
 - **Mekanizma:** handleCapture (service-worker.ts:551-728) capture başına: 4 config await + applyMasking (network için 4× maskBody/maskHeaders tam-gövde regex, service-worker.ts:883-886 + masking.ts:227-228) + getOrCreateSession + smartDetection AÇIK ise readEvents (storage.ts:190-195, O(N) slice tahsisi) + detect (başarısız network'te ~3×O(N) tarama: detection.ts:60-74,92-100,129-136) + queueEvent + renderBadge (service-worker.ts:938-966: 2×O(N) tarama reduce+some + 2 awaited chrome.action IPC, badge değişmese bile). CAPTURE_BATCH bunları SIRAYLA for-await ile işler (service-worker.ts:241-253); SW tek thread, N sekmeden gelen batch'ler birbirini bekler. queueEvent/flushTab her aktif sekme için 250ms'de bir [...persisted,...pending].slice(-max) ile TÜM diziyi yeniden serialize edip chrome.storage.local.set yapar (storage.ts:163-181) — tek backing store'da N-sekme çekişmesi. Recording'de dizi base64 jpeg dataUrl'leri içerir (service-worker.ts:480-488), her flush'ta yeniden yazılır.
@@ -87,9 +182,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
   - _Risk:_ Düşük-orta. renderBadge diff: kayıt temizleme/clear yollarında lastBadge invalidate edilmeli (clearBadge'de sil). detection görünüm değişikliği: detect'in buffer'ı mutasyona uğratmadığından emin ol (uğratmıyor — saf). flushTab adaptive: en kötü durumda veri 500ms gecikmeyle yazılır; SW eviction riski için pencereyi MV3 ~30s idle sınırının çok altında tut. Bu en riskli düzeltme; #1-3'ten SONRA ve yalnızca gerekirse.
   - _PRD/gizlilik:_ Bilgi-kaybı çelişkisi riski VAR ve kaçınılmalı: flushTab penceresini büyütmek BİLGİ KAYBI DEĞİLDİR (tüm event'ler hâlâ yazılır, sadece daha seyrek) — ama pencere SW eviction'dan önce kapanmalı, yoksa evict olursa pending kaybolur. Bu yüzden adaptive backoff üst sınırı tutucu (≤500ms) ve pagehide/visibilitychange flush (bridge.ts:146-149) korunmalı. renderBadge diff ve detection görünümü bilgi/gizlilik etkilemez (yalnızca CPU). PRD §13.2 250ms flush stratejisiyle hizalı kalır; sapma PRD'de belgelenmelidir (CLAUDE.md kuralı: PRD ile çelişirse aynı PR'da güncelle).
 
----
-
-## Önerilen Uygulama Sırası
+### 5.4 Önerilen Uygulama Sırası (ham)
 
 1. ÖNCE #2 (XHR detach, effort S, risk düşük): En hızlı kazanç/risk oranı. fetch'in zaten kanıtlanmış detach desenini XHR'a uygular, yalnızca network-patch.ts'de cerrahi. XHR-ağır SPA'larda (axios/Angular) anında ana-thread stall azaltır. #1 daha büyük olduğu için bunu önce kapatıp hızlı bir kazanç almak mantıklı. Mevcut xhr bench gövde-parametrik hale getirilerek (proposedBenches B) regresyon korunur.
 
@@ -99,7 +192,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
 
 4. EN SON #4 (SW/storage amplifikasyon mikro-düzeltmeleri, effort M, en riskli): #1-3 renderer-main yükünü düşürdükten sonra ölç — eğer çok-sekme janku hâlâ varsa SW tarafını ele al. renderBadge-diff ve detection-görünümü düşük risk, önce onlar. flushTab adaptive-backoff EN SON ve yalnızca gerekirse (bilgi-kaybı/eviction riski en yüksek olan, PRD §13.2 ile hizalanması gereken). Sıralama gerekçesi: en büyük ve doğrudan sayfa-thread etkisi olan renderer-main düzeltmeleri (1-3) önce; dolaylı amplifikasyon (4) ölçülen ihtiyaca göre sonra. Her adım kendi bench'iyle (B→A→A→C/D) doğrulanır; CLAUDE.md §4 altı CI gate'i (typecheck/lint/format/test/build/bench) her adımda yeşil tutulur.
 
-## Bu Düzeltmelerin ÇÖZMEYECEĞİ Şeyler
+### 5.5 Bu Düzeltmelerin ÇÖZMEYECEĞİ Şeyler
 
 - structured-clone'un KENDİSİ kalır: MessagePort fan-out'u ortadan kaldırır ama payload hâlâ çağrı thread'inde (renderer-main) klonlanır (≤BODY_CAP=200000 char/olay). Çok büyük gövdeli, çok yüksek frekanslı istek rejiminde clone CPU'su kalan bir maliyettir — yalnızca worker'a taşıma veya transferable (ArrayBuffer) bunu keser, ki bu büyük bir mimari değişiklik ve PRD kapsamı dışı.
 - post() FREKANSI: hiçbir fix istek/etkileşim frekansını azaltmaz (azaltmamalı — capture eksiksizliği PRD gereği). Olay başına maliyet düşer ama saniyede yüzlerce capture üreten patolojik bir sayfa hâlâ kümülatif yük üretir.
@@ -108,7 +201,7 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
 - chrome.storage.local'ın delta-yazma desteklememesi: flushTab adaptive backoff yazma SIKLIĞINI azaltır ama her yazma hâlâ tüm diziyi serialize eder (amplifikasyon faktörü = dizi_boyutu korunur). Gerçek delta yazma chrome.storage API'sinde yok; per-event ayrı anahtar şeması büyük bir storage-katmanı yeniden tasarımı olur (kapsam dışı).
 - Recording modu storage şişmesi (base64 jpeg dataUrl'leri event dizisine inline, service-worker.ts:480-488): bu fix'ler dokunmuyor. dataUrl'leri ayrı storage anahtarlarına (storageRef zaten var, :481) taşıyıp event dizisinden çıkarmak ayrı bir iş; recording opsiyonel olduğu ve semptomun zorunlu koşulu olmadığı için önceliklendirilmedi.
 
-## Önerilen Bench / Repro
+### 5.6 Önerilen Bench / Repro
 
 - A) BİRİNCİL — renderer-main postMessage clone + sayfa-handler fan-out bench'i (gerçek Chromium gerektirir, mevcut tsx bench'lerin kör noktasını kapatır): Playwright/puppeteer ile headless Chromium aç, boş sayfaya interceptor.ts'i MAIN-world'e enjekte et. Sayfaya D adet (0, 5, 20) gürültü 'message' dinleyicisi ekle (her biri JSON.parse + küçük iş). window.fetch'i N=2000 kez, gövde G ∈ {1KB,50KB,200KB} ile çağır. PerformanceObserver('longtask') ile toplam longtask süresini topla + post()→postMessage etrafını performance.mark ile ölç. İddia/gate: toplam main-thread block G ve D ile DOĞRUSAL artmalı; D=20,G=200KB,N=2000'de bir bütçe belirle. MessagePort fix'i sonrası D ekseni DÜZLEŞMELİ (fan-out gitti). Bu tek bench #1'in hem mekanizmasını hem fix'in regresyonunu yakalar.
 
@@ -120,23 +213,19 @@ UÇTAN UCA HİKÂYE (kodla doğrulanmış):
 
 - EN HIZLI TEK REPRO (semptomun üçünü birden deterministik üretir): Playwright ile 5 sekme aç, her sekmede 5 sayfa-message-dinleyicisi + sürekli 200KB-gövdeli fetch döngüsü (10/sn) çalıştır. Tüm sekmelerde PerformanceObserver('longtask') toplamını ölç (a+b). Sonra eklentiyi kaldır (chrome.management veya unpacked dizinini kaldır), aynı yükü tekrarla → longtask ≈ 0'a düşmeli (c). Mevcut tsx bench'ler yeşilken bu repro jank'ı gösterir — 'bench yeşil ama jank' çelişkisini kanıtlar ve fix'ler sonrası longtask toplamının düştüğünü doğrular.
 
----
-
-## Denetçi (Critic) Notları
+### 5.7 Denetçi (Critic) Notları
 
 **Tek seçilecek kök-neden:** If exactly one thing is fixed, fix interceptor.ts:28-39 / :35 — post() does an UNCONDITIONAL synchronous window.postMessage(message, '_') on every captured event, on the page's renderer main thread (manifest world:MAIN, manifest.json:25-29). I verified all capture sites funnel through post(): fetch (network-patch.ts:110), XHR (network-patch.ts:302), click (interceptor.ts:68), every keystroke (interceptor.ts:254, NO throttle/debounce — confirmed), console x3 (104/128/152), unhandled (128/152), SPA-nav (209), longtask (309), CLS (323), cursor (353), scroll (368). The v0.6.2 batch and Tier-4 gate both live in bridge.ts (ISOLATED world, lines 99-142 and :130) — i.e. AFTER the postMessage has already paid its structured-clone + same-window fan-out cost. git show 910bc50 confirms it did NOT touch interceptor.ts (empty diff), so the postMessage was never optimized. bridge.ts:124 (`if (event.source !== window) return`) proves the message IS delivered to the page's own window 'message' listeners (the bridge must filter them out). No MessageChannel/MessagePort/transferable exists anywhere (grep confirmed) — it is the real structured-clone path, not a cheap transfer. This single mechanism is the only one that explains all three symptom conditions on the thread where page jank actually originates: (b) more requests => post() frequency scales 1:1 with request rate, clone cost scales with body size (≤BODY_CAP=200000, capture-limits.ts:13); (a) more tabs => each renderer independently pays this (and the shared SW amplifies it); (c) uninstall => MAIN-world patches + postMessage vanish, jank stops instantly. The recommended fix (MessagePort private channel) eliminates the fan-out and the '_' broadcast (which also closes a real privacy leak: ≤200KB capture payloads are currently broadcast to the page's own scripts), without changing payload, masking, or storage — PRD-compliant.
 
 **Nihai karar (high):** REAL FINDING with one materially under-weighted blind spot and one over-stated confidence claim. The synthesis's rank-1 root cause (unconditional renderer-main postMessage before the gate/batch) and rank-2 (XHR synchronous loadend vs fetch's detached read) are both code-verified and correct; ad53e40's diff literally shows XHR got only capText/capJsonResponse wrapping while fetch got captureResponseBody detach, with the comment 'copied 4x on the main thread.' Rank-3 (cursor/scroll gate in wrong layer) and rank-4 (shared-SW/storage amplification as INDIRECT page-jank contributor, not standalone cause) are correct and correctly ranked. The bench-blindness thesis is fully confirmed: both fetch and xhr benches pass `() => {}` as the no-op post (verified line-for-line), so postMessage clone, runtime IPC clone, page-listener fan-out, multi-tab SW contention, and chrome.storage full-array rewrite are ALL unmeasured. However: (1) The synthesis dismissed the sidepanel as 'only relevant when the panel is open' and never connected it to its own SW-saturation amplification axis. In fact sidepanel.ts:866-879 AND popup.ts:124-135 send GET_EVENTS every 1000ms; the SW responds via readEvents (service-worker.ts:257-261) which synchronously structured-clones the ENTIRE ≤200-event buffer (containing base64 screenshots when recording) back to the panel ON THE SW THREAD every second per open panel. The render-skip signature gate (sidepanel.ts:873) skips only the DOM render, NOT the IPC or the SW-side clone — so an open side panel is a continuous 1-Hz SW-thread load source the synthesis missed. This belongs in rank-4's mechanism. (2) The rank-1 'high confidence' that page-listener fan-out DOMINATES plain clone cost is asserted, not proven — fan-out magnitude is a per-page runtime property (how many 'message' listeners the page registers) that no code in this repo can establish, and no renderer bench exists to measure it. The mechanism is real and sound; its claimed dominance over bare clone cost is the one unproven leap. Net: the analysis is actionable and the fix ordering is sound, but it should add the sidepanel/popup 1-Hz GET_EVENTS poll to the SW-amplification root cause and soften rank-1's dominance claim to 'mechanism certain, magnitude page-dependent and unmeasured.'
 
----
-
-## Hipotez İstatistikleri
+### 5.8 Hipotez İstatistikleri
 
 - Hayatta kalan kök-neden: **3**
 - Çürütülen hipotez: **4**
 - Kümeleme sırasında elenen: **25**
 
-### Nicel Ölçüm Özeti
+### 5.9 Nicel Ölçüm Özeti
 
 **perRequestMainThreadCost:**
 
