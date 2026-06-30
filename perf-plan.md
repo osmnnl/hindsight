@@ -5,7 +5,7 @@
 >
 > - **Son güncelleme:** 2026-06-30
 > - **Dal:** `perf/xhr-detach`
-> - **Durum:** 5 kök-nedenin **tamamı** kodlandı; 6 CI kapısı yeşil. Kalan tek iş: gerçek-tarayıcı QA (aşağıda).
+> - **Durum:** 5 kök-nedenin **tamamı** kodlandı; 6 CI kapısı yeşil. Baskın neden (#1) gerçek Chromium'da **doğrulandı** (`bench:fanout` — 40 capture'dan **0** sayfa-dinleyici uyandırması, 40/40 olay SW'ye ulaştı).
 > - **Problem:** Hindsight çok-sekme × yoğun istek altında sayfa donuyor (jank); eklenti kaldırılınca anında düzeliyor.
 > - **Analiz kaynağı:** `hindsight-perf-rootcause` workflow (runId `wf_6791487f-4a3`, 2026-06-29T20:57:45.711Z) — 37 agent · ~22d 33s · 2.57M token. Ham çıktı: `~/.claude/projects/-Users-osmanunal-repos-osman-Hindsight/12acf8aa-.../workflows/wf_6791487f-4a3.json`.
 
@@ -27,11 +27,13 @@
 > `detection` slice-tweak ve `flushTab` adaptive-backoff bilinçli **ertelendi** — marjinal kazanç /
 > bilgi-kaybı riski (analiz de öyle işaretledi; flushTab PRD §13.2 eviction ile bağlı). Bkz. §3 Adım 4.
 >
-> ⚠️ **Açık tek iş — gerçek-tarayıcı QA:** #1 (MessagePort) ve #5 (poll) içerik-script'i / SW glue'sudur ve
-> bu repo'da unit-test edilmez. Yayından önce eklenti unpacked yüklenip doğrulanmalı:
-> (a) yakalama hâlâ akıyor (fetch/XHR/click/console panelde görünüyor),
-> (b) sayfanın kendi `window 'message'` dinleyicileri artık her capture'da uyanmıyor (DevTools ile).
-> Bunu yakalayacak Playwright renderer-bench'i henüz **kurulu değil** (öneri §5 "proposedBenches A").
+> ✅ **Gerçek-tarayıcı doğrulaması — yapıldı.** `bench/messageport-fanout.bench.ts` (Playwright,
+> tam chromium) BUILD'lenmiş eklentiyi gerçek headless Chromium'a yükler, bir sayfaya kendi
+> `window 'message'` dinleyicisini koyar, 40 capture tetikler ve ölçer. Sonuç: **0 uyandırma**
+> (broadcast ~40 üretirdi) + **40/40 olay SW'ye ulaştı**. Yani MessagePort cross-world transfer'i
+> gerçek Chromium'da çalışıyor, fan-out tamamen elendi ve yakalama uçtan uca akıyor. Çalıştır:
+> `npm run bench:fanout` (varsayılan `npm run bench`'e dahil **değil** — tarayıcı indirir, ~5sn).
+> Yayın öncesi ek olarak gerçek bir SPA'da elle göz-kontrolü hâlâ iyi pratik.
 
 ---
 
@@ -102,9 +104,9 @@ En hızlı kazanç/risk oranı, düşük risk, fetch'in kanıtlanmış desenini 
 
 - **Yaklaşım:** `post()` çıkışını `'*'` broadcast yerine namespace'li özel bir `MessagePort`'a taşı. ISOLATED bridge sayfa açılırken MAIN'e bir `MessagePort` transfer eder; `interceptor` `port.postMessage(message)` ile **yalnızca** bridge'e gönderir — sayfanın hiçbir `message` dinleyicisi uyanmaz.
 - **Neden #2'den sonra:** Daha riskli (handshake sırası, Firefox MAIN-world enjeksiyon yolu, pagehide/visibilitychange flush korunmalı). #2'nin verdiği güvenle yapılmalı.
-- **ÖN KOŞUL:** Yeni bir **Playwright renderer-bench** (proposedBenches A, §5). Mevcut tsx bench'ler `post`'u no-op çalıştırdığı için bu yolu görmez; regresyonu yakalayacak tek şey gerçek-Chromium bench'idir.
+- **ÖN KOŞUL (yapıldı):** Gerçek-Chromium bench `bench/messageport-fanout.bench.ts` eklendi (`npm run bench:fanout`). Mevcut tsx bench'ler `post`'u no-op çalıştırdığı için bu yolu görmez; bu bench gerçek eklentiyi yükleyip ölçer.
 - **Bonus:** `'*'` broadcast capture payload'ını sayfanın kendi script'lerine sızdırıyordu; özel kanal bunu kapatır → **gizliliği iyileştirir** (PRD §11.1).
-- **Doğrulama:** yeni renderer-bench'te `D` (sayfa dinleyici sayısı) ekseni düzleşmeli + 6 CI kapısı yeşil.
+- **Doğrulama (yapıldı):** `bench:fanout` → 40 capture'dan **0** sayfa-dinleyici uyandırması (broadcast ~40 üretirdi), **40/40** olay SW'ye ulaştı. Cross-world transfer gerçek Chromium'da çalışıyor.
 
 - #1'in `MessagePort` altyapısı üzerine #3 de oturdu (recording state aynı port'tan akıyor). Mirror MAIN'e iletiliyor; cursor/scroll kaynakta düşürülüyor.
 
@@ -121,14 +123,15 @@ En hızlı kazanç/risk oranı, düşük risk, fetch'in kanıtlanmış desenini 
 
 ---
 
-## 3.1 Açık tek iş — gerçek-tarayıcı QA
+## 3.1 Gerçek-tarayıcı doğrulaması ✅
 
-Tüm kod ve 6 CI kapısı tamam; ama **#1 (MessagePort) ve #5 (poll) içerik-script'i / SW glue'sudur ve cross-world davranışı tsx bench'lerle ölçülemez** ("bench yeşil ama jank" çelişkisinin kaynağı). Yayından önce:
+**#1 (MessagePort) ve #5 (poll) içerik-script'i / SW glue'sudur ve cross-world davranışı tsx bench'lerle ölçülemez** ("bench yeşil ama jank" çelişkisinin kaynağı). Bunun için gerçek-Chromium bench'i eklendi:
 
-1. Eklentiyi unpacked yükle, yoğun-istek + çok-sekme bir sayfada gez.
-2. Doğrula: yakalama hâlâ akıyor (panelde fetch/XHR/click/console görünüyor).
-3. DevTools ile doğrula: sayfanın kendi `window 'message'` dinleyicileri artık capture başına uyanmıyor (port aktif).
-4. İdeal: **Playwright renderer-bench'i** kur (§5 "proposedBenches A") — `D` (sayfa dinleyici sayısı) eksenini ölçer; MessagePort sonrası düzleşmeli. Bu, regresyonu yakalayacak kalıcı kapı olur. (Playwright şu an kurulu değil.)
+- **`bench/messageport-fanout.bench.ts`** (`npm run bench:fanout`) — Playwright + tam chromium ile BUILD'lenmiş eklentiyi headless Chromium'a yükler, sayfaya kendi `window 'message'` dinleyicisini koyar, 40 capture tetikler, uyandırma sayısını + SW'ye ulaşan olayları ölçer.
+- **Sonuç:** 0 uyandırma (broadcast ~40 üretirdi) · 40/40 olay SW'de. → cross-world MessagePort transfer'i çalışıyor, fan-out elendi, yakalama uçtan uca akıyor. Bench, #1 geri-alınırsa (uyandırma ~40) veya pipeline kırılırsa (olay < 40) **başarısız olur** — kalıcı regresyon kapısı.
+- `npm run bench` (merge gate) hermetik/hızlı kalsın diye buna **dahil değil**; on-demand / yayın-öncesi çalışır. Playwright devDependency olarak eklendi; tarayıcı: `npx playwright install chromium`.
+
+Yayın öncesi ek olarak gerçek bir SPA'da (DevTools ile sayfa dinleyicilerinin uyanmadığını) elle göz-kontrolü hâlâ iyi pratik — bench bunu otomatikleştiriyor ama tek bir sentetik sayfada.
 
 ## 4. Doğrulama Protokolü
 
