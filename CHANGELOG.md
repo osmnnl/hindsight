@@ -4,6 +4,94 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.0] — 2026-06-30 — M5: capture-pipeline performance hardening
+
+Closes the multi-tab × heavy-request page-freeze (jank) that disappeared
+the instant the extension was removed. A root-cause analysis traced it to
+five mechanisms on and around the capture hot path; all five are fixed.
+The dominant one is verified in real Chromium. No user-facing feature
+changes — capture fidelity and privacy are unchanged (one privacy
+improvement, below).
+
+### Performance
+
+- **Captures ride a private `MessagePort`, not a `postMessage('*')`
+  broadcast.** Every captured event used to wake the page's OWN `message`
+  listeners (analytics SDKs, OAuth/wallet bridges, framework routers)
+  once per fetch / XHR / click / keystroke — the dominant cost, paid on
+  the page's main thread before the v0.6.2 batch/gate ever ran. The
+  ISOLATED bridge now hands the MAIN interceptor a private port; captures
+  flow over it and never touch the page's listeners. Safe by
+  construction: the broadcast continues until a round-trip over the port
+  is confirmed, so a browser that can't transfer the port simply keeps
+  the old behavior (zero capture loss).
+- **XHR response body read detached off the `loadend` turn** — the body
+  materialization + cap + post no longer block the page's own load
+  handler per request (mirrors the fetch path).
+- **cursor/scroll dropped at the source** when recording is known to be
+  off, instead of being emitted at ~20 Hz and discarded downstream.
+- **Badge `chrome.action` IPCs skipped when the badge is unchanged** (the
+  common case), instead of 2 awaited IPCs per capture.
+- **`GET_EVENTS` poll skips the full-buffer clone** when nothing changed
+  since the caller's last fetch — the side panel / popup no longer make
+  the service worker re-clone the whole ≤200-event buffer (base64
+  screenshots and all) every second.
+
+### Added
+
+- **`bench:fanout`** — a real-Chromium (Playwright) bench that loads the
+  built extension and asserts captures no longer wake the page's own
+  `message` listeners (0 wakeups vs ~N for the old broadcast) while still
+  reaching the service worker. Not part of `npm run bench`; run on demand.
+
+### Changed
+
+- The `'*'` capture broadcast no longer leaks capture payloads to the
+  page's own scripts — the private port closes that channel (privacy
+  improvement, PRD §11.1).
+
+## [0.6.2] — 2026-06-12 — perf hotfix: stop the capture pipeline janking the page
+
+### Performance
+
+- **fetch no longer blocks time-to-first-byte.** The body is read from a
+  detached clone (capped 200 KB / 10 s); event-stream/binary bodies are
+  never cloned, so fetch-based SSE streams resolve again.
+- **Page-world payloads bounded at the source** — XHR `responseText`,
+  request bodies, and console args are capped; WebSocket frames coalesce
+  into one summary per second per direction; input events skip the
+  per-keystroke forced reflow.
+- **Capture IPC batched** (~250 ms window) into one `CAPTURE_BATCH`
+  message, and Tier-4 cursor/scroll traffic gated at the bridge before
+  the IPC instead of being shipped just to be dropped.
+- **Session metadata cached in memory** — `getOrCreateSession` no longer
+  does a `chrome.storage.local` round-trip per captured event.
+
+## [0.6.1] — 2026-06-08
+
+### Fixed
+
+- **Firefox capture was dead** — the MAIN-world interceptor is now
+  injected from the bridge (crxjs's relative loader 404'd on Firefox).
+- **Firefox "Open side panel"** preserved the user gesture so the sidebar
+  actually opens.
+
+### Added
+
+- **Side panel follows the active tab** (DevTools-style).
+- **Popup network-only quick list** + author credit link.
+
+## [0.6.0] — 2026-06-05
+
+### Added
+
+- **Eye logo** wired to the toolbar action and in-app headers.
+- **Per-section copy buttons** in the network detail view.
+- **Firefox / AMO build target** (`build:firefox`, sidebar port).
+- **Per-tab category show/hide filter** + a global default in Settings.
+- **Detail view: interactive JSON tree**, collapsible sections, and
+  in-detail find with highlight + jump.
+
 ## [0.5.0] — 2026-05-25 — M5 W11-W12: scrubber range + mask opt-out
 
 First minor bump in M5. Two user-facing capabilities land alongside
