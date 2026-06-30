@@ -5,6 +5,7 @@
 >
 > - **Son güncelleme:** 2026-06-30
 > - **Dal:** `perf/xhr-detach`
+> - **Durum:** 5 kök-nedenin **tamamı** kodlandı; 6 CI kapısı yeşil. Kalan tek iş: gerçek-tarayıcı QA (aşağıda).
 > - **Problem:** Hindsight çok-sekme × yoğun istek altında sayfa donuyor (jank); eklenti kaldırılınca anında düzeliyor.
 > - **Analiz kaynağı:** `hindsight-perf-rootcause` workflow (runId `wf_6791487f-4a3`, 2026-06-29T20:57:45.711Z) — 37 agent · ~22d 33s · 2.57M token. Ham çıktı: `~/.claude/projects/-Users-osmanunal-repos-osman-Hindsight/12acf8aa-.../workflows/wf_6791487f-4a3.json`.
 
@@ -12,15 +13,25 @@
 
 ## 1. Durum Panosu
 
-| #     | Kök-neden                                                                                                              | Thread        | Efor | Durum                                                      |
-| ----- | ---------------------------------------------------------------------------------------------------------------------- | ------------- | ---- | ---------------------------------------------------------- |
-| **1** | `post()` her olayda koşulsuz `window.postMessage(msg, '*')` — batch/Tier-4 kapısı bunun sonrasında                     | renderer-main | M    | 📋 Planlandı (MessagePort) — önce Playwright bench gerekli |
-| **2** | XHR `loadend` tamamen senkron (gövde materialize + stringify + post)                                                   | renderer-main | S    | ✅ **Yapıldı** — `c8c1aaa`                                 |
-| **3** | cursor/scroll recording kapalıyken bile 10Hz post; Tier-4 kapısı yanlış katmanda                                       | renderer-main | S    | 📋 Planlandı — #1'den sonra                                |
-| **4** | `renderBadge` + `CAPTURE_BATCH` seri await + `flushTab` tam-dizi yeniden-yazma — SW/storage çok-sekme amplifikasyonu   | sw            | M    | 📋 Planlandı — ölçüme göre, en son                         |
-| **5** | sidepanel/popup her 1000ms `GET_EVENTS`; SW tüm buffer'ı (recording'de base64 ekran görüntüleriyle) saniyede klonluyor | sw            | ?    | 🔍 Denetçi notu — doğrulanacak                             |
+| #     | Kök-neden                                                                                                              | Thread        | Efor | Durum                                                  |
+| ----- | ---------------------------------------------------------------------------------------------------------------------- | ------------- | ---- | ------------------------------------------------------ |
+| **1** | `post()` her olayda koşulsuz `window.postMessage(msg, '*')` — batch/Tier-4 kapısı bunun sonrasında                     | renderer-main | M    | ✅ **Yapıldı** — `66acfdc` (MessagePort, geri-düşüşlü) |
+| **2** | XHR `loadend` tamamen senkron (gövde materialize + stringify + post)                                                   | renderer-main | S    | ✅ **Yapıldı** — `c8c1aaa`                             |
+| **3** | cursor/scroll recording kapalıyken bile 10Hz post; Tier-4 kapısı yanlış katmanda                                       | renderer-main | S    | ✅ **Yapıldı** — `66acfdc` (#1 ile birlikte)           |
+| **4** | `renderBadge` koşulsuz 2 `chrome.action` IPC — SW çok-sekme amplifikasyonu                                             | sw            | S    | ✅ **Yapıldı** — `a649f78` (badge diff)                |
+| **5** | sidepanel/popup her 1000ms `GET_EVENTS`; SW tüm buffer'ı (recording'de base64 ekran görüntüleriyle) saniyede klonluyor | sw            | M    | ✅ **Yapıldı** — `3775611` (poll short-circuit)        |
 
 > Efor: S=küçük, M=orta. Sıralama gerekçesi §3'te.
+>
+> **#4 kapsam notu:** Analizin #4'ü üç alt-fix öneriyordu; yalnızca **renderBadge diff** uygulandı.
+> `detection` slice-tweak ve `flushTab` adaptive-backoff bilinçli **ertelendi** — marjinal kazanç /
+> bilgi-kaybı riski (analiz de öyle işaretledi; flushTab PRD §13.2 eviction ile bağlı). Bkz. §3 Adım 4.
+>
+> ⚠️ **Açık tek iş — gerçek-tarayıcı QA:** #1 (MessagePort) ve #5 (poll) içerik-script'i / SW glue'sudur ve
+> bu repo'da unit-test edilmez. Yayından önce eklenti unpacked yüklenip doğrulanmalı:
+> (a) yakalama hâlâ akıyor (fetch/XHR/click/console panelde görünüyor),
+> (b) sayfanın kendi `window 'message'` dinleyicileri artık her capture'da uyanmıyor (DevTools ile).
+> Bunu yakalayacak Playwright renderer-bench'i henüz **kurulu değil** (öneri §5 "proposedBenches A").
 
 ---
 
@@ -53,17 +64,41 @@ test ✓ 195/195   build ✓   bench ✓
 
 XHR per-call sync overhead **p95 = 0.0010ms** (32KB gövdeyle bile, PRD §13.1 bütçesi 0.5ms) — gövde işi artık senkron yolda olmadığı için boyuta bağlı kalmıyor.
 
+### 2.2 Kök-neden #4 — badge IPC'leri diff'lendi ✅
+
+**Commit:** `a649f78` `perf(sw): skip badge chrome.action IPCs when the badge is unchanged`
+
+`renderBadge` her capture'da koşulsuz 2 awaited `chrome.action` IPC yapıyordu; oysa badge yalnızca şiddet eşiği değişince değişir. Başarılı fetch/click akışında badge boş kalırken her capture 2 IPC'yi boşa harcıyordu. Hesaplanan `{text,color}` tab-başına bir ayna ile diff'lenip değişmediyse erken dönülüyor. SW glue → typecheck/build ile doğrulandı.
+
+### 2.3 Kök-neden #1 + #3 — özel MessagePort kanalı ✅ (asıl çözüm)
+
+**Commit:** `66acfdc` `perf(capture): route captures over a private MessagePort, gate Tier-4 at source`
+
+**#1 (baskın neden):** Her capture `window.postMessage(msg, '*')` ile gidiyordu — structured-clone **artı** sayfanın kendi `message` dinleyicilerini (OAuth/wallet köprüleri, analytics SDK'ları, framework router'ları) capture başına uyandırma. v0.6.2 batch + Tier-4 kapısı bu maliyetin SONRASINDA. ISOLATED bridge artık MAIN'e özel bir `MessageChannel` portu sunuyor (tek transfer'li window mesajı, MAIN hazır olana dek tekrarlanıyor); capture'lar porta biniyor ve sayfanın dinleyicilerini hiç uyandırmıyor.
+
+**Tasarımca güvenli:** MAIN, port round-trip'i bridge'in `ack`'iyle **doğrulanana kadar** broadcast'i sürdürür; port'a yazma hata verirse broadcast'e düşer. Cross-world transfer'in sessizce başarısız olduğu bir tarayıcıda **tam önceki davranış** — sıfır capture kaybı. MAIN-tarafı state machine `src/lib/capture-channel.ts`'e çıkarıldı, **8 unit test** "ack'e kadar broadcast" sözleşmesini ve gate'i kilitliyor.
+
+**#3:** cursor/scroll, recording kapalıyken bile ~20Hz post ediyordu. Bridge recording state'i port üzerinden MAIN'e itiyor; MAIN, **kesin state'i bildiğinde** onları kaynakta düşürüyor (bilmiyorsa bridge'in kapısı backstop — asla eksik-yakalama yok).
+
+**Dokunulan dosyalar:** `runtime-messages.ts` (port wire tipleri), `capture-channel.ts` + `.test.ts` (yeni), `content/bridge.ts`, `content/interceptor.ts`.
+
+### 2.4 Kök-neden #5 — GET_EVENTS poll klonu kısa-devre edildi ✅
+
+**Commit:** `3775611` `perf(sw): skip the GET_EVENTS buffer clone when the poll sees no change`
+
+sidepanel + popup her 1000ms `GET_EVENTS` yolluyor; SW her tıkta tüm ≤200-olay buffer'ını (recording'de base64 screenshot'larla) IPC üzerinden klonluyordu. `GET_EVENTS` artık opsiyonel `knownLastSequence` taşıyor; SW cache'inden ucuzca `lastSequence`'a bakıp değişmediyse `{unchanged:true}` dönüyor — tam buffer boşta tıkta hiç klonlanmıyor. `lastSequence` monotonik ve yalnızca olay eklenince artar (buffer da yalnızca o zaman değişir), cold cache -1 dönüp tam okumayı zorlar (bayat-atlama imkânsız).
+
 ---
 
-## 3. Yol Haritası (kalan iş)
+## 3. Yol Haritası — tamamlandı ✅
 
-Analizin önerdiği sıra — gerekçeleriyle:
+Analizin önerdiği sıra — hepsi bu sırayla uygulandı:
 
-### Adım 1 (yapıldı): #2 XHR detach
+### Adım 1 ✅: #2 XHR detach
 
 En hızlı kazanç/risk oranı, düşük risk, fetch'in kanıtlanmış desenini uygular. ✅ `c8c1aaa`.
 
-### Adım 2 (sıradaki): #1 MessagePort köprüsü
+### Adım 2 ✅: #1 MessagePort köprüsü → `66acfdc`
 
 - **Yaklaşım:** `post()` çıkışını `'*'` broadcast yerine namespace'li özel bir `MessagePort`'a taşı. ISOLATED bridge sayfa açılırken MAIN'e bir `MessagePort` transfer eder; `interceptor` `port.postMessage(message)` ile **yalnızca** bridge'e gönderir — sayfanın hiçbir `message` dinleyicisi uyanmaz.
 - **Neden #2'den sonra:** Daha riskli (handshake sırası, Firefox MAIN-world enjeksiyon yolu, pagehide/visibilitychange flush korunmalı). #2'nin verdiği güvenle yapılmalı.
@@ -71,21 +106,29 @@ En hızlı kazanç/risk oranı, düşük risk, fetch'in kanıtlanmış desenini 
 - **Bonus:** `'*'` broadcast capture payload'ını sayfanın kendi script'lerine sızdırıyordu; özel kanal bunu kapatır → **gizliliği iyileştirir** (PRD §11.1).
 - **Doğrulama:** yeni renderer-bench'te `D` (sayfa dinleyici sayısı) ekseni düzleşmeli + 6 CI kapısı yeşil.
 
-### Adım 3: #3 cursor/scroll MAIN-world gate
+- #1'in `MessagePort` altyapısı üzerine #3 de oturdu (recording state aynı port'tan akıyor). Mirror MAIN'e iletiliyor; cursor/scroll kaynakta düşürülüyor.
 
-- **Yaklaşım:** recording mirror'ını MAIN-world'e akıt ve cursor/scroll'u `post()`'tan ÖNCE düşür.
-- **Neden #1'den sonra:** #1'in `MessagePort` altyapısı üzerine neredeyse bedava oturur (mirror aynı port'tan akıtılır). #1'den önce yapılırsa ayrı bir mirror mekanizması gerekir (gereksiz iş).
+### Adım 3 ✅: #3 cursor/scroll kaynak gate'i → `66acfdc` (#1 ile birlikte)
 
-### Adım 4 (en son, ölçüme göre): #4 SW/storage amplifikasyon
+### Adım 4 ✅ (kısmî, bilinçli): #4 SW amplifikasyon → `a649f78`
 
-- **Üç ucuz mikro-düzeltme:** (1) `renderBadge`'i son değere göre diff'le (değişmediyse `chrome.action` IPC'lerini atla), (2) `detection`'da gereksiz slice tahsisinden kaçın, (3) `flushTab` yazma sıklığını trafik altında adaptive backoff ile uyarla — **bilgi kaybı olmadan**.
-- **Neden en son:** SW yükü sayfa thread'ini tek başına dondurmaz (ayrı process); #1–3 renderer yükünü düşürdükten sonra çok-sekme janku hâlâ varsa ele alınır. `flushTab` backoff en riskli (PRD §13.2 eviction ile hizalanmalı) → en sona.
+- **Uygulandı:** `renderBadge` diff (değişmediyse `chrome.action` IPC'lerini atla).
+- **Bilinçli ertelendi:** (2) `detection` slice-tweak ve (3) `flushTab` adaptive-backoff. Gerekçe: analiz bunları marjinal/riskli işaretledi; `flushTab` backoff bilgi-kaybı/eviction riski taşır (PRD §13.2 ile hizalanması gereken ayrı bir karar). Çok-sekme janku #1–3 sonrası ölçülüp hâlâ sorunsa ele alınmalı.
 
-### Doğrulanacak: #5 sidepanel/popup polling
+### Adım 5 ✅: #5 poll klonu → `3775611`
 
-Denetçinin yakaladığı, sentezin atladığı sorun. `sidepanel.ts` + `popup.ts` her 1000ms `GET_EVENTS` gönderiyor; SW `readEvents` ile tüm ≤200-olay buffer'ını (recording'de base64 ekran görüntüleri dahil) açık panel başına saniyede SW thread'inde klonluyor. Render-skip kapısı yalnızca DOM render'ı atlıyor, IPC'yi veya SW-tarafı clone'u değil. Önce ölçülüp doğrulanmalı.
+`GET_EVENTS` `knownLastSequence` taşıyor; SW değişmediyse `{unchanged}` dönüp tam buffer klonundan kaçınıyor.
 
 ---
+
+## 3.1 Açık tek iş — gerçek-tarayıcı QA
+
+Tüm kod ve 6 CI kapısı tamam; ama **#1 (MessagePort) ve #5 (poll) içerik-script'i / SW glue'sudur ve cross-world davranışı tsx bench'lerle ölçülemez** ("bench yeşil ama jank" çelişkisinin kaynağı). Yayından önce:
+
+1. Eklentiyi unpacked yükle, yoğun-istek + çok-sekme bir sayfada gez.
+2. Doğrula: yakalama hâlâ akıyor (panelde fetch/XHR/click/console görünüyor).
+3. DevTools ile doğrula: sayfanın kendi `window 'message'` dinleyicileri artık capture başına uyanmıyor (port aktif).
+4. İdeal: **Playwright renderer-bench'i** kur (§5 "proposedBenches A") — `D` (sayfa dinleyici sayısı) eksenini ölçer; MessagePort sonrası düzleşmeli. Bu, regresyonu yakalayacak kalıcı kapı olur. (Playwright şu an kurulu değil.)
 
 ## 4. Doğrulama Protokolü
 
