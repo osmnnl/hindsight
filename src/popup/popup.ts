@@ -16,6 +16,7 @@ import { openCapturePanel } from '@/lib/panel';
 import { generateBundle } from '@/lib/replay-bundle';
 import type {
   ClearEventsRuntimeMessage,
+  EventsUnchanged,
   GetEventsRuntimeMessage,
   GetRecordingRuntimeMessage,
   RecordingState,
@@ -37,6 +38,9 @@ const MAX_POPUP_FAILURES = 3;
 
 let activeTabId: number | undefined;
 let latestEvents: CapturedEvent[] = [];
+/** Highest sequenceNumber fetched, sent on the next poll so the SW can
+ *  skip re-cloning an unchanged buffer. -1 forces a full fetch. */
+let lastKnownSequence = -1;
 
 void init();
 
@@ -99,6 +103,7 @@ async function init(): Promise<void> {
     const msg: ClearEventsRuntimeMessage = { kind: 'CLEAR_EVENTS', tabId: activeTabId };
     void chrome.runtime.sendMessage(msg).then(() => {
       latestEvents = [];
+      lastKnownSequence = -1;
       renderSummary([]);
     });
   });
@@ -124,12 +129,19 @@ async function init(): Promise<void> {
 async function refresh(tabId: number): Promise<void> {
   let events: CapturedEvent[];
   try {
-    const message: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
+    const message: GetEventsRuntimeMessage = {
+      kind: 'GET_EVENTS',
+      tabId,
+      knownLastSequence: lastKnownSequence,
+    };
     const result = await chrome.runtime.sendMessage(message);
+    // Buffer unchanged since the last poll — skip the clone and re-render.
+    if (result && (result as EventsUnchanged).unchanged === true) return;
     events = Array.isArray(result) ? (result as CapturedEvent[]) : [];
   } catch {
     return;
   }
+  lastKnownSequence = events.length > 0 ? (events[events.length - 1]!.sequenceNumber ?? -1) : -1;
   latestEvents = events;
   renderSummary(events);
 }

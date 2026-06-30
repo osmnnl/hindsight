@@ -129,6 +129,20 @@ export interface CaptureBatchRuntimeMessage {
 export interface GetEventsRuntimeMessage {
   kind: 'GET_EVENTS';
   tabId: number;
+  /** Highest sequenceNumber the caller already holds. When it still
+   *  matches the SW's view, the SW replies with EventsUnchanged instead of
+   *  re-cloning the whole ≤200-event buffer (base64 screenshots and all)
+   *  across the IPC every poll tick. lastSequence is monotonic and only
+   *  advances when an event is appended — and the buffer only changes when
+   *  one is — so an unchanged sequence guarantees an unchanged buffer.
+   *  Omitted by callers that always want the full buffer. */
+  knownLastSequence?: number;
+}
+
+/** GET_EVENTS poll reply when nothing changed since `knownLastSequence`.
+ *  Lets the popup / side panel skip both the IPC clone and the re-render. */
+export interface EventsUnchanged {
+  unchanged: true;
 }
 
 export interface ClearEventsRuntimeMessage {

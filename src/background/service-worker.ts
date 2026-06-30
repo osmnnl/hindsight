@@ -11,6 +11,7 @@ import {
   clearArchive,
   clearSession,
   getOrCreateSession,
+  peekLastSequence,
   queueEvent,
   readArchive,
   readEvents,
@@ -26,6 +27,7 @@ import {
   isGetRecordingMessage,
   isToggleRecordingMessage,
   type CaptureRuntimeMessage,
+  type EventsUnchanged,
   type RecordingState,
   type RecordingStateBroadcast,
   type RuntimeMessage,
@@ -255,6 +257,16 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (isGetEventsMessage(msg)) {
+      // Poll short-circuit: when the caller's buffer is already current,
+      // skip re-cloning the whole ≤200-event buffer across the IPC.
+      const known = msg.knownLastSequence;
+      if (known != null) {
+        const cur = peekLastSequence(msg.tabId);
+        if (cur !== -1 && cur === known) {
+          sendResponse({ unchanged: true } satisfies EventsUnchanged);
+          return true;
+        }
+      }
       readEvents(msg.tabId)
         .then(sendResponse)
         .catch(() => sendResponse([]));
