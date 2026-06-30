@@ -66,6 +66,33 @@ export interface PageBridgeMessage {
 }
 
 // ---------------------------------------------------------------------------
+// Private MessagePort channel (perf: kill the per-capture postMessage('*')
+// fan-out to the page's own listeners). The ISOLATED bridge offers a
+// transferred MessagePort to the MAIN interceptor over ONE window message;
+// every subsequent capture rides the private port, which never wakes the
+// page's window 'message' listeners. The interceptor only switches off the
+// '*' broadcast once a round-trip over the port is confirmed (see PortAck),
+// so a browser where the cross-world transfer fails degrades to the prior
+// broadcast behavior with zero capture loss.
+// ---------------------------------------------------------------------------
+
+/** Bridge → MAIN, over window.postMessage, carrying `MessageChannel.port2`
+ *  in the transfer list (`event.ports[0]`). The only broadcast that
+ *  remains on the hot path — it carries no capture payload. */
+export interface PortOfferMessage {
+  source: typeof CAPTURE_BRIDGE_TAG;
+  kind: 'port-offer';
+}
+
+/** Control frames exchanged over the private MessagePort (never over
+ *  window.postMessage). Captures use PageBridgeMessage; control frames
+ *  carry an `hs` discriminant so the two don't collide on the wire. */
+export type PortControlMessage =
+  | { hs: 'syn' } // MAIN → bridge: adopted this port
+  | { hs: 'ack' } // bridge → MAIN: MAIN→bridge round-trip verified; ok to stop broadcasting
+  | { hs: 'recording'; recording: boolean }; // bridge → MAIN: recording state for the Tier-4 source gate
+
+// ---------------------------------------------------------------------------
 // Bridge → service worker (chrome.runtime.sendMessage)
 // ---------------------------------------------------------------------------
 
@@ -102,6 +129,20 @@ export interface CaptureBatchRuntimeMessage {
 export interface GetEventsRuntimeMessage {
   kind: 'GET_EVENTS';
   tabId: number;
+  /** Highest sequenceNumber the caller already holds. When it still
+   *  matches the SW's view, the SW replies with EventsUnchanged instead of
+   *  re-cloning the whole ≤200-event buffer (base64 screenshots and all)
+   *  across the IPC every poll tick. lastSequence is monotonic and only
+   *  advances when an event is appended — and the buffer only changes when
+   *  one is — so an unchanged sequence guarantees an unchanged buffer.
+   *  Omitted by callers that always want the full buffer. */
+  knownLastSequence?: number;
+}
+
+/** GET_EVENTS poll reply when nothing changed since `knownLastSequence`.
+ *  Lets the popup / side panel skip both the IPC clone and the re-render. */
+export interface EventsUnchanged {
+  unchanged: true;
 }
 
 export interface ClearEventsRuntimeMessage {

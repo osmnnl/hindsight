@@ -7,10 +7,12 @@
 
 import { createFetchPatch, createWebSocketPatch, createXhrPatch } from '@/lib/network-patch';
 import { CONSOLE_ARG_CAP, capText, stringifyCapped } from '@/lib/capture-limits';
+import { createMainCaptureChannel } from '@/lib/capture-channel';
 import { buildTargetDescriptor } from '@/lib/dom-descriptor';
 import {
   CAPTURE_BRIDGE_TAG,
-  type PageBridgeMessage,
+  type PortControlMessage,
+  type PortOfferMessage,
   type RawCapture,
 } from '@/lib/runtime-messages';
 import { MASKED, shouldMaskFormField } from '@/lib/masking';
@@ -25,18 +27,46 @@ import type {
 } from '@/types/events';
 
 (() => {
-  function post(capture: RawCapture, redactions?: Redaction[]): void {
-    const message: PageBridgeMessage = {
-      source: CAPTURE_BRIDGE_TAG,
-      capture,
-      ...(redactions && redactions.length > 0 ? { redactions } : {}),
-    };
+  // Private capture channel (perf). Every captured event used to go out as
+  // window.postMessage(msg, '*'), which structured-clones the payload AND
+  // wakes the page's own 'message' listeners (OAuth/wallet bridges,
+  // analytics SDKs, framework routers) once per fetch / click / keystroke.
+  // The ISOLATED bridge offers a private MessagePort; once a round-trip
+  // over it is confirmed (the bridge's `ack`), captures ride the port and
+  // never touch the page's listeners. Until then — and forever if the
+  // cross-world transfer isn't supported — we keep broadcasting, so a
+  // capture is never lost. State machine + tests: lib/capture-channel.ts.
+  const channel = createMainCaptureChannel((message) => {
     try {
       window.postMessage(message, '*');
     } catch {
       /* silent */
     }
+  });
+
+  function post(capture: RawCapture, redactions?: Redaction[]): void {
+    channel.post({
+      source: CAPTURE_BRIDGE_TAG,
+      capture,
+      ...(redactions && redactions.length > 0 ? { redactions } : {}),
+    });
   }
+
+  function onHandshake(event: MessageEvent): void {
+    if (event.source !== window) return;
+    const data = event.data as PortOfferMessage | undefined;
+    if (!data || data.source !== CAPTURE_BRIDGE_TAG || data.kind !== 'port-offer') return;
+    const port = event.ports?.[0];
+    if (!port) return;
+    // Wire onmessage BEFORE adoptPort (which sends `syn`) so the bridge's
+    // ack/recording replies are caught.
+    port.onmessage = (e: MessageEvent) => channel.onControl(e.data as PortControlMessage);
+    channel.adoptPort(port);
+    // The offer is one-shot; stop taking window 'message' traffic so
+    // captures we broadcast (pre-ack) don't re-wake our own listener.
+    window.removeEventListener('message', onHandshake);
+  }
+  window.addEventListener('message', onHandshake);
 
   // ---------- Network (Tier 1 — fetch/XHR; Tier 2 — WebSocket) ----------
   window.fetch = createFetchPatch(window.fetch, post);
@@ -335,8 +365,11 @@ import type {
   }
 
   // ---------- Cursor trail + scroll (Tier 4 — recording-only) ----------
-  // We always run these listeners (cost is one timestamp compare per
-  // event) and let the SW drop them when the tab isn't recording.
+  // Dropped at the SOURCE when we have authoritative recording state and
+  // it's off (#3): the old code emitted these at ~20 Hz on every page even
+  // when not recording, paying a postMessage clone + fan-out per event
+  // just to be discarded downstream. When recording state isn't known yet
+  // (no port), the bridge's gate still drops them — so we never under-drop.
   // PRD §6.1.1 Tier 4: mousemove throttled to 10 Hz; scroll throttled.
   const CURSOR_INTERVAL_MS = 100; // 10 Hz
   const SCROLL_INTERVAL_MS = 100;
@@ -346,6 +379,7 @@ import type {
   window.addEventListener(
     'mousemove',
     (e) => {
+      if (!channel.shouldEmitTier4()) return;
       const now = Date.now();
       if (now - lastCursorAt < CURSOR_INTERVAL_MS) return;
       lastCursorAt = now;
@@ -358,6 +392,7 @@ import type {
   window.addEventListener(
     'scroll',
     () => {
+      if (!channel.shouldEmitTier4()) return;
       const now = Date.now();
       if (now - lastScrollAt < SCROLL_INTERVAL_MS) return;
       lastScrollAt = now;

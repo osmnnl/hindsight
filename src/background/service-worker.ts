@@ -11,6 +11,7 @@ import {
   clearArchive,
   clearSession,
   getOrCreateSession,
+  peekLastSequence,
   queueEvent,
   readArchive,
   readEvents,
@@ -26,6 +27,7 @@ import {
   isGetRecordingMessage,
   isToggleRecordingMessage,
   type CaptureRuntimeMessage,
+  type EventsUnchanged,
   type RecordingState,
   type RecordingStateBroadcast,
   type RuntimeMessage,
@@ -255,6 +257,16 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (isGetEventsMessage(msg)) {
+      // Poll short-circuit: when the caller's buffer is already current,
+      // skip re-cloning the whole ≤200-event buffer across the IPC.
+      const known = msg.knownLastSequence;
+      if (known != null) {
+        const cur = peekLastSequence(msg.tabId);
+        if (cur !== -1 && cur === known) {
+          sendResponse({ unchanged: true } satisfies EventsUnchanged);
+          return true;
+        }
+      }
       readEvents(msg.tabId)
         .then(sendResponse)
         .catch(() => sendResponse([]));
@@ -935,6 +947,15 @@ function nextSequence(sessionId: string, persistedFloor: number): number {
   return next;
 }
 
+/** Last badge state written per tab. renderBadge runs on EVERY capture
+ *  but the badge only changes when severity crosses a threshold — so the
+ *  common case (a page emitting successful fetches / clicks while the
+ *  badge stays empty) was paying 2 awaited chrome.action IPCs per capture
+ *  for a no-op. Diff against this and skip the IPCs when unchanged. The
+ *  SW is the only writer, so the mirror can't go stale; an eviction drops
+ *  it and the next render rewrites unconditionally (cache miss). */
+const lastBadgeByTab = new Map<number, { text: string; color: string }>();
+
 async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void> {
   // PRD §6.2.2: "Color reflects severity (green = none, yellow =
   // warnings, red = errors)." Empty badge ("") collapses the bubble
@@ -957,15 +978,22 @@ async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void
     color = '#f59e0b';
   }
 
+  const prev = lastBadgeByTab.get(tabId);
+  if (prev && prev.text === text && prev.color === color) return;
+  lastBadgeByTab.set(tabId, { text, color });
+
   try {
     await chrome.action.setBadgeText({ tabId, text });
     await chrome.action.setBadgeBackgroundColor({ tabId, color });
   } catch {
-    /* tab might be gone */
+    // Tab might be gone — drop the mirror so a later render for a reused
+    // id doesn't get suppressed against a write that never landed.
+    lastBadgeByTab.delete(tabId);
   }
 }
 
 async function clearBadge(tabId: number): Promise<void> {
+  lastBadgeByTab.delete(tabId);
   try {
     await chrome.action.setBadgeText({ tabId, text: '' });
   } catch {

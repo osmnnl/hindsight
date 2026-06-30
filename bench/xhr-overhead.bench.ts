@@ -28,13 +28,22 @@ const P95_BUDGET_MS = 0.5;
 // 'loadend' fires on a microtask so the patch sees the same async shape
 // real XHR has. Type assertions tell TS to treat this as the real
 // constructor — the bench only cares about call overhead.
+//
+// The response body is a realistic ~32 KB payload, not an 11-byte
+// fiction: the gate measures the SYNCHRONOUS per-call overhead the patch
+// adds in front of the page's own load handler, and since the fix reads
+// the body detached (off the loadend turn) that overhead must stay flat
+// regardless of body size. A trivial body would hide that contract.
+const RESPONSE_BODY = JSON.stringify({
+  items: Array.from({ length: 400 }, (_, i) => ({ id: i, name: `row-${i}`, ok: true })),
+});
 
 class SyntheticXHR {
   status = 200;
   statusText = 'OK';
   responseType: '' | 'text' | 'json' | 'arraybuffer' | 'blob' | 'document' = '';
-  responseText = '{"ok":true}';
-  response: unknown = '{"ok":true}';
+  responseText = RESPONSE_BODY;
+  response: unknown = RESPONSE_BODY;
   private listeners = new Map<string, Array<(e: unknown) => void>>();
 
   open(_method: string, _url: string): void {

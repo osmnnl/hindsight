@@ -267,42 +267,56 @@ export function createXhrPatch(
       state.requestBody = serializeBody(body ?? null);
 
       xhr.addEventListener('loadend', () => {
-        try {
-          const responseHeaders = parseRawHeaders(xhr.getAllResponseHeaders());
-          let responseBody: string;
+        // Body capture is DETACHED, mirroring the fetch path. On the
+        // loadend turn we read only the cheap, time-sensitive state
+        // (status / end timestamp); the body materialization + cap +
+        // post() run off the synchronous handler via a microtask. The
+        // old code read `xhr.responseText` (which copies the WHOLE body
+        // to a string) + JSON.stringify + post all inside loadend, so
+        // every XHR-heavy SPA stalled the page's own load handler on a
+        // multi-MB copy per request. fetch already detached this
+        // (captureResponseBody); XHR now matches.
+        const status = xhr.status;
+        const statusText = xhr.statusText;
+        const endedAt = Date.now();
+        queueMicrotask(() => {
           try {
-            const rt = xhr.responseType;
-            // Same BODY_CAP as the fetch path — the XHR body previously
-            // went through uncapped, so a multi-MB responseText was
-            // copied 4× on the main thread (capture → postMessage →
-            // runtime IPC → storage) per request.
-            if (rt === '' || rt === 'text') responseBody = capText(xhr.responseText);
-            else if (rt === 'json') responseBody = capJsonResponse(xhr, responseHeaders);
-            else responseBody = `[non-text responseType: ${rt}]`;
-          } catch (e) {
-            responseBody = `[error reading body: ${(e as Error).message}]`;
-          }
+            const responseHeaders = parseRawHeaders(xhr.getAllResponseHeaders());
+            let responseBody: string;
+            try {
+              const rt = xhr.responseType;
+              // Same BODY_CAP as the fetch path — the XHR body previously
+              // went through uncapped, so a multi-MB responseText was
+              // copied 4× on the main thread (capture → postMessage →
+              // runtime IPC → storage) per request.
+              if (rt === '' || rt === 'text') responseBody = capText(xhr.responseText);
+              else if (rt === 'json') responseBody = capJsonResponse(xhr, responseHeaders);
+              else responseBody = `[non-text responseType: ${rt}]`;
+            } catch (e) {
+              responseBody = `[error reading body: ${(e as Error).message}]`;
+            }
 
-          const data: NetworkXhrData = {
-            request: {
-              method: state.method,
-              url: state.url,
-              headers: state.requestHeaders,
-              body: state.requestBody,
-            } satisfies NetworkRequest,
-            response: {
-              status: xhr.status,
-              statusText: xhr.statusText,
-              headers: responseHeaders,
-              body: responseBody,
-            },
-            timing: { startedAt: state.startedAt, durationMs: Date.now() - state.startedAt },
-            error: xhr.status === 0 ? 'Network error / aborted' : null,
-          };
-          post({ type: 'network.xhr', data });
-        } catch {
-          /* never break the page */
-        }
+            const data: NetworkXhrData = {
+              request: {
+                method: state.method,
+                url: state.url,
+                headers: state.requestHeaders,
+                body: state.requestBody,
+              } satisfies NetworkRequest,
+              response: {
+                status,
+                statusText,
+                headers: responseHeaders,
+                body: responseBody,
+              },
+              timing: { startedAt: state.startedAt, durationMs: endedAt - state.startedAt },
+              error: status === 0 ? 'Network error / aborted' : null,
+            };
+            post({ type: 'network.xhr', data });
+          } catch {
+            /* never break the page */
+          }
+        });
       });
 
       return originalSend.apply(xhr, sendArgs);

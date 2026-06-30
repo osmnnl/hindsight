@@ -194,6 +194,25 @@ export async function readEvents(tabId: number): Promise<CapturedEvent[]> {
   return [...persisted, ...pending.events].slice(-DEFAULT_MAX_EVENTS_PER_TAB);
 }
 
+/**
+ * Cheap, synchronous peek at the highest sequence number the projected
+ * buffer would carry, read from the in-memory mirrors only — no disk, no
+ * buffer materialization. Returns -1 when nothing is cached (cold SW), so
+ * the caller falls back to a full read rather than trust a stale skip.
+ * Used by the GET_EVENTS poll short-circuit to avoid re-cloning an
+ * unchanged buffer every tick.
+ */
+export function peekLastSequence(tabId: number): number {
+  const pending = pendingByTab.get(tabId);
+  if (pending && pending.events.length > 0) return pending.lastSequence;
+  const meta = metaByTab.get(tabId);
+  if (meta) return meta.lastSequence;
+  const persisted = persistedByTab.get(tabId);
+  if (persisted)
+    return persisted.length > 0 ? (persisted[persisted.length - 1]?.sequenceNumber ?? 0) : 0;
+  return -1;
+}
+
 async function readEventsRaw(tabId: number): Promise<CapturedEvent[]> {
   const key = StorageKeys.sessionEvents(tabId);
   const stored = await chrome.storage.local.get(key);

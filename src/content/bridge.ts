@@ -8,6 +8,8 @@ import {
   CAPTURE_BRIDGE_TAG,
   type CaptureBatchRuntimeMessage,
   type PageBridgeMessage,
+  type PortControlMessage,
+  type PortOfferMessage,
   type QueuedCapture,
   type RecordingState,
 } from '@/lib/runtime-messages';
@@ -61,15 +63,31 @@ bootstrapMainWorldInterceptor();
 // and scroll captures unconditionally (cheap throttled listeners); the SW
 // drops them when the tab isn't recording — but each one still cost a
 // full runtime IPC + SW wake-up just to be discarded. Mirror the
-// recording state here and drop them BEFORE the IPC instead.
+// recording state here and drop them BEFORE the IPC. Also push it to the
+// MAIN interceptor over the private port (when established) so cursor /
+// scroll are dropped at the SOURCE — before the postMessage clone.
 // ---------------------------------------------------------------------------
 let recording = false;
+/** The private MessagePort once the MAIN interceptor has adopted it and
+ *  confirmed it with a `syn`. null while we're still on the window path. */
+let livePort: MessagePort | null = null;
+
+function setRecording(next: boolean): void {
+  recording = next;
+  if (livePort) {
+    try {
+      livePort.postMessage({ hs: 'recording', recording } satisfies PortControlMessage);
+    } catch {
+      /* port died — the SW-side Tier-4 gate still drops these */
+    }
+  }
+}
 
 try {
   void chrome.runtime
     .sendMessage({ kind: 'GET_RECORDING' })
     .then((state: RecordingState | undefined) => {
-      recording = state?.recording === true;
+      setRecording(state?.recording === true);
     })
     .catch(() => {
       /* SW asleep or unreachable — default stays false */
@@ -79,7 +97,7 @@ try {
 }
 
 chrome.runtime.onMessage.addListener((msg: { kind?: string; recording?: boolean }) => {
-  if (msg && msg.kind === 'RECORDING_STATE') recording = msg.recording === true;
+  if (msg && msg.kind === 'RECORDING_STATE') setRecording(msg.recording === true);
 });
 
 // ---------------------------------------------------------------------------
@@ -120,13 +138,10 @@ function flushQueue(): void {
   }
 }
 
-window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
-  if (event.source !== window) return;
-  const data = event.data;
-  if (!data || data.source !== CAPTURE_BRIDGE_TAG) return;
-  if (!data.capture) return;
-
+function enqueueCapture(data: PageBridgeMessage): void {
   const type = data.capture.type;
+  // SW-side Tier-4 gate backstop (also gated at the source once the port
+  // carries recording state to MAIN).
   if (!recording && (type === 'cursor' || type === 'action.scroll')) return;
 
   queue.push({
@@ -139,7 +154,67 @@ window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
     return;
   }
   if (flushTimer == null) flushTimer = window.setTimeout(flushQueue, BATCH_FLUSH_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Private MessagePort handshake (perf: kill per-capture postMessage('*')
+// fan-out). Offer a transferred port to MAIN; retry with a fresh channel
+// until MAIN adopts one (content-script load order between the MAIN and
+// ISOLATED worlds isn't guaranteed). Captures still arrive over the window
+// path until — and forever if — the port never connects, so this can only
+// reduce cost, never drop a capture.
+// ---------------------------------------------------------------------------
+const HS_RETRY_MS = 150;
+const HS_MAX_ATTEMPTS = 12;
+let hsAttempts = 0;
+let hsTimer: number | null = null;
+
+function onPortMessage(p: MessagePort, data: PortControlMessage | PageBridgeMessage): void {
+  if ('hs' in data) {
+    if (data.hs === 'syn' && !livePort) {
+      livePort = p;
+      if (hsTimer != null) {
+        clearTimeout(hsTimer);
+        hsTimer = null;
+      }
+      // Confirm the MAIN→bridge direction works, then seed recording state.
+      try {
+        p.postMessage({ hs: 'ack' } satisfies PortControlMessage);
+        p.postMessage({ hs: 'recording', recording } satisfies PortControlMessage);
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+  if (data.capture) enqueueCapture(data);
+}
+
+function offerPort(): void {
+  if (livePort || hsAttempts >= HS_MAX_ATTEMPTS) return;
+  hsAttempts++;
+  try {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (e: MessageEvent) => onPortMessage(channel.port1, e.data);
+    const offer: PortOfferMessage = { source: CAPTURE_BRIDGE_TAG, kind: 'port-offer' };
+    window.postMessage(offer, '*', [channel.port2]);
+  } catch {
+    /* MessageChannel/transfer unsupported — stay on the window path */
+  }
+  hsTimer = window.setTimeout(offerPort, HS_RETRY_MS);
+}
+
+// Capture intake over window: the fallback path, and the only path until
+// the port round-trip completes. Ignores the bridge's own port-offer echo.
+window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
+  if (event.source !== window) return;
+  const data = event.data;
+  if (!data || data.source !== CAPTURE_BRIDGE_TAG) return;
+  if (!data.capture) return;
+  enqueueCapture(data);
 });
+
+offerPort();
 
 // Don't lose the tail of a session: flush pending captures when the page
 // is being navigated away from or backgrounded.

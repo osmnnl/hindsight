@@ -34,6 +34,7 @@ import {
   type ClearArchiveRuntimeMessage,
   type ClearEventsRuntimeMessage,
   type GetArchiveRuntimeMessage,
+  type EventsUnchanged,
   type GetEventsRuntimeMessage,
   type GetRecordingRuntimeMessage,
   type RecordingState,
@@ -819,6 +820,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // interacting with the page. Pre-fix, every 1 s poll re-built the bulk
 // bar's innerHTML and triggered a visible flicker on the buttons.
 let lastEventsSignature = '';
+/** Highest sequenceNumber we've fetched, sent on the next poll so the SW
+ *  can skip re-cloning an unchanged buffer. -1 forces a full fetch. */
+let lastKnownSequence = -1;
 
 function eventsSignature(list: CapturedEvent[]): string {
   if (list.length === 0) return '0';
@@ -828,9 +832,12 @@ function eventsSignature(list: CapturedEvent[]): string {
 
 /** Forces the next render() to run even if the events signature is
  *  stable — used when filter, host, or search inputs change because
- *  those affect rendering without touching the events array. */
+ *  those affect rendering without touching the events array. Also clears
+ *  the poll sequence so refresh() does a full fetch (the unchanged
+ *  short-circuit would otherwise bypass the forced render). */
 function invalidateRenderCache(): void {
   lastEventsSignature = '';
+  lastKnownSequence = -1;
 }
 
 /** Re-point the panel at a newly-activated tab and reload its data. The
@@ -866,9 +873,17 @@ async function switchToTab(newTabId: number | undefined): Promise<void> {
 async function refresh(): Promise<void> {
   if (tabId == null) return;
   try {
-    const message: GetEventsRuntimeMessage = { kind: 'GET_EVENTS', tabId };
+    const message: GetEventsRuntimeMessage = {
+      kind: 'GET_EVENTS',
+      tabId,
+      knownLastSequence: lastKnownSequence,
+    };
     const result = await chrome.runtime.sendMessage(message);
+    // Buffer unchanged since our last fetch — the SW skipped the clone, so
+    // keep the current events/render untouched.
+    if (result && (result as EventsUnchanged).unchanged === true) return;
     events = Array.isArray(result) ? (result as CapturedEvent[]) : [];
+    lastKnownSequence = events.length > 0 ? (events[events.length - 1]!.sequenceNumber ?? -1) : -1;
     const sig = eventsSignature(events);
     if (sig === lastEventsSignature) return;
     lastEventsSignature = sig;

@@ -9,11 +9,12 @@ import {
   capJsonResponse,
   createFetchPatch,
   createWebSocketPatch,
+  createXhrPatch,
   serializeBody,
 } from './network-patch';
 import { BODY_CAP, TRUNCATION_MARKER } from './capture-limits';
 import type { RawCapture } from '@/lib/runtime-messages';
-import type { NetworkFetchData, NetworkWebSocketData } from '@/types/events';
+import type { NetworkFetchData, NetworkWebSocketData, NetworkXhrData } from '@/types/events';
 
 function collector(): { posts: RawCapture[]; post: (c: RawCapture) => void } {
   const posts: RawCapture[] = [];
@@ -132,6 +133,113 @@ describe('createFetchPatch — detached body capture', () => {
     await expect(patched('https://api.test/aborted')).rejects.toBe(abortError);
     await vi.waitFor(() => expect(posts).toHaveLength(1));
     expect(fetchData(posts[0]!).error).toContain('aborted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// XHR — detached body capture (loadend must not block the page)
+// ---------------------------------------------------------------------------
+
+type XhrListener = (e: unknown) => void;
+
+/**
+ * Minimal XHR stand-in. `send()` dispatches `loadend` SYNCHRONOUSLY to
+ * every registered listener — that is exactly the turn on which the page's
+ * own load handler runs, so it lets the test assert whether our capture
+ * post() lands on that turn (bad: blocks the page) or after it (detached).
+ */
+function makeFakeXhrClass(opts: {
+  responseText?: string;
+  response?: unknown;
+  responseType?: '' | 'text' | 'json';
+  status?: number;
+  headers?: string;
+}): typeof XMLHttpRequest {
+  class FakeXHR {
+    status = opts.status ?? 200;
+    statusText = this.status === 200 ? 'OK' : '';
+    responseType = opts.responseType ?? ('' as '' | 'text' | 'json');
+    responseText = opts.responseText ?? '{"ok":true}';
+    response: unknown = opts.response ?? opts.responseText ?? '{"ok":true}';
+    private listeners = new Map<string, XhrListener[]>();
+    open(_m: string, _u: string): void {}
+    setRequestHeader(_n: string, _v: string): void {}
+    send(_b?: unknown): void {
+      for (const fn of this.listeners.get('loadend') ?? []) fn({});
+    }
+    getAllResponseHeaders(): string {
+      return opts.headers ?? 'content-type: application/json\r\n';
+    }
+    addEventListener(name: string, fn: XhrListener): void {
+      const arr = this.listeners.get(name) ?? [];
+      arr.push(fn);
+      this.listeners.set(name, arr);
+    }
+  }
+  return FakeXHR as unknown as typeof XMLHttpRequest;
+}
+
+function xhrData(c: RawCapture): NetworkXhrData {
+  if (c.type !== 'network.xhr') throw new Error(`expected network.xhr, got ${c.type}`);
+  return c.data;
+}
+
+describe('createXhrPatch — detached body capture', () => {
+  it('does NOT post during the synchronous loadend turn; posts after a microtask', async () => {
+    const { posts, post } = collector();
+    const Patched = createXhrPatch(makeFakeXhrClass({}), post);
+    const xhr = new Patched();
+    const pageHandlerRanBeforePost: boolean[] = [];
+
+    xhr.open('GET', 'https://api.test/x');
+    // A page load handler registered before send() — it must run and the
+    // loadend turn must unwind before our capture is posted.
+    xhr.addEventListener('loadend', () => pageHandlerRanBeforePost.push(posts.length === 0));
+    xhr.send();
+
+    // The whole loadend dispatch finished synchronously, yet nothing is
+    // posted yet — the old code posted here (this assertion fails pre-fix).
+    expect(posts).toHaveLength(0);
+    expect(pageHandlerRanBeforePost).toEqual([true]);
+
+    await Promise.resolve();
+    expect(posts).toHaveLength(1);
+    expect(xhrData(posts[0]!).response.body).toBe('{"ok":true}');
+  });
+
+  it('caps the detached body at BODY_CAP', async () => {
+    const { posts, post } = collector();
+    const big = 'a'.repeat(BODY_CAP + 50_000);
+    const Patched = createXhrPatch(
+      makeFakeXhrClass({ responseText: big, responseType: 'text' }),
+      post
+    );
+    const xhr = new Patched();
+    xhr.open('GET', 'https://api.test/big');
+    xhr.send();
+
+    await Promise.resolve();
+    const body = xhrData(posts[0]!).response.body!;
+    expect(body.length).toBe(BODY_CAP + TRUNCATION_MARKER.length);
+    expect(body.endsWith(TRUNCATION_MARKER)).toBe(true);
+  });
+
+  it('preserves status, headers and method on the detached capture', async () => {
+    const { posts, post } = collector();
+    const Patched = createXhrPatch(
+      makeFakeXhrClass({ status: 503, headers: 'x-trace: abc\r\ncontent-type: text/plain\r\n' }),
+      post
+    );
+    const xhr = new Patched();
+    xhr.open('POST', 'https://api.test/y');
+    xhr.send();
+
+    await Promise.resolve();
+    const data = xhrData(posts[0]!);
+    expect(data.request.method).toBe('POST');
+    expect(data.request.url).toBe('https://api.test/y');
+    expect(data.response.status).toBe(503);
+    expect(data.response.headers['x-trace']).toBe('abc');
   });
 });
 

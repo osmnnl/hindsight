@@ -27,6 +27,7 @@
     "bench:xhr": "tsx bench/xhr-overhead.bench.ts",
     "bench:masking": "tsx bench/masking-cost.bench.ts",
     "bench:filter": "tsx bench/filter-1000.bench.ts",
+    "bench:fanout": "npm run build && tsx bench/messageport-fanout.bench.ts",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -41,6 +42,7 @@
     "happy-dom": "^20.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
+    "playwright": "^1.61.1",
     "prettier": "^3.4.2",
     "tsx": "^4.22.1",
     "typescript": "^5.7.2",
