@@ -41,6 +41,55 @@ export const DEFAULT_MAX_EVENTS_PER_TAB = 200;
  *  click) into a single storage write per cycle. */
 export const FLUSH_INTERVAL_MS = 250;
 
+/** PRD §13.2 hardening — the rolling buffer is capped by BYTES as well as
+ *  by event count. A tab streaming large request/response bodies (each
+ *  ≤200KB via BODY_CAP) or recording screenshots would otherwise hold tens
+ *  of MB in the SW heap (persistedByTab) AND rewrite all of it to
+ *  chrome.storage.local on every 250ms flush — the mechanism behind the
+ *  20-tab browser-wide slowdown + SW-OOM crash (measured: ~8.6 MB/tab ×
+ *  20 ≈ 145 MB, SW dies under sustained load). Bounding per-tab bytes caps
+ *  both SW memory and per-flush write size regardless of maxEventsPerTab. */
+export const BYTE_CAP_PER_TAB = 2_000_000;
+
+/** Cheap per-event size estimate — reads only the known large fields
+ *  (network bodies, screenshot dataUrls, console messages/stacks) instead
+ *  of JSON-serializing the whole event on every queue/flush. */
+export function approxEventBytes(event: CapturedEvent): number {
+  const d = event.data as Record<string, unknown> | undefined;
+  let n = 256; // envelope + small-field overhead
+  if (d) {
+    const req = d.request as { body?: unknown } | undefined;
+    const res = d.response as { body?: unknown } | undefined;
+    if (typeof req?.body === 'string') n += req.body.length;
+    if (typeof res?.body === 'string') n += res.body.length;
+    if (typeof d.dataUrl === 'string') n += d.dataUrl.length;
+    if (typeof d.message === 'string') n += d.message.length;
+    if (typeof d.stack === 'string') n += d.stack.length;
+  }
+  return n;
+}
+
+/** Projects the rolling buffer: newest `maxCount` events, then trims the
+ *  oldest until the estimated byte size is within `maxBytes`. Always keeps
+ *  at least the newest event, even if it alone exceeds the cap. */
+export function capBuffer(
+  events: CapturedEvent[],
+  maxCount: number,
+  maxBytes: number = BYTE_CAP_PER_TAB
+): CapturedEvent[] {
+  const arr = events.length > maxCount ? events.slice(-maxCount) : events;
+  let total = 0;
+  let keepFrom = 0;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    total += approxEventBytes(arr[i]!);
+    if (total > maxBytes && i < arr.length - 1) {
+      keepFrom = i + 1;
+      break;
+    }
+  }
+  return keepFrom > 0 ? arr.slice(keepFrom) : arr;
+}
+
 // ---------------------------------------------------------------------------
 // Session metadata — get-or-create + sequence number minting.
 // ---------------------------------------------------------------------------
@@ -129,7 +178,7 @@ export async function queueEvent(
   scheduleFlush(tabId, max);
 
   const persisted = persistedByTab.get(tabId) ?? [];
-  return [...persisted, ...pending.events].slice(-max);
+  return capBuffer([...persisted, ...pending.events], max);
 }
 
 function scheduleFlush(tabId: number, max: number): void {
@@ -161,7 +210,7 @@ export async function flushTab(
   pendingByTab.delete(tabId);
 
   const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
-  const nextEvents = [...persisted, ...pending.events].slice(-max);
+  const nextEvents = capBuffer([...persisted, ...pending.events], max);
 
   const metaKey = StorageKeys.sessionMeta(tabId);
   const eventsKey = StorageKeys.sessionEvents(tabId);
@@ -191,7 +240,7 @@ export async function readEvents(tabId: number): Promise<CapturedEvent[]> {
   const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
   const pending = pendingByTab.get(tabId);
   if (!pending || pending.events.length === 0) return persisted;
-  return [...persisted, ...pending.events].slice(-DEFAULT_MAX_EVENTS_PER_TAB);
+  return capBuffer([...persisted, ...pending.events], DEFAULT_MAX_EVENTS_PER_TAB);
 }
 
 /**
