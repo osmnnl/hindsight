@@ -30,6 +30,14 @@ export const StorageKeys = {
  *  on a heavy-browsing day." */
 export const ARCHIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** PRD §13.2 hardening — `archives/recent` was bounded only by the 7-day
+ *  TTL, never by session COUNT. Every tab close read the whole (growing)
+ *  archive blob, pushed the closed session's full event buffer, and wrote
+ *  the whole blob back; a heavy-browsing week could grow it to hundreds of
+ *  MB, and the read-modify-write spike on tab close is a crash trigger.
+ *  Cap the retained session count so the blob stays bounded. */
+export const ARCHIVE_MAX_SESSIONS = 30;
+
 // PRD §6.1.3: rolling buffer 200 events per tab by default (configurable up
 // to 2000). Settings UI exposes the override; for now we hard-code the
 // default until the Settings shell lands.
@@ -296,7 +304,19 @@ export async function clearSession(tabId: number): Promise<void> {
  * archive write with a clean-up so live storage doesn't double-count.
  * Empty sessions are dropped without archiving.
  */
-export async function archiveSession(tabId: number): Promise<void> {
+let archiveChain: Promise<void> = Promise.resolve();
+
+export function archiveSession(tabId: number): Promise<void> {
+  // Serialize archive writes. Tab close fires `void archiveSession(tabId)`
+  // fire-and-forget (service-worker.ts onRemoved); closing a whole window
+  // fires ~20 at once. Each is a read-modify-write of the SAME
+  // `archives/recent` key — concurrently that's a lost-update race
+  // (last writer wins, most sessions vanish). Chaining makes them atomic.
+  archiveChain = archiveChain.catch(() => {}).then(() => doArchiveSession(tabId));
+  return archiveChain;
+}
+
+async function doArchiveSession(tabId: number): Promise<void> {
   await flushTab(tabId);
 
   const metaKey = StorageKeys.sessionMeta(tabId);
@@ -314,8 +334,12 @@ export async function archiveSession(tabId: number): Promise<void> {
   const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
   const kept = existing.filter((a) => a.archivedAt >= cutoff);
   kept.push({ meta, events, archivedAt: Date.now() });
+  // Count cap (newest wins) so the blob can't grow unbounded across a
+  // heavy-browsing week — bounds both the stored size and the tab-close
+  // read-modify-write spike.
+  const capped = kept.length > ARCHIVE_MAX_SESSIONS ? kept.slice(-ARCHIVE_MAX_SESSIONS) : kept;
 
-  await chrome.storage.local.set({ [StorageKeys.archives]: kept });
+  await chrome.storage.local.set({ [StorageKeys.archives]: capped });
   await clearSession(tabId);
 }
 
