@@ -42,6 +42,15 @@ describe('approxEventBytes', () => {
     } as unknown as CapturedEvent;
     expect(approxEventBytes(shot)).toBeGreaterThanOrEqual(50_000);
   });
+
+  it('counts action.input field value (the byte-cap blind spot fixed in review)', () => {
+    const input = {
+      id: 'e1',
+      type: 'action.input',
+      data: { value: 'y'.repeat(9000), target: {} },
+    } as unknown as CapturedEvent;
+    expect(approxEventBytes(input)).toBeGreaterThanOrEqual(9000);
+  });
 });
 
 describe('capBuffer', () => {
@@ -83,5 +92,23 @@ describe('capBuffer', () => {
     expect(out.length).toBeLessThan(200);
     const total = out.reduce((n, e) => n + approxEventBytes(e), 0);
     expect(total).toBeLessThanOrEqual(BYTE_CAP_PER_TAB);
+  });
+
+  it('byte-caps an input-heavy buffer (capped values still counted)', () => {
+    // 200 keystroke events each carrying a 10KB (INPUT_VALUE_CAP) value → 2MB;
+    // capBuffer must trim to hold the byte ceiling.
+    const arr = Array.from(
+      { length: 200 },
+      (_, i) =>
+        ({
+          id: `e${i}`,
+          type: 'action.input',
+          data: { value: 'z'.repeat(10_000) },
+        }) as unknown as CapturedEvent
+    );
+    const out = capBuffer(arr, 200, BYTE_CAP_PER_TAB);
+    const total = out.reduce((n, e) => n + approxEventBytes(e), 0);
+    expect(total).toBeLessThanOrEqual(BYTE_CAP_PER_TAB);
+    expect(out.length).toBeLessThan(200);
   });
 });

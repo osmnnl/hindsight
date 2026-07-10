@@ -73,6 +73,7 @@ export function approxEventBytes(event: CapturedEvent): number {
     if (typeof d.dataUrl === 'string') n += d.dataUrl.length;
     if (typeof d.message === 'string') n += d.message.length;
     if (typeof d.stack === 'string') n += d.stack.length;
+    if (typeof d.value === 'string') n += d.value.length; // action.input field value
   }
   return n;
 }

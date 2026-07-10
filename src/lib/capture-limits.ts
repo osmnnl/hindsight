@@ -16,6 +16,14 @@ export const BODY_CAP = 200_000;
  *  frequent and low-value past the first few KB. */
 export const CONSOLE_ARG_CAP = 10_000;
 
+/** Max characters kept from a form-field value on an `action.input`
+ *  capture. `input` fires on every keystroke and each event carries the
+ *  field's FULL current value, so a large textarea (a code/description
+ *  field) otherwise streams its entire uncapped contents through the
+ *  pipeline on every keystroke — the one default-on capture that had no
+ *  source cap, and a byte-cap blind spot (perf review). */
+export const INPUT_VALUE_CAP = 10_000;
+
 export const TRUNCATION_MARKER = '\n…[truncated]';
 
 /** Caps `text` at `cap` characters, appending a marker when cut. */
