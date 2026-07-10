@@ -11,6 +11,37 @@
 
 ---
 
+## 0. v0.7.1 — Storage/bellek crash rejimi (GÜNCEL, en önemli)
+
+v0.7.0 (5 renderer fix) sonrası sorun sürdü: **~20 sekmede browser-geneli yavaşlama + eklenti crash.** Bu, renderer değil **paylaşılan storage/bellek** ekseniydi — önceki analizin "dolaylı/orta-güven" diye küçümsediği ve v0.7.0'da dokunulmayan katman.
+
+**Empirik (gerçek-Chromium `bench:multitab`, ölçüm — hesap değil):**
+
+- Baseline: `chrome.storage.local` **~145 MB** (8.6 MB/sekme × 20), SW sürekli yükte **çöküyor** (iki koşuda tekrarlandı).
+- Fix sonrası: **~37 MB**, SW hayatta, düz plato, **PASS**.
+
+**Uygulanan fix'ler (branch `perf/storage-crash-fix`):**
+
+| Fix                          | Commit    | Ne                                                                                         |
+| ---------------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| byte-cap buffer (2MB/sekme)  | `5069dcd` | count-cap yanına byte-cap; SW belleği + per-flush yazma sınırlı                            |
+| arşiv count-cap + serialize  | `295cf12` | `archives/recent` 30-session cap; eşzamanlı tab-close lost-update yarışı düzeltildi        |
+| `action.input` value cap     | `d6a4b6f` | **review merge-blocker**: input tek cap'siz default-on capture'dı, byte-cap kör noktasıydı |
+| MessagePort leak             | `f5c9e4e` | v0.7.0 handshake kaybeden port'ları kapatmıyordu                                           |
+| sweep/clearArchive serialize | `aa18ac4` | tüm arşiv yazıcıları tek zincirde atomik                                                   |
+| `bench:multitab`             | `17a8c7f` | eksik olan gerçek-Chromium 20-sekme ölçüm gate'i                                           |
+
+**Review (12-agent, doğrulandı):** yaklaşım doğru + yeterli; `chrome.storage.local` failure modlarını (10MB quota, ~120 yazma/dk throttle, full-value-rewrite) nötrler. IndexedDB'ye geçiş **şart değil** (bilinçli-sınırlı retention modeli için byte+count cap yeterli).
+
+**Ertelenen takip işleri (non-blocking, ölçüldü/gerekçelendirildi):**
+
+1. **Detection/badge/export byte-cap'li buffer'dan okuyor** → body-ağır TEK sekmede daha az event görebilir (cascade/badge/export degrade). Fix: küçük count-sınırlı recent-failure indeksi + export'a "son N gösteriliyor" notu. (20-sekme senaryosunda eski kod SIFIR event veriyordu, fix net-pozitif.)
+2. **Adaptive flush interval** (250ms→yük altında uzat) + `runtime.onSuspend` flush-all — verimlilik, crash değil.
+3. **Cold-tab in-memory evict** (50-100 sekme için) — ÖNCE bench'i 60/100 sekmeye parametrele, ekstrapolasyonla değil ölçümle karar ver.
+4. **Screenshot externalize: YAPMA** (naif hali orphan-blob birikimi + 3 senkron export yolunu kırar). Gerekirse scoped: recording-tick downscale.
+
+---
+
 ## 1. Durum Panosu
 
 | #     | Kök-neden                                                                                                              | Thread        | Efor | Durum                                                  |

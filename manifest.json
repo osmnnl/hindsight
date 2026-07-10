@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_appName__",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "__MSG_appDescription__",
   "default_locale": "en",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "scripting", "sidePanel"],
@@ -47,11 +47,17 @@
   },
   "commands": {
     "open-side-panel": {
-      "suggested_key": { "default": "Ctrl+Shift+H", "mac": "Command+Shift+H" },
+      "suggested_key": {
+        "default": "Ctrl+Shift+H",
+        "mac": "Command+Shift+H"
+      },
       "description": "__MSG_cmdOpenSidePanel__"
     },
     "capture-last-moment": {
-      "suggested_key": { "default": "Ctrl+Shift+B", "mac": "Command+Shift+B" },
+      "suggested_key": {
+        "default": "Ctrl+Shift+B",
+        "mac": "Command+Shift+B"
+      },
       "description": "__MSG_cmdCaptureLastMoment__"
     },
     "toggle-recording": {
