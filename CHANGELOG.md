@@ -4,6 +4,25 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.2] — 2026-07-11 — detection accuracy on body-heavy tabs
+
+Follow-up to 0.7.1. The byte-capped buffer (0.7.1) could evict failure
+events on a body-heavy tab, so cascade/anomaly detection and the badge —
+which read that buffer — degraded: the badge could under-count errors
+(false-green) and cascades could go undetected.
+
+### Fixed
+
+- **Detection and the badge now read a dedicated recent-failures ring**,
+  decoupled from the byte-capped buffer. The ring is count-bounded
+  (100 failures), body-stripped (detection only needs
+  url/method/status/timestamp/meta), and hydrated from the persisted
+  buffer on service-worker start so it survives SW eviction the way the
+  old disk-backed read did. `detect()` runs against it (cascade/anomaly
+  filter for failures anyway, so this is semantically identical and more
+  robust) — which also drops the per-capture O(N) buffer scan from the
+  detection path. Badge `failedCount` comes from the ring too.
+
 ## [0.7.1] — 2026-07-11 — M5: storage/memory crash fix (20-tab regime)
 
 v0.7.0 fixed the renderer-main capture cost but the buffer's storage/memory
