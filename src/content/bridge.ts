@@ -168,6 +168,10 @@ const HS_RETRY_MS = 150;
 const HS_MAX_ATTEMPTS = 12;
 let hsAttempts = 0;
 let hsTimer: number | null = null;
+/** Every port1 we've offered (one per retry). When MAIN adopts one, the
+ *  losers are closed — otherwise up to HS_MAX_ATTEMPTS-1 entangled port
+ *  pairs leak per frame / page-load, left to GC (perf review finding). */
+const offeredPorts: MessagePort[] = [];
 
 function onPortMessage(p: MessagePort, data: PortControlMessage | PageBridgeMessage): void {
   if ('hs' in data) {
@@ -184,6 +188,17 @@ function onPortMessage(p: MessagePort, data: PortControlMessage | PageBridgeMess
       } catch {
         /* ignore */
       }
+      // Close the losing offers so their entangled port pairs don't leak.
+      for (const port of offeredPorts) {
+        if (port !== livePort) {
+          try {
+            port.close();
+          } catch {
+            /* already gone */
+          }
+        }
+      }
+      offeredPorts.length = 0;
     }
     return;
   }
@@ -196,6 +211,7 @@ function offerPort(): void {
   try {
     const channel = new MessageChannel();
     channel.port1.onmessage = (e: MessageEvent) => onPortMessage(channel.port1, e.data);
+    offeredPorts.push(channel.port1);
     const offer: PortOfferMessage = { source: CAPTURE_BRIDGE_TAG, kind: 'port-offer' };
     window.postMessage(offer, '*', [channel.port2]);
   } catch {
@@ -217,8 +233,23 @@ window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
 offerPort();
 
 // Don't lose the tail of a session: flush pending captures when the page
-// is being navigated away from or backgrounded.
-window.addEventListener('pagehide', flushQueue);
+// is being navigated away from or backgrounded. Also close the private
+// port(s) so their entangled pairs don't linger past the page.
+window.addEventListener('pagehide', () => {
+  flushQueue();
+  try {
+    livePort?.close();
+  } catch {
+    /* ignore */
+  }
+  for (const port of offeredPorts) {
+    try {
+      port.close();
+    } catch {
+      /* ignore */
+    }
+  }
+});
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushQueue();
 });
