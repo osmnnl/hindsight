@@ -35,7 +35,7 @@ v0.7.0 (5 renderer fix) sonrası sorun sürdü: **~20 sekmede browser-geneli yav
 
 **Ertelenen takip işleri (non-blocking, ölçüldü/gerekçelendirildi):**
 
-1. **Detection/badge/export byte-cap'li buffer'dan okuyor** → body-ağır TEK sekmede daha az event görebilir (cascade/badge/export degrade). Fix: küçük count-sınırlı recent-failure indeksi + export'a "son N gösteriliyor" notu. (20-sekme senaryosunda eski kod SIFIR event veriyordu, fix net-pozitif.)
+1. ✅ **YAPILDI (v0.7.2, `56f8bf8`)** — Detection (cascade/anomaly) + badge failedCount artık byte-cap'li buffer yerine ayrı **recent-failures ring**'den (count-bounded 100, gövdesi-soyulmuş, diskten hydrate) okuyor. Kalan küçük parça: export'a "son N gösteriliyor" notu (buffer trim edildiğinde) — düşük öncelik, ayrı takip.
 2. **Adaptive flush interval** (250ms→yük altında uzat) + `runtime.onSuspend` flush-all — verimlilik, crash değil.
 3. **Cold-tab in-memory evict** (50-100 sekme için) — ÖNCE bench'i 60/100 sekmeye parametrele, ekstrapolasyonla değil ölçümle karar ver.
 4. **Screenshot externalize: YAPMA** (naif hali orphan-blob birikimi + 3 senkron export yolunu kırar). Gerekirse scoped: recording-tick downscale.

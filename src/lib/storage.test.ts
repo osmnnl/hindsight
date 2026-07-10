@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { approxEventBytes, capBuffer, BYTE_CAP_PER_TAB } from './storage';
+import { approxEventBytes, capBuffer, slimFailure, BYTE_CAP_PER_TAB } from './storage';
 import type { CapturedEvent } from '@/types/events';
 
 /** Minimal network.fetch event with a response body of `bodyLen` chars. */
@@ -50,6 +50,20 @@ describe('approxEventBytes', () => {
       data: { value: 'y'.repeat(9000), target: {} },
     } as unknown as CapturedEvent;
     expect(approxEventBytes(input)).toBeGreaterThanOrEqual(9000);
+  });
+});
+
+describe('slimFailure', () => {
+  it('strips request/response bodies so the failures ring stays tiny', () => {
+    const failed = ev(1, 200_000); // 200KB response body
+    const slim = slimFailure(failed);
+    const d = slim.data as { request: { body: unknown }; response: { body: unknown } };
+    expect(d.response.body).toBeNull();
+    expect(d.request.body).toBeNull();
+    expect(approxEventBytes(slim)).toBeLessThan(1000); // was ~200KB
+    // Non-body fields survive (detection needs them).
+    expect(slim.id).toBe('e1');
+    expect(slim.type).toBe('network.fetch');
   });
 });
 
