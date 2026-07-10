@@ -8,6 +8,7 @@
 
 import {
   EVENTS_SCHEMA_VERSION,
+  isErrorEvent,
   type ArchivedSession,
   type CapturedEvent,
   type SessionMetadata,
@@ -58,6 +59,14 @@ export const FLUSH_INTERVAL_MS = 250;
  *  20 ≈ 145 MB, SW dies under sustained load). Bounding per-tab bytes caps
  *  both SW memory and per-flush write size regardless of maxEventsPerTab. */
 export const BYTE_CAP_PER_TAB = 2_000_000;
+
+/** How many recent failure/error events to keep per tab for detection +
+ *  the badge, INDEPENDENT of the byte-capped buffer. On a body-heavy tab
+ *  the 2MB buffer can hold under a second of history, which would drop
+ *  failures out of the cascade window (10s) and undercount the badge
+ *  (false-green). Failures are relatively rare and — slimmed of bodies —
+ *  tiny, so a count-bounded ring keeps the failure signal accurate. */
+export const MAX_RECENT_FAILURES = 100;
 
 /** Cheap per-event size estimate — reads only the known large fields
  *  (network bodies, screenshot dataUrls, console messages/stacks) instead
@@ -277,6 +286,58 @@ async function readEventsRaw(tabId: number): Promise<CapturedEvent[]> {
   return (stored[key] as CapturedEvent[] | undefined) ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// Recent-failures ring — detection + badge signal, decoupled from the
+// byte-capped buffer (see MAX_RECENT_FAILURES).
+// ---------------------------------------------------------------------------
+
+const recentFailuresByTab = new Map<number, CapturedEvent[]>();
+
+/** A failure event stripped of its large payload fields — detection
+ *  (cascade / anomaly) and the badge only need type / timestamp / url /
+ *  method / status / meta, never the bodies or screenshot bytes. */
+export function slimFailure(event: CapturedEvent): CapturedEvent {
+  const d = event.data as Record<string, unknown> | undefined;
+  if (!d) return event;
+  const req = d.request as Record<string, unknown> | undefined;
+  const res = d.response as Record<string, unknown> | undefined;
+  return {
+    ...event,
+    data: {
+      ...d,
+      ...(req ? { request: { ...req, body: null } } : {}),
+      ...(res ? { response: { ...res, body: null } } : {}),
+      ...(typeof d.dataUrl === 'string' ? { dataUrl: undefined } : {}),
+    },
+  } as CapturedEvent;
+}
+
+/** Hydrate the ring from the persisted buffer's failures on first access
+ *  after an SW start, so detection / badge survive SW eviction (they used
+ *  to read the disk-backed buffer). Idempotent per tab. */
+async function ensureFailuresHydrated(tabId: number): Promise<CapturedEvent[]> {
+  const existing = recentFailuresByTab.get(tabId);
+  if (existing) return existing;
+  const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
+  const seeded = persisted.filter(isErrorEvent).map(slimFailure).slice(-MAX_RECENT_FAILURES);
+  recentFailuresByTab.set(tabId, seeded);
+  return seeded;
+}
+
+/** Appends a failure/error event to the tab's ring (count-bounded,
+ *  slimmed). Caller gates on isErrorEvent; record AFTER detection stamps
+ *  meta so cascadeOf inheritance is preserved. */
+export async function recordFailure(tabId: number, event: CapturedEvent): Promise<void> {
+  const ring = await ensureFailuresHydrated(tabId);
+  ring.push(slimFailure(event));
+  if (ring.length > MAX_RECENT_FAILURES) ring.splice(0, ring.length - MAX_RECENT_FAILURES);
+}
+
+/** The tab's recent failures (oldest-first), for detection + badge. */
+export async function readRecentFailures(tabId: number): Promise<CapturedEvent[]> {
+  return ensureFailuresHydrated(tabId);
+}
+
 /**
  * Drops both the event buffer and the session metadata for a tab without
  * archiving — used by the user Clear button and the reload path
@@ -292,6 +353,7 @@ export async function clearSession(tabId: number): Promise<void> {
   pendingByTab.delete(tabId);
   persistedByTab.delete(tabId);
   metaByTab.delete(tabId);
+  recentFailuresByTab.delete(tabId);
   await chrome.storage.local.remove([
     StorageKeys.sessionMeta(tabId),
     StorageKeys.sessionEvents(tabId),

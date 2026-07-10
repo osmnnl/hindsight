@@ -15,6 +15,8 @@ import {
   queueEvent,
   readArchive,
   readEvents,
+  readRecentFailures,
+  recordFailure,
   sweepArchive,
 } from '@/lib/storage';
 import {
@@ -696,12 +698,15 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
     }
   }
 
-  // Detection engine — stamp meta.flags + meta.cascadeOf based on the
-  // recent buffer before persistence (PRD §6.2.1). The buffer query is
-  // cheap thanks to W6-1's in-memory cache in storage.ts.
+  // Detection engine — stamp meta.flags + meta.cascadeOf before
+  // persistence (PRD §6.2.1). Runs against the recent-FAILURES ring, not
+  // the byte-capped buffer: cascade/anomaly only look at failures, and on
+  // a body-heavy tab the 2MB buffer can hold under a second of history
+  // (dropping failures out of the 10s cascade window). The ring keeps the
+  // failure signal accurate and count-bounded.
   const detectionCfg = await loadDetectionConfig();
   if (detectionCfg.smartDetectionEnabled) {
-    const recentBuffer = await readEvents(tabId);
+    const recentBuffer = await readRecentFailures(tabId);
     const detection = detect(event, recentBuffer);
     if (detection.flags.length > 0 || detection.cascadeOf) {
       const existingMeta: EventMeta = event.meta ?? {};
@@ -727,6 +732,11 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
       }
     }
   }
+
+  // Maintain the recent-failures ring (badge + detection signal), after
+  // meta is stamped so cascadeOf inheritance is preserved. Independent of
+  // the detection toggle and the byte-capped buffer.
+  if (isErrorEvent(event)) await recordFailure(tabId, event);
 
   const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
   await renderBadge(tabId, buffer);
@@ -960,7 +970,12 @@ async function renderBadge(tabId: number, buffer: CapturedEvent[]): Promise<void
   // PRD §6.2.2: "Color reflects severity (green = none, yellow =
   // warnings, red = errors)." Empty badge ("") collapses the bubble
   // entirely so healthy pages stay visually quiet — green is implicit.
-  const failedCount = buffer.reduce((n, e) => n + (isErrorEvent(e) ? 1 : 0), 0);
+  // failedCount comes from the recent-failures ring, not `buffer`: the
+  // byte-capped buffer can evict failures on a body-heavy tab and show a
+  // false-green badge. hasWarn stays on the buffer (slow/longtask/cls are
+  // not tracked in the ring; a missed warn is far less serious than a
+  // missed error count).
+  const failedCount = (await readRecentFailures(tabId)).length;
   const hasWarn = buffer.some(
     (e) =>
       e.meta?.flags?.includes('slow') === true ||
