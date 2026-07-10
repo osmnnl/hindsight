@@ -360,18 +360,30 @@ export async function readArchive(): Promise<ArchivedSession[]> {
 }
 
 /** Drops every archived session. Used by the sidepanel's "Clear
- *  archive" link — explicit user action. */
-export async function clearArchive(): Promise<void> {
-  await chrome.storage.local.remove(StorageKeys.archives);
+ *  archive" link — explicit user action. Serialized on the same chain as
+ *  archiveSession/sweepArchive so it can't clobber a concurrent archive. */
+export function clearArchive(): Promise<void> {
+  archiveChain = archiveChain
+    .catch(() => {})
+    .then(() => chrome.storage.local.remove(StorageKeys.archives));
+  return archiveChain;
 }
 
 /**
  * TTL sweep of the archive. Idempotent: no-op when nothing is past the
  * cutoff. Intended for lazy invocation on service-worker start; future
  * archive surfaces (settings "Clear archive", side panel list) can call
- * it on demand.
+ * it on demand. Serialized on `archiveChain` — the top-level sweepArchive()
+ * on SW start and an onRemoved→archiveSession() can otherwise both
+ * read-modify-write archives/recent in the same wake and clobber each
+ * other (a freshly archived session lost to a late sweep .set).
  */
-export async function sweepArchive(): Promise<void> {
+export function sweepArchive(): Promise<void> {
+  archiveChain = archiveChain.catch(() => {}).then(() => doSweepArchive());
+  return archiveChain;
+}
+
+async function doSweepArchive(): Promise<void> {
   const stored = await chrome.storage.local.get(StorageKeys.archives);
   const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
   if (existing.length === 0) return;
