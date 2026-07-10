@@ -6,7 +6,7 @@
 // envelopes over window.postMessage to the ISOLATED-world bridge.
 
 import { createFetchPatch, createWebSocketPatch, createXhrPatch } from '@/lib/network-patch';
-import { CONSOLE_ARG_CAP, capText, stringifyCapped } from '@/lib/capture-limits';
+import { CONSOLE_ARG_CAP, INPUT_VALUE_CAP, capText, stringifyCapped } from '@/lib/capture-limits';
 import { createMainCaptureChannel } from '@/lib/capture-channel';
 import { buildTargetDescriptor } from '@/lib/dom-descriptor';
 import {
@@ -266,7 +266,11 @@ import type {
           autocomplete: el.getAttribute('autocomplete') ?? undefined,
         };
         const { masked, rule } = shouldMaskFormField(field);
-        const value = masked ? MASKED : el.value;
+        // Cap at the source like bodies/console: `input` fires per keystroke
+        // and each event carries the field's FULL value, so a large textarea
+        // otherwise streams its whole uncapped contents through the pipeline
+        // (postMessage clone → IPC → 250ms storage rewrite) on every key.
+        const value = masked ? MASKED : capText(el.value, INPUT_VALUE_CAP);
 
         const data: ActionInputData = {
           // rect: false — getBoundingClientRect forces a synchronous

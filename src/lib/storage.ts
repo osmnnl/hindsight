@@ -30,6 +30,14 @@ export const StorageKeys = {
  *  on a heavy-browsing day." */
 export const ARCHIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** PRD §13.2 hardening — `archives/recent` was bounded only by the 7-day
+ *  TTL, never by session COUNT. Every tab close read the whole (growing)
+ *  archive blob, pushed the closed session's full event buffer, and wrote
+ *  the whole blob back; a heavy-browsing week could grow it to hundreds of
+ *  MB, and the read-modify-write spike on tab close is a crash trigger.
+ *  Cap the retained session count so the blob stays bounded. */
+export const ARCHIVE_MAX_SESSIONS = 30;
+
 // PRD §6.1.3: rolling buffer 200 events per tab by default (configurable up
 // to 2000). Settings UI exposes the override; for now we hard-code the
 // default until the Settings shell lands.
@@ -40,6 +48,56 @@ export const DEFAULT_MAX_EVENTS_PER_TAB = 200;
  *  popup but long enough to batch the bursty Tier 2 traffic (input,
  *  click) into a single storage write per cycle. */
 export const FLUSH_INTERVAL_MS = 250;
+
+/** PRD §13.2 hardening — the rolling buffer is capped by BYTES as well as
+ *  by event count. A tab streaming large request/response bodies (each
+ *  ≤200KB via BODY_CAP) or recording screenshots would otherwise hold tens
+ *  of MB in the SW heap (persistedByTab) AND rewrite all of it to
+ *  chrome.storage.local on every 250ms flush — the mechanism behind the
+ *  20-tab browser-wide slowdown + SW-OOM crash (measured: ~8.6 MB/tab ×
+ *  20 ≈ 145 MB, SW dies under sustained load). Bounding per-tab bytes caps
+ *  both SW memory and per-flush write size regardless of maxEventsPerTab. */
+export const BYTE_CAP_PER_TAB = 2_000_000;
+
+/** Cheap per-event size estimate — reads only the known large fields
+ *  (network bodies, screenshot dataUrls, console messages/stacks) instead
+ *  of JSON-serializing the whole event on every queue/flush. */
+export function approxEventBytes(event: CapturedEvent): number {
+  const d = event.data as Record<string, unknown> | undefined;
+  let n = 256; // envelope + small-field overhead
+  if (d) {
+    const req = d.request as { body?: unknown } | undefined;
+    const res = d.response as { body?: unknown } | undefined;
+    if (typeof req?.body === 'string') n += req.body.length;
+    if (typeof res?.body === 'string') n += res.body.length;
+    if (typeof d.dataUrl === 'string') n += d.dataUrl.length;
+    if (typeof d.message === 'string') n += d.message.length;
+    if (typeof d.stack === 'string') n += d.stack.length;
+    if (typeof d.value === 'string') n += d.value.length; // action.input field value
+  }
+  return n;
+}
+
+/** Projects the rolling buffer: newest `maxCount` events, then trims the
+ *  oldest until the estimated byte size is within `maxBytes`. Always keeps
+ *  at least the newest event, even if it alone exceeds the cap. */
+export function capBuffer(
+  events: CapturedEvent[],
+  maxCount: number,
+  maxBytes: number = BYTE_CAP_PER_TAB
+): CapturedEvent[] {
+  const arr = events.length > maxCount ? events.slice(-maxCount) : events;
+  let total = 0;
+  let keepFrom = 0;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    total += approxEventBytes(arr[i]!);
+    if (total > maxBytes && i < arr.length - 1) {
+      keepFrom = i + 1;
+      break;
+    }
+  }
+  return keepFrom > 0 ? arr.slice(keepFrom) : arr;
+}
 
 // ---------------------------------------------------------------------------
 // Session metadata — get-or-create + sequence number minting.
@@ -129,7 +187,7 @@ export async function queueEvent(
   scheduleFlush(tabId, max);
 
   const persisted = persistedByTab.get(tabId) ?? [];
-  return [...persisted, ...pending.events].slice(-max);
+  return capBuffer([...persisted, ...pending.events], max);
 }
 
 function scheduleFlush(tabId: number, max: number): void {
@@ -161,7 +219,7 @@ export async function flushTab(
   pendingByTab.delete(tabId);
 
   const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
-  const nextEvents = [...persisted, ...pending.events].slice(-max);
+  const nextEvents = capBuffer([...persisted, ...pending.events], max);
 
   const metaKey = StorageKeys.sessionMeta(tabId);
   const eventsKey = StorageKeys.sessionEvents(tabId);
@@ -191,7 +249,7 @@ export async function readEvents(tabId: number): Promise<CapturedEvent[]> {
   const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
   const pending = pendingByTab.get(tabId);
   if (!pending || pending.events.length === 0) return persisted;
-  return [...persisted, ...pending.events].slice(-DEFAULT_MAX_EVENTS_PER_TAB);
+  return capBuffer([...persisted, ...pending.events], DEFAULT_MAX_EVENTS_PER_TAB);
 }
 
 /**
@@ -247,7 +305,19 @@ export async function clearSession(tabId: number): Promise<void> {
  * archive write with a clean-up so live storage doesn't double-count.
  * Empty sessions are dropped without archiving.
  */
-export async function archiveSession(tabId: number): Promise<void> {
+let archiveChain: Promise<void> = Promise.resolve();
+
+export function archiveSession(tabId: number): Promise<void> {
+  // Serialize archive writes. Tab close fires `void archiveSession(tabId)`
+  // fire-and-forget (service-worker.ts onRemoved); closing a whole window
+  // fires ~20 at once. Each is a read-modify-write of the SAME
+  // `archives/recent` key — concurrently that's a lost-update race
+  // (last writer wins, most sessions vanish). Chaining makes them atomic.
+  archiveChain = archiveChain.catch(() => {}).then(() => doArchiveSession(tabId));
+  return archiveChain;
+}
+
+async function doArchiveSession(tabId: number): Promise<void> {
   await flushTab(tabId);
 
   const metaKey = StorageKeys.sessionMeta(tabId);
@@ -265,8 +335,12 @@ export async function archiveSession(tabId: number): Promise<void> {
   const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
   const kept = existing.filter((a) => a.archivedAt >= cutoff);
   kept.push({ meta, events, archivedAt: Date.now() });
+  // Count cap (newest wins) so the blob can't grow unbounded across a
+  // heavy-browsing week — bounds both the stored size and the tab-close
+  // read-modify-write spike.
+  const capped = kept.length > ARCHIVE_MAX_SESSIONS ? kept.slice(-ARCHIVE_MAX_SESSIONS) : kept;
 
-  await chrome.storage.local.set({ [StorageKeys.archives]: kept });
+  await chrome.storage.local.set({ [StorageKeys.archives]: capped });
   await clearSession(tabId);
 }
 
@@ -286,18 +360,30 @@ export async function readArchive(): Promise<ArchivedSession[]> {
 }
 
 /** Drops every archived session. Used by the sidepanel's "Clear
- *  archive" link — explicit user action. */
-export async function clearArchive(): Promise<void> {
-  await chrome.storage.local.remove(StorageKeys.archives);
+ *  archive" link — explicit user action. Serialized on the same chain as
+ *  archiveSession/sweepArchive so it can't clobber a concurrent archive. */
+export function clearArchive(): Promise<void> {
+  archiveChain = archiveChain
+    .catch(() => {})
+    .then(() => chrome.storage.local.remove(StorageKeys.archives));
+  return archiveChain;
 }
 
 /**
  * TTL sweep of the archive. Idempotent: no-op when nothing is past the
  * cutoff. Intended for lazy invocation on service-worker start; future
  * archive surfaces (settings "Clear archive", side panel list) can call
- * it on demand.
+ * it on demand. Serialized on `archiveChain` — the top-level sweepArchive()
+ * on SW start and an onRemoved→archiveSession() can otherwise both
+ * read-modify-write archives/recent in the same wake and clobber each
+ * other (a freshly archived session lost to a late sweep .set).
  */
-export async function sweepArchive(): Promise<void> {
+export function sweepArchive(): Promise<void> {
+  archiveChain = archiveChain.catch(() => {}).then(() => doSweepArchive());
+  return archiveChain;
+}
+
+async function doSweepArchive(): Promise<void> {
   const stored = await chrome.storage.local.get(StorageKeys.archives);
   const existing = (stored[StorageKeys.archives] as ArchivedSession[] | undefined) ?? [];
   if (existing.length === 0) return;

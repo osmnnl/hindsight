@@ -1,6 +1,6 @@
 {
   "name": "hindsight",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Privacy-first Chrome MV3 extension for passive browser activity capture and shareable bug reports.",
   "license": "MIT",
@@ -28,7 +28,8 @@
     "bench:masking": "tsx bench/masking-cost.bench.ts",
     "bench:filter": "tsx bench/filter-1000.bench.ts",
     "bench:fanout": "npm run build && tsx bench/messageport-fanout.bench.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "bench:multitab": "npm run build && tsx bench/multitab-storage.bench.ts"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.4.0",

@@ -4,6 +4,49 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.1] — 2026-07-11 — M5: storage/memory crash fix (20-tab regime)
+
+v0.7.0 fixed the renderer-main capture cost but the buffer's storage/memory
+footprint was untouched — so with ~20 active tabs the browser still slowed
+down and the extension crashed. Reproduced in a real-Chromium 20-tab bench
+(measured: `chrome.storage.local` ~145 MB, SW dies under sustained load),
+then fixed and re-measured (~37 MB, SW survives). The crash lived in the
+layer the prior analysis under-weighted, not the renderer path.
+
+### Fixed
+
+- **Byte-bounded rolling buffer.** The per-tab buffer was capped by event
+  count (200) only; a tab streaming large bodies or screenshots held tens
+  of MB, mirrored in the SW heap and rewritten to `chrome.storage.local`
+  every 250 ms. It is now also capped by BYTES (2 MB/tab), bounding SW
+  memory and per-flush write size regardless of `maxEventsPerTab` (also
+  neutralizes the 2000-cap footgun).
+- **`action.input` value capped at the source** (10 KB). It was the only
+  default-on capture with no cap; a large textarea streamed its full value
+  through the pipeline on every keystroke and slipped past the byte cap.
+- **Archive bounded + made atomic.** `archives/recent` grew unbounded
+  (7-day TTL, no session-count cap); every tab close rewrote the whole
+  blob. Capped to 30 sessions, and all archive writers
+  (`archiveSession`/`sweepArchive`/`clearArchive`) are serialized on one
+  promise chain — closing a window used to fire ~20 concurrent
+  read-modify-writes that clobbered each other (lost-update race).
+- **MessagePort leak.** The v0.7.0 handshake never closed superseded
+  ports; up to 11 entangled pairs leaked per page load. Losers are now
+  closed on connect, and the live port on `pagehide`.
+
+### Added
+
+- **`bench:multitab`** — real-Chromium 20-tab gate that asserts the SW
+  survives and `chrome.storage.local` stays under a bounded ceiling.
+
+### Known follow-ups (non-blocking, tracked in perf-plan.md)
+
+- Detection/badge/export read the byte-capped buffer, so on a single
+  body-heavy tab they may see fewer events (a small count-bounded
+  recent-failure index is the planned fix).
+- Adaptive flush interval and cold-tab in-memory eviction are further
+  hardening for extreme tab counts, deferred pending measurement.
+
 ## [0.7.0] — 2026-06-30 — M5: capture-pipeline performance hardening
 
 Closes the multi-tab × heavy-request page-freeze (jank) that disappeared
