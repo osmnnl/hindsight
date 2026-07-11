@@ -112,8 +112,9 @@ npm run dev        # Vite + CRXJS with HMR for the popup / settings UIs
 npm run lint
 npm run format:check
 npm run typecheck
-npm test           # Vitest — currently 121 unit tests
-npm run bench      # PRD §13.1 fetch overhead gate (CI-blocking)
+npm test           # Vitest unit suite
+npm run bench      # PRD §13.1 fetch/xhr/masking/filter gates (CI-blocking)
+npm run bench:multitab   # real-Chromium 20-tab storage/crash gate (on-demand)
 ```
 
 CI (.github/workflows/ci.yml) runs all of the above on every push and
@@ -132,8 +133,8 @@ The full plan lives in [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md)
 | **M1 — Foundation**                   | TS port, CapturedEvent model, manifest §9.2 baseline, masking engine, Settings + Privacy UI, HAR export, perf gate                  | ✅ v0.1.0 |
 | **M2 — Context capture**              | Tier 2 events (clicks, inputs, console, nav, WebSocket, SPA routes), narrative engine v1, batched writes, archive, Capture settings | ✅ v0.2.0 |
 | **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping, recent-archive viewer          | ✅ v0.3.0 |
-| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | next      |
-| **M5 — Pre-launch polish**            | Performance optimization, WCAG AA audit, security audit, CWS submission                                                             | —         |
+| **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | ✅ v0.4.0 |
+| **M5 — Pre-launch polish**            | Performance optimization (capture-pipeline + storage hardening), WCAG AA audit, security audit, CWS submission                      | 🚧 v0.7.x |
 
 AI / LLM integration is **explicitly deferred to v2+** (PRD §22.1).
 

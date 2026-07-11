@@ -269,7 +269,12 @@ chrome.runtime.onMessage.addListener(
           return true;
         }
       }
-      readEvents(msg.tabId)
+      // Read with the configured cap, not the 200 default, so raising
+      // maxEventsPerTab actually surfaces more events in the panel + the
+      // recording→replay-bundle export (loadCaptureConfig is memoized —
+      // no extra storage round-trip).
+      loadCaptureConfig()
+        .then((cfg) => readEvents(msg.tabId, cfg.maxEventsPerTab))
         .then(sendResponse)
         .catch(() => sendResponse([]));
       return true;
@@ -1037,7 +1042,11 @@ void sweepArchive().catch(() => {});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   lastUrlPerTab.delete(tabId);
-  void archiveSession(tabId).catch(() => {});
+  // Archive with the configured cap so the closed-tab copy isn't
+  // truncated to the 200 default when the user set a larger buffer.
+  void loadCaptureConfig()
+    .then((cfg) => archiveSession(tabId, cfg.maxEventsPerTab))
+    .catch(() => {});
 });
 
 // Per-tab "last committed top-frame URL" — used to fill NavigationData.fromUrl
