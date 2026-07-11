@@ -9,6 +9,7 @@ import {
   archiveSession,
   capBuffer,
   clearSession,
+  omittedEventCount,
   queueEvent,
   readEvents,
   slimFailure,
@@ -193,5 +194,25 @@ describe('maxEventsPerTab is honored on read + archive (data-loss bugs)', () => 
     const archives = store.get('archives/recent') as ArchivedSession[];
     expect(archives).toHaveLength(1);
     expect(archives[0]!.events.length).toBe(300); // not truncated to 200
+  });
+});
+
+describe('omittedEventCount', () => {
+  const seqEv = (seq: number): CapturedEvent =>
+    ({
+      id: `e${seq}`,
+      sequenceNumber: seq,
+      type: 'action.click',
+      data: {},
+    }) as unknown as CapturedEvent;
+  it('is 0 for empty or a session that never rolled (starts at seq 1)', () => {
+    expect(omittedEventCount([])).toBe(0);
+    expect(omittedEventCount([seqEv(1), seqEv(2), seqEv(3)])).toBe(0);
+  });
+  it('reports how many earlier events aged out (lowest seq - 1)', () => {
+    expect(omittedEventCount([seqEv(50), seqEv(51), seqEv(52)])).toBe(49);
+  });
+  it('is order-independent (uses the minimum sequenceNumber)', () => {
+    expect(omittedEventCount([seqEv(52), seqEv(50), seqEv(51)])).toBe(49);
   });
 });

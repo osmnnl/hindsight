@@ -28,6 +28,10 @@ export interface GenerateBundleOptions {
   /** Optional title shown in the viewer header — falls back to the
    *  origin of the first event when not provided. */
   title?: string;
+  /** Earlier events the per-tab rolling buffer dropped before this
+   *  bundle was built (storage.omittedEventCount). > 0 renders an
+   *  honesty banner so a capped recording isn't shipped as if complete. */
+  omittedEventCount?: number;
 }
 
 /**
@@ -58,6 +62,11 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
     <div class="title">${escapeHtml(title)}</div>
     <div class="meta"><span id="event-count"></span> · <span id="time-span"></span></div>
   </header>
+  ${
+    opts.omittedEventCount && opts.omittedEventCount > 0
+      ? `<div class="omitted-banner">⚠️ ${opts.omittedEventCount} earlier event(s) omitted — the per-tab rolling buffer keeps only the most recent activity (capture limit, not an export limit).</div>`
+      : ''
+  }
   <main class="grid">
     <section class="scrubber-wrap" aria-label="Timeline scrubber">
       <div id="scrubber-bars" class="scrubber-bars" aria-hidden="true"></div>
@@ -190,6 +199,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(
 .item .url { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .time, .item .duration { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
 .cluster-banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12.5px; user-select: none; background: rgba(239,68,68,0.06); border-left: 3px solid var(--danger); }
+.omitted-banner { padding: 8px 14px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--warn); background: rgba(245,158,11,0.1); font-size: 12.5px; color: var(--muted); }
 .cluster-banner:hover { filter: brightness(1.06); }
 .cluster-banner .ico { font-size: 14px; }
 .cluster-banner .meta { color: var(--muted); font-size: 11.5px; flex: 1; }

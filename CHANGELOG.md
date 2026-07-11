@@ -4,6 +4,31 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.4] — 2026-07-11 — capture-limit transparency
+
+The size caps added in 0.6.2–0.7.1 were real but undocumented, which
+contradicted the "no information loss" promise. This release documents
+them honestly and surfaces the rolling window's effect in exports.
+
+### Added
+
+- **Exports note omitted events.** The markdown report and the replay
+  bundle now show an "N earlier events omitted" note/banner when the
+  per-tab rolling buffer dropped older events, so a capped session isn't
+  shipped as if complete. `omittedEventCount()` derives the count from the
+  lowest retained sequenceNumber — no extra bookkeeping.
+
+### Changed (docs)
+
+- **"No information loss" → "no lossy cleanup."** PRD §4.1 now carries the
+  full capture-time cap table (body 200 KB, input/console 10 KB, per-tab
+  buffer 200 events / 2 MB rolling, archive 30 sessions / 7 days); a
+  capped value is cut with a visible `…[truncated]` marker, never silently
+  dropped, and masking stays separate. CLAUDE.md §5.2, README (new
+  "Capture limits" section), and PRIVACY-POLICY §4 aligned. CWS-DESCRIPTION
+  gains a bounded-capture reliability note; CWS-LISTING (stale v0.2.0
+  draft) gets a "superseded" banner.
+
 ## [0.7.3] — 2026-07-11 — buffer-cap data-loss fixes + MIT LICENSE
 
 Follow-up to 0.7.1/0.7.2 (Sonnet review). `maxEventsPerTab` — the

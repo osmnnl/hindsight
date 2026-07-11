@@ -46,9 +46,13 @@ collectively in Settings → Capture; Tier 1 cannot.
 
 Three architectural commitments (PRD §4):
 
-1. **No information loss** — captures are stored verbatim. Truncation
-   happens only at export time for hard destination limits (e.g.
-   Slack's paste cap), never in storage.
+1. **No lossy cleanup** — captures are stored as-is; we never denoise,
+   re-order, or "smart-summarize" them. Explicit, documented size caps
+   _do_ apply at capture time for stability and bounded storage (see
+   [Capture limits](#capture-limits)), but a capped value is cut at a
+   fixed length with a visible `…[truncated]` marker — never a silent
+   edit — and the per-tab buffer is a rolling window whose omitted count
+   is reported in every export.
 2. **Your data does not leave your machine unless you choose** — the
    extension makes zero outbound requests of its own. Webhooks, web
    intents, and file downloads are user-initiated only.
@@ -80,6 +84,27 @@ summarising what was masked. The HAR / JSON export reflects the same
 masked values — there is no second pass at export time, because there
 is nothing to mask: the data was already clean when it landed in
 storage.
+
+### Capture limits
+
+Captures are stored as-is, but bounded — a single service worker and one
+`chrome.storage.local` back it, so unbounded capture across many active
+tabs would slow the browser and crash the extension. The caps below are
+generous (a 200 KB body dwarfs almost any real payload); a value over a
+cap is cut at a fixed length with a visible `…[truncated]` marker (never
+silently dropped), and the per-tab buffer is a **rolling window** — the
+oldest events age out and every export reports how many were omitted.
+
+| Cap                    | Value                                                         | Applies to                    |
+| ---------------------- | ------------------------------------------------------------- | ----------------------------- |
+| Body                   | 200 KB                                                        | each request / response body  |
+| Form-input value       | 10 KB                                                         | a field's value per keystroke |
+| Console argument       | 10 KB                                                         | each console argument         |
+| Per-tab rolling buffer | 200 events (Settings → up to 2000) **and** 2 MB, first to hit | live buffer per tab           |
+| Closed-tab archive     | 30 sessions, 7-day TTL                                        | archived (closed) sessions    |
+
+These are stability/storage bounds, distinct from **masking** (above),
+which removes sensitive values entirely and irreversibly.
 
 ---
 

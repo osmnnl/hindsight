@@ -157,3 +157,16 @@ describe('toMarkdownReport', () => {
     expect(titleLine).toContain('\\[POST\\]');
   });
 });
+
+describe('capture-limit omitted-events note', () => {
+  it('renders the note when omittedEventCount > 0', () => {
+    const md = toMarkdownReport([netEvt()], { omittedEventCount: 49 });
+    expect(md).toContain('49 earlier event(s) omitted');
+  });
+  it('omits the note when omittedEventCount is 0 / undefined', () => {
+    expect(toMarkdownReport([netEvt()], {})).not.toContain('earlier event(s) omitted');
+    expect(toMarkdownReport([netEvt()], { omittedEventCount: 0 })).not.toContain(
+      'earlier event(s) omitted'
+    );
+  });
+});

@@ -108,6 +108,17 @@ export function capBuffer(
   return keepFrom > 0 ? arr.slice(keepFrom) : arr;
 }
 
+/** How many earlier events the rolling window has dropped, derived from
+ *  the lowest sequenceNumber still present (sequences are 1-based and
+ *  contiguous within a session). 0 when nothing aged out. Lets exports
+ *  say "N earlier events omitted" without any extra bookkeeping. */
+export function omittedEventCount(events: CapturedEvent[]): number {
+  if (events.length === 0) return 0;
+  let min = Infinity;
+  for (const e of events) if (e.sequenceNumber < min) min = e.sequenceNumber;
+  return Number.isFinite(min) && min > 1 ? min - 1 : 0;
+}
+
 // ---------------------------------------------------------------------------
 // Session metadata — get-or-create + sequence number minting.
 // ---------------------------------------------------------------------------

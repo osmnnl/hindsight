@@ -1,5 +1,13 @@
 # Chrome Web Store listing — v0.2.0 (unlisted beta)
 
+> **⚠️ Superseded / historical.** This is the original v0.2.0 beta-submission
+> working draft; the app is now at v0.7.4 and its side-panel / replay-bundle /
+> sharing-hub features have shipped. For current store copy use
+> [CWS-DESCRIPTION.md](./CWS-DESCRIPTION.md). The CI zip-naming (§ near top)
+> and permission-justification table below still match `manifest.json`; the
+> feature/roadmap prose does not and should be rewritten before the next
+> submission.
+
 Working document for the first CWS submission. Unlisted means the
 extension is installable by anyone with the link but won't surface
 in store search results — the right mode for the closed beta per
