@@ -30,6 +30,7 @@ import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
+import { omittedEventCount } from '@/lib/storage';
 import {
   type ClearArchiveRuntimeMessage,
   type ClearEventsRuntimeMessage,
@@ -703,7 +704,10 @@ async function onRecordingStopped(): Promise<void> {
     const recordedEvents = Array.isArray(result) ? (result as CapturedEvent[]) : [];
     if (recordedEvents.length === 0) return;
 
-    const html = generateBundle(recordedEvents, { appVersion: __APP_VERSION__ });
+    const html = generateBundle(recordedEvents, {
+      appVersion: __APP_VERSION__,
+      omittedEventCount: omittedEventCount(recordedEvents),
+    });
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const host = (() => {
@@ -1759,7 +1763,10 @@ function downloadAsZip(items: CapturedEvent[]): void {
   const networkItems = items.filter(isRequestLike);
   const entries: ZipEntry[] = [];
 
-  const markdown = toMarkdownReport(items, { title: deriveSessionTitle(items) });
+  const markdown = toMarkdownReport(items, {
+    title: deriveSessionTitle(items),
+    omittedEventCount: omittedEventCount(items),
+  });
   if (markdown) entries.push({ name: 'report.md', data: encoder.encode(markdown) });
 
   const jsonPayload = items.map((e) => (isRequestLike(e) ? maskedEventForExport(e) : e));
@@ -1787,7 +1794,12 @@ function downloadAsZip(items: CapturedEvent[]): void {
 
   entries.push({
     name: 'replay.html',
-    data: encoder.encode(generateBundle(items, { appVersion: __APP_VERSION__ })),
+    data: encoder.encode(
+      generateBundle(items, {
+        appVersion: __APP_VERSION__,
+        omittedEventCount: omittedEventCount(items),
+      })
+    ),
   });
 
   // Inline screenshot payloads — strip the `data:image/...;base64,`
@@ -1864,7 +1876,10 @@ function decodeDataUrlToBytes(dataUrl: string): { bytes: Uint8Array; ext: string
 }
 
 function downloadAsBundle(items: CapturedEvent[]): void {
-  const html = generateBundle(items, { appVersion: __APP_VERSION__ });
+  const html = generateBundle(items, {
+    appVersion: __APP_VERSION__,
+    omittedEventCount: omittedEventCount(items),
+  });
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const host = (() => {

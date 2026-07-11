@@ -128,11 +128,23 @@ Within two years, Hindsight will be the default tool that anyone — technical o
 
 Hindsight makes three explicit commitments. Every feature, every design decision, every line of code is testable against these. If a feature violates one of these, it should be reconsidered, deferred, or made opt-in with prominent disclosure.
 
-### 4.1 "No information loss"
+### 4.1 "No lossy cleanup"
 
-Captured data is preserved faithfully. We do not silently truncate, denoise, or "smartly summarize" captures in storage. Truncation may occur at *export time* when a destination has hard character limits (e.g., Slack's paste limit), but the local capture remains complete and recoverable.
+Captured data is stored as-is. We do not denoise, re-order, or "smartly summarize" captures, and the only value altered on the way in is a masked field (§11.2).
 
-**Why this matters:** A bug report that hides a field makes engineers waste time hunting a phantom. Even well-intentioned truncation creates false debugging signals.
+We do, however, apply **explicit, documented size caps at capture time** — required for pipeline stability, bounded local storage, and to keep a single service worker from crashing under many active tabs (see §13.2). These are not "smart" truncation: a value above a cap is cut at a fixed length with a visible `…[truncated]` marker (never silently dropped or altered), and the per-tab buffer is a bounded **rolling window** — the oldest events age out, they are not summarized. Exports report how many earlier events the window omitted, and may truncate further only for hard destination limits (e.g., Slack's paste cap).
+
+**Capture-time caps (v0.7.x):**
+
+| Cap                       | Value                                     | Applies to                          |
+| ------------------------- | ----------------------------------------- | ----------------------------------- |
+| Body cap                  | 200 KB (`BODY_CAP`)                       | each request / response body        |
+| Input value cap           | 10 KB (`INPUT_VALUE_CAP`)                 | a form field's value per keystroke  |
+| Console arg cap           | 10 KB (`CONSOLE_ARG_CAP`)                 | each console argument               |
+| Per-tab rolling buffer    | 200 events (configurable → 2000) **and** 2 MB (`BYTE_CAP_PER_TAB`), whichever hits first | live buffer per tab |
+| Closed-tab archive        | 30 sessions (`ARCHIVE_MAX_SESSIONS`), 7-day TTL | archived (closed) sessions      |
+
+**Why this matters:** A bug report that hides a field makes engineers waste time hunting a phantom, so caps are generous (a 200 KB body is far larger than almost any real payload) and always visibly marked — never a silent edit that creates a false debugging signal. The rolling window means very long sessions keep their most recent activity; the export's "N earlier events omitted" note keeps that honest.
 
 ### 4.2 "Your data does not leave your machine unless you choose"
 

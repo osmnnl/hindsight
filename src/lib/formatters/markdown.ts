@@ -41,6 +41,12 @@ export interface MarkdownReportOptions {
    *  size-aware degradation pass when the report exceeds a
    *  destination's character cap. */
   maxDetailEvents?: number;
+  /** Earlier events the per-tab rolling buffer dropped before this
+   *  report was built (from storage.omittedEventCount). > 0 renders an
+   *  honesty note so a capped session isn't silently misrepresented as
+   *  complete. Distinct from maxDetailEvents (an export-side detail
+   *  limit); both can appear. */
+  omittedEventCount?: number;
 }
 
 export function toMarkdownReport(
@@ -58,6 +64,12 @@ export function toMarkdownReport(
   lines.push('');
   lines.push(`Captured: ${new Date().toISOString()}`);
   lines.push(`Events: ${sorted.length}`);
+  if (opts.omittedEventCount && opts.omittedEventCount > 0) {
+    lines.push('');
+    lines.push(
+      `> ⚠️ ${opts.omittedEventCount} earlier event(s) omitted — the per-tab rolling buffer keeps only the most recent activity (capture limit, not an export limit).`
+    );
+  }
   lines.push('');
 
   if (narrative) {

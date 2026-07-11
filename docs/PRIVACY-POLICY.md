@@ -83,8 +83,10 @@ Specifically:
 ## 3. Sensitive data — capture-time masking
 
 Hindsight's first brand promise is "your data does not leave your
-machine unless you choose." Its second is "no information loss."
-Those two are in tension when a captured request contains an
+machine unless you choose." Its second is "no lossy cleanup" — we
+never denoise or summarize captures, though explicit size caps do
+apply (see §4). Masking and the caps are in tension when a captured
+request contains an
 `Authorization: Bearer …` header — the user wants to know the
 request happened but doesn't want the bearer token sitting on disk.
 
@@ -118,15 +120,26 @@ per-future-capture, and the Settings page warns explicitly:
 value verbatim on your machine and include it verbatim in any bug
 report you share."
 
-## 4. The 7-day archive
+## 4. Capture limits and the archive
 
-When you close a tab, Hindsight does NOT discard the captures for
-that tab. It moves them into a 7-day rolling archive
-(`chrome.storage.local`) so a session you didn't realise was
-interesting is still recoverable later. Entries older than 7 days
-are swept at service-worker startup. You can also manually clear
-the archive (sidepanel → recents → Clear archive) or reset
-everything (Settings → Advanced → Reset everything).
+Everything is stored on your machine, so Hindsight bounds how much it
+keeps — an unbounded buffer across many tabs would slow the browser and
+crash the extension. These are stability/storage limits, separate from
+masking (§3): a value over a cap is cut at a fixed length with a visible
+`…[truncated]` marker (never silently dropped), and the per-tab buffer is
+a **rolling window** — the oldest events age out, and any report or replay
+bundle you export notes how many earlier events were omitted.
+
+- **Request/response body:** 200 KB each.
+- **Form-input value / console argument:** 10 KB each.
+- **Per-tab live buffer:** the most recent 200 events (raise to 2000 in
+  Settings) and 2 MB, whichever is reached first.
+- **Closed-tab archive:** when you close a tab, its captures move into a
+  rolling archive (`chrome.storage.local`) of the **30 most recent
+  sessions**, each kept for **7 days**. Entries past either bound are
+  swept at service-worker startup. You can clear it manually (sidepanel →
+  recents → Clear archive) or reset everything (Settings → Advanced →
+  Reset everything).
 
 ## 5. Sharing — what we send when you click "Send"
 

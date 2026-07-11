@@ -108,12 +108,19 @@ PRD §13.1 perf gate (fetch + XHR + masking + filter, p95 budgets).
 - **PII masking happens at capture time**, not export time
   (PRD §11.2). The masked value is never written to storage.
 
-### 5.2 No information loss in storage
+### 5.2 No lossy cleanup (PRD §4.1)
 
-Truncation may happen at _export time_ for hard destination
-limits (e.g. Slack 3000 chars). The local capture is always
-faithful and recoverable. Don't "clean up" payloads on the
-way in.
+Don't denoise, re-order, or "smart-summarize" payloads on the
+way in. But explicit, documented **capture-time size caps** DO
+apply (PRD §4.1 table — body 200 KB, input/console 10 KB, per-tab
+buffer 200 events / 2 MB rolling, archive 30 sessions) — they exist
+for pipeline stability and to keep the single SW from crashing under
+many tabs (PRD §13.2). A capped value is cut at a fixed length with a
+visible `…[truncated]` marker, never silently dropped; the per-tab
+buffer is a rolling window (oldest ages out). Further truncation may
+happen at _export time_ for hard destination limits (e.g. Slack 3000
+chars). When you add or change a cap, update the PRD §4.1 table and
+surface it in the export "N earlier events omitted" note.
 
 ### 5.3 MV3 best practices
 

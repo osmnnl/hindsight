@@ -71,6 +71,9 @@ The capture path is gated by hard CI benchmarks.
 • XHR overhead p95: 0.001 ms
 • Filter 1000 events: 0.25 ms p95
 • Outbound requests: 0
+• Bounded capture: a byte-capped per-tab rolling buffer keeps memory and
+storage in check across 20+ active tabs — verified by a real-Chromium
+multi-tab stress gate.
 
 Your browser doesn't notice it's there.
 
