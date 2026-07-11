@@ -254,11 +254,18 @@ export async function flushTab(
  * Use this from any consumer that needs the user-visible view; use
  * readEventsRaw only when you specifically want what's on disk.
  */
-export async function readEvents(tabId: number): Promise<CapturedEvent[]> {
+export async function readEvents(
+  tabId: number,
+  max: number = DEFAULT_MAX_EVENTS_PER_TAB
+): Promise<CapturedEvent[]> {
   const persisted = persistedByTab.get(tabId) ?? (await readEventsRaw(tabId));
   const pending = pendingByTab.get(tabId);
   if (!pending || pending.events.length === 0) return persisted;
-  return capBuffer([...persisted, ...pending.events], DEFAULT_MAX_EVENTS_PER_TAB);
+  // Use the caller's configured cap, not the hard-coded default — the
+  // sidepanel/popup (and the recording→replay-bundle export) read through
+  // here, and a fixed 200 silently truncated the live view + downloads
+  // whenever the user raised maxEventsPerTab and pending was non-empty.
+  return capBuffer([...persisted, ...pending.events], max);
 }
 
 /**
@@ -369,18 +376,25 @@ export async function clearSession(tabId: number): Promise<void> {
  */
 let archiveChain: Promise<void> = Promise.resolve();
 
-export function archiveSession(tabId: number): Promise<void> {
+export function archiveSession(
+  tabId: number,
+  max: number = DEFAULT_MAX_EVENTS_PER_TAB
+): Promise<void> {
   // Serialize archive writes. Tab close fires `void archiveSession(tabId)`
   // fire-and-forget (service-worker.ts onRemoved); closing a whole window
   // fires ~20 at once. Each is a read-modify-write of the SAME
   // `archives/recent` key — concurrently that's a lost-update race
   // (last writer wins, most sessions vanish). Chaining makes them atomic.
-  archiveChain = archiveChain.catch(() => {}).then(() => doArchiveSession(tabId));
+  archiveChain = archiveChain.catch(() => {}).then(() => doArchiveSession(tabId, max));
   return archiveChain;
 }
 
-async function doArchiveSession(tabId: number): Promise<void> {
-  await flushTab(tabId);
+async function doArchiveSession(tabId: number, max: number): Promise<void> {
+  // Flush with the configured cap — bare flushTab(tabId) used the 200
+  // default, so on tab close (pagehide fires flushQueue right then, so
+  // pending is full BY DESIGN) the archived copy was permanently
+  // truncated to 200 even when the user set 2000 (PRD §5.2 info loss).
+  await flushTab(tabId, max);
 
   const metaKey = StorageKeys.sessionMeta(tabId);
   const eventsKey = StorageKeys.sessionEvents(tabId);
