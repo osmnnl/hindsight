@@ -621,6 +621,27 @@
           archive) ya da her şeyi sıfırlayabilirsin (Ayarlar → Advanced → Reset everything).</span
         >
       </p>
+      <p>
+        <span data-lang="en"
+          >Captures are also <strong>size-bounded</strong> so many active tabs can't slow the
+          browser or crash the extension: request/response bodies are capped at 200 KB, form-input
+          and console values at 10 KB, and each tab keeps a rolling window of its most recent 200
+          events (up to 2000 in Settings) or 2 MB — whichever comes first. The archive keeps the 30
+          most recent closed sessions. A value over a cap is cut with a visible
+          <code>…[truncated]</code> marker (never silently dropped), and every export notes how many
+          earlier events were omitted. These are storage limits, separate from masking (§3).</span
+        >
+        <span data-lang="tr"
+          >Yakalananlar ayrıca <strong>boyutça sınırlıdır</strong> ki çok sayıda açık sekme
+          tarayıcıyı yavaşlatmasın veya eklentiyi çökertmesin: istek/yanıt gövdeleri 200 KB, form
+          girişi ve console değerleri 10 KB ile sınırlıdır; her sekme en yeni 200 olayı (Ayarlar'dan
+          2000'e kadar) veya 2 MB'ı — hangisi önce dolarsa — tutan bir kayan pencere saklar. Arşiv
+          en yeni 30 kapalı oturumu tutar. Sınırı aşan değer görünür bir
+          <code>…[truncated]</code> işaretiyle kesilir (asla sessizce düşmez) ve her dışa aktarım
+          kaç eski olayın atlandığını belirtir. Bunlar depolama sınırıdır; maskeleme (§3)
+          ayrıdır.</span
+        >
+      </p>
 
       <h2>
         <span data-lang="en">5. Sharing — what we send when you click Send</span>
