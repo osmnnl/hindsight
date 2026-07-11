@@ -21,11 +21,11 @@ import path from 'node:path';
 import { chromium, type BrowserContext, type Worker } from 'playwright';
 
 const EXT = path.resolve('dist');
-const TABS = 20;
+const TABS = Number(process.env.BENCH_TABS ?? 20); // BENCH_TABS=60/100 to probe the SW ceiling
 const FETCHES = 400; // per tab — sustains traffic through all samples
 const DELAY_MS = 50; // ~20 req/s/tab
 const BODY_BYTES = 120_000; // large response bodies → big captured events
-const STORAGE_CEIL_MB = 70; // fix target: 20 tabs × ~2MB byte-cap + overhead
+const STORAGE_CEIL_MB = TABS * 2 + 30; // ~2MB byte-cap/tab + overhead
 
 const BIG = JSON.stringify({ pad: 'x'.repeat(BODY_BYTES) });
 const fmtMB = (b: number): string => (b / 1_048_576).toFixed(1) + ' MB';
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
     );
     const bounded = maxStorage < STORAGE_CEIL_MB;
     if (!swSurvived) {
-      console.error(`\nFAIL — service worker crashed under sustained 20-tab load.`);
+      console.error(`\nFAIL — service worker crashed under sustained multi-tab load.`);
       process.exitCode = 1;
       return;
     }
@@ -137,7 +137,7 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    console.log(`\nPASS — SW survived and storage stayed bounded under 20-tab load.`);
+    console.log(`\nPASS — SW survived and storage stayed bounded under multi-tab load.`);
   } catch (e) {
     console.error('BENCH ERROR:', (e as Error).message);
     process.exitCode = 1;
