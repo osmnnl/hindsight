@@ -243,7 +243,7 @@ If a request would build any of the above, say so and stop.
 ## 11. Where we are now
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
-Current state: **v0.5.0**. M5 (pre-launch polish) in flight; next
+Current state: **v0.7.3**. M5 (pre-launch polish) in flight; next
 milestone is CWS public submission → `v1.0.0`.
 
 ---

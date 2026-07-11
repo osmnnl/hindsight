@@ -4,6 +4,35 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [0.7.3] — 2026-07-11 — buffer-cap data-loss fixes + MIT LICENSE
+
+Follow-up to 0.7.1/0.7.2 (Sonnet review). `maxEventsPerTab` — the
+user-configurable buffer size — was threaded into the write path but not
+the read/archive paths, so raising it above the 200 default was silently
+ignored.
+
+### Fixed
+
+- **Live view and recording export honor `maxEventsPerTab`.** `readEvents`
+  hard-coded the 200 default whenever the pending queue was non-empty (the
+  steady state on an active tab). Since the sidepanel/popup and the
+  recording→replay-bundle download read through this path, a multi-minute
+  recording was silently truncated to 200 events in the exported bundle.
+- **Archived (closed-tab) sessions honor `maxEventsPerTab`.**
+  `archiveSession` flushed with the 200 default; `pagehide` fires the
+  queue flush exactly at tab close (so the pending queue is full by
+  design), so the archived copy was permanently truncated to 200 even at
+  a larger configured cap (PRD §5.2, "no information loss").
+
+### Added
+
+- **`LICENSE`** — the MIT license file the README has always referenced
+  but which was missing from the repo.
+- **`bench:multitab BENCH_TABS=…`** — parametrized the storage bench;
+  measured that the byte cap holds and the service worker survives at 60
+  tabs (~104 MB), so cold-tab in-memory eviction stays deferred (measured,
+  not extrapolated).
+
 ## [0.7.2] — 2026-07-11 — detection accuracy on body-heavy tabs
 
 Follow-up to 0.7.1. The byte-capped buffer (0.7.1) could evict failure

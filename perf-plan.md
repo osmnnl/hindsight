@@ -3,8 +3,8 @@
 > **Tek kaynak (master) doküman.** Bu dosya üç şeyi bir arada tutar:
 > (1) ne yapıldı, (2) ne planlanıyor, (3) tüm kök-neden analizi.
 >
-> - **Son güncelleme:** 2026-06-30
-> - **Dal:** `perf/xhr-detach`
+> - **Son güncelleme:** 2026-07-11
+> - **Dal:** `perf/storage-hardening` (0.7.1→0.7.3 storage sertleştirme)
 > - **Durum:** 5 kök-nedenin **tamamı** kodlandı; 6 CI kapısı yeşil. Baskın neden (#1) gerçek Chromium'da **doğrulandı** (`bench:fanout` — 40 capture'dan **0** sayfa-dinleyici uyandırması, 40/40 olay SW'ye ulaştı).
 > - **Problem:** Hindsight çok-sekme × yoğun istek altında sayfa donuyor (jank); eklenti kaldırılınca anında düzeliyor.
 > - **Analiz kaynağı:** `hindsight-perf-rootcause` workflow (runId `wf_6791487f-4a3`, 2026-06-29T20:57:45.711Z) — 37 agent · ~22d 33s · 2.57M token. Ham çıktı: `~/.claude/projects/-Users-osmanunal-repos-osman-Hindsight/12acf8aa-.../workflows/wf_6791487f-4a3.json`.
