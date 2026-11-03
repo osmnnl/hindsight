@@ -1,39 +1,4 @@
-:root {
-  color-scheme: light dark;
-
-  --bg: #0b1020;
-  --bg-elev: #131a35;
-  --text: #e7ecf5;
-  --text-muted: #8b94b3;
-  --border: #2a335a;
-  --accent: #6366f1;
-  --accent-text: #ffffff;
-  --success: #22c55e;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: #f7f8fc;
-    --bg-elev: #ffffff;
-    --text: #0b1020;
-    --text-muted: #5b6478;
-    --border: #d6dae6;
-    --accent: #4f46e5;
-    --accent-text: #ffffff;
-    --success: #16a34a;
-  }
-}
-
-:root[data-theme='light'] {
-  --bg: #f7f8fc;
-  --bg-elev: #ffffff;
-  --text: #0b1020;
-  --text-muted: #5b6478;
-  --border: #d6dae6;
-  --accent: #4f46e5;
-  --accent-text: #ffffff;
-  --success: #16a34a;
-}
+@import '../styles/tokens.css';
 
 * {
   box-sizing: border-box;
@@ -393,7 +358,7 @@ body {
 .regex-error {
   display: inline-block;
   margin-top: 4px;
-  color: #f59e0b;
+  color: var(--warn);
   font-size: 11.5px;
 }
 

@@ -1,73 +1,4 @@
-:root {
-  color-scheme: light dark;
-  /* Apple-style dark (default); light via prefers-color-scheme / [data-theme]. */
-  --bg: #1c1c1e;
-  --surface: #2c2c2e;
-  --surface-2: #3a3a3c;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --text: #f5f5f7;
-  --muted: #98989d;
-  --danger: #ff453a;
-  --danger-soft: rgba(255, 69, 58, 0.16);
-  --success: #30d158;
-  --warn: #ff9f0a;
-  --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --accent-text: #ffffff;
-  --bar-bg: rgba(28, 28, 30, 0.68);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 10px 30px rgba(0, 0, 0, 0.3);
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --mono: 'SF Mono', ui-monospace, Menlo, Monaco, 'JetBrains Mono', monospace;
-  --sans:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Helvetica Neue',
-    sans-serif;
-}
-
-/* prefers-color-scheme drives the default; explicit [data-theme] from the
-   Settings General → Theme preference overrides via theme.ts. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: #f5f5f7;
-    --surface: #ffffff;
-    --surface-2: #ececef;
-    --border: rgba(0, 0, 0, 0.08);
-    --border-strong: rgba(0, 0, 0, 0.14);
-    --text: #1d1d1f;
-    --muted: #86868b;
-    --danger: #ff3b30;
-    --danger-soft: rgba(255, 59, 48, 0.1);
-    --success: #34c759;
-    --warn: #ff9500;
-    --accent: #0071e3;
-    --accent-soft: rgba(0, 113, 227, 0.1);
-    --bar-bg: rgba(255, 255, 255, 0.72);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 30px rgba(0, 0, 0, 0.1);
-  }
-}
-
-:root[data-theme='light'] {
-  --bg: #f5f5f7;
-  --surface: #ffffff;
-  --surface-2: #ececef;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --text: #1d1d1f;
-  --muted: #86868b;
-  --danger: #ff3b30;
-  --danger-soft: rgba(255, 59, 48, 0.1);
-  --success: #34c759;
-  --warn: #ff9500;
-  --accent: #0071e3;
-  --accent-soft: rgba(0, 113, 227, 0.1);
-  --bar-bg: rgba(255, 255, 255, 0.72);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 30px rgba(0, 0, 0, 0.1);
-}
+@import '../styles/tokens.css';
 
 * {
   box-sizing: border-box;
@@ -77,9 +8,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  /* Side panel takes whatever width Chrome allocates — typically 400–
-     500 px but resizable. Min-width keeps the 5-column table readable. */
-  min-width: 400px;
+  /* Side panel takes whatever width Chrome allocates — typically 360–
+     500 px and resizable; the top bar wraps instead of scrolling. */
+  min-width: 320px;
   width: 100%;
   height: 100vh;
   background: var(--bg);
@@ -101,8 +32,10 @@ body {
 /* ---------- top bar ---------- */
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 11px 14px;
   background: var(--bar-bg);
   backdrop-filter: saturate(180%) blur(20px);
@@ -152,6 +85,7 @@ body {
 
 .filters {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
@@ -502,7 +436,6 @@ select:focus-visible {
 }
 
 .query-bar input[type='search']:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -533,7 +466,6 @@ select:focus-visible {
 }
 
 .host-picker select:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -813,12 +745,12 @@ select:focus-visible {
 
 .cluster-banner.severity-error {
   border-left: 3px solid var(--danger);
-  background: rgba(239, 68, 68, 0.06);
+  background: var(--danger-soft);
 }
 
 .cluster-banner.severity-warn {
   border-left: 3px solid var(--warn);
-  background: rgba(245, 158, 11, 0.06);
+  background: var(--warn-soft);
 }
 
 .cluster-banner.severity-info {
@@ -863,15 +795,15 @@ select:focus-visible {
 
 .item.failed .status {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--danger-soft);
 }
 .item.success .status {
   color: var(--success);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-soft);
 }
 .item.pending .status {
   color: var(--warn);
-  background: rgba(245, 158, 11, 0.12);
+  background: var(--warn-soft);
 }
 
 .item .method {
@@ -955,7 +887,7 @@ select:focus-visible {
 .bulk-actions button.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
 }
 .bulk-actions button.warning {
   color: var(--warn);
@@ -1034,11 +966,11 @@ select:focus-visible {
 }
 .detail-heading.failed .pill {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--danger-soft);
 }
 .detail-heading.success .pill {
   color: var(--success);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-soft);
 }
 
 .detail-url {
@@ -1070,7 +1002,7 @@ select:focus-visible {
 .copy-row button.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
 }
 
 .copy-row button.warning {
@@ -1123,7 +1055,7 @@ select:focus-visible {
 .copy-slices button.slice.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
 }
 
 /* Copy-success feedback: a brief confirm pulse on any copied button. */
@@ -1196,7 +1128,7 @@ select:focus-visible {
   transform: translateY(0);
 }
 .copy-row button.warning:hover {
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--warn-soft);
 }
 
 /* Privacy preview modal — PRD §6.4.4 */
@@ -1296,7 +1228,7 @@ select:focus-visible {
 .privacy-modal-actions button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1303;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1375,7 +1307,7 @@ select:focus-visible {
 .size-warning {
   margin: 4px 14px 8px;
   padding: 10px 12px;
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--warn-soft);
   border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: 6px;
   font-size: 12px;
@@ -1566,7 +1498,6 @@ select:focus-visible {
   font-size: 12px;
 }
 .detail-search input[type='search']:focus {
-  outline: none;
   border-color: var(--accent);
 }
 .detail-search .search-count {
@@ -1589,7 +1520,7 @@ mark.search-hit {
 }
 mark.search-hit.active {
   background: var(--accent);
-  color: #1a1303;
+  color: var(--accent-text);
 }
 
 /* ---------- interactive JSON tree (PRD §6.3 detail view) ---------- */
