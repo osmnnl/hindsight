@@ -54,8 +54,8 @@ export function buildTargetDescriptor(el: Element, opts?: DescriptorOptions): Ta
  * Accessibility-first name resolution. Order:
  *   1. aria-label
  *   2. aria-labelledby (resolved via getElementById)
- *   3. Visible text (textContent or value for inputs)
- *   4. placeholder / title fallbacks
+ *   3. Form controls: associated <label>, placeholder, name, title
+ *   4. Other elements: visible text, then title
  * Returns undefined if nothing usable found.
  */
 function computeAccessibleName(el: Element): string | undefined {
@@ -73,9 +73,22 @@ function computeAccessibleName(el: Element): string | undefined {
     if (refs.length > 0) return clamp(refs.join(' '));
   }
 
-  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+  // Form controls: <label for> / wrapping <label>, then placeholder, then
+  // the name attribute — never the control's own text (a <select>'s
+  // textContent is every option glued together).
+  if (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement
+  ) {
+    const label = labelText(el);
+    if (label) return clamp(label);
     const placeholder = el.getAttribute('placeholder');
     if (placeholder) return clamp(placeholder);
+    const name = el.getAttribute('name');
+    if (name) return clamp(name);
+    const title = el.getAttribute('title');
+    return title ? clamp(title) : undefined;
   }
 
   const text = (el.textContent ?? '').trim();
@@ -84,6 +97,23 @@ function computeAccessibleName(el: Element): string | undefined {
   const title = el.getAttribute('title');
   if (title) return clamp(title);
 
+  return undefined;
+}
+
+function labelText(
+  el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+): string | undefined {
+  const labels = el.labels;
+  if (!labels) return undefined;
+  for (const label of Array.from(labels)) {
+    // Text of the label minus any control nested in it (wrapping labels).
+    let text = '';
+    label.childNodes.forEach((n) => {
+      if (n === el || (n instanceof Element && n.contains(el))) return;
+      text += n.textContent ?? '';
+    });
+    if (text.trim()) return text;
+  }
   return undefined;
 }
 
