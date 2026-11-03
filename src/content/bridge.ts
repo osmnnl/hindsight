@@ -146,6 +146,7 @@ function enqueueCapture(data: PageBridgeMessage): void {
 
   queue.push({
     capture: data.capture,
+    ...(typeof data.t === 'number' ? { t: data.t } : {}),
     ...(data.redactions ? { redactions: data.redactions } : {}),
   });
 

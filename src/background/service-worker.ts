@@ -45,6 +45,7 @@ import {
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
 import { openCapturePanel } from '@/lib/panel';
+import { captureTimestamp } from '@/lib/capture-time';
 import { initI18n, t } from '@/lib/i18n';
 import {
   DEFAULT_ADVANCED_SETTINGS,
@@ -249,6 +250,7 @@ chrome.runtime.onMessage.addListener(
             capture: item.capture,
             pageUrl: msg.pageUrl,
             pageTitle: msg.pageTitle,
+            ...(item.t != null ? { t: item.t } : {}),
             ...(item.redactions ? { redactions: item.redactions } : {}),
           }).catch(() => {
             /* one bad capture must not drop the rest of the batch */
@@ -622,7 +624,7 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
 
   const baseEnvelope = {
     id: crypto.randomUUID(),
-    timestamp: Date.now(),
+    timestamp: captureTimestamp(msg.t, Date.now()),
     sessionId: session.sessionId,
     sequenceNumber,
     tabId,

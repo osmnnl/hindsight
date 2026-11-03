@@ -48,6 +48,7 @@ import type {
     channel.post({
       source: CAPTURE_BRIDGE_TAG,
       capture,
+      t: Date.now(),
       ...(redactions && redactions.length > 0 ? { redactions } : {}),
     });
   }
