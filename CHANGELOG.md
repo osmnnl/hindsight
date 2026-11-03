@@ -34,8 +34,9 @@ per-site Replay access, and store listings for Chrome, Firefox and Edge.
 - **Events are stamped at capture time.** The 250 ms bridge batch gave
   every event in a flush the same receipt time, so clicks sorted after
   the requests they caused. The page world stamps the time; the SW
-  trusts it within [now−60 s, now+1 s]. The side panel list orders by
-  that timestamp (PRD §6.1.2, §13.2).
+  trusts it within [now−60 s, now+1 s]. The side panel list is sorted by
+  the time each row shows (a request's start), not by arrival
+  (PRD §6.1.2, §13.2).
 - **Cascades are keyed by origin + failure class** (auth 401/403, other
   4xx, 5xx, network), and every member is linked, so 3× 401 shows as one
   cascade of three instead of a loose row plus "cascade — 2". Relative
