@@ -69,6 +69,7 @@ import {
   type NetworkXhrData,
   type Redaction,
 } from '@/types/events';
+import { handleInstalled, readOnboarding, writeOnboarding } from '@/lib/onboarding';
 
 // In-memory monotonic sequence counter per session. The value mirrors
 // SessionMetadata.lastSequence in chrome.storage.local — hydrated from
@@ -1039,6 +1040,18 @@ function safeOrigin(pageUrl: string): string {
 // expired entries) and self-correcting if the SW was evicted long enough
 // for entries to age out.
 void sweepArchive().catch(() => {});
+
+// First-run onboarding (PRD §7.1): open the local welcome page once on
+// a fresh install. Updates and browser restarts never reopen it.
+chrome.runtime.onInstalled.addListener((details) => {
+  void handleInstalled(details, {
+    openTab: (url) => chrome.tabs.create({ url }),
+    getURL: (path) => chrome.runtime.getURL(path),
+    read: readOnboarding,
+    write: writeOnboarding,
+    now: Date.now,
+  }).catch(() => {});
+});
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   lastUrlPerTab.delete(tabId);

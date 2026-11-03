@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Welcome to Hindsight</title>
+    <link rel="icon" type="image/png" href="/icons/icon48.png" />
+    <link rel="stylesheet" href="./welcome.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="head">
+        <img src="/icons/icon128.png" width="56" height="56" alt="" />
+        <div>
+          <p class="eyebrow" data-w="eyebrow">Installed · v</p>
+          <h1 data-w="title">Hindsight is recording.</h1>
+          <p class="lead" data-w="lead">
+            It keeps a rolling record of each tab in the background, so when something breaks the
+            evidence is already there.
+          </p>
+        </div>
+      </header>
+
+      <ol class="steps">
+        <li>
+          <span class="num" aria-hidden="true">1</span>
+          <div>
+            <h2 data-w="s1.title">Pin it and browse normally</h2>
+            <p data-w="s1.body">
+              Open the puzzle-piece menu in the toolbar and pin Hindsight. The badge counts failed
+              requests on the current tab.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="num" aria-hidden="true">2</span>
+          <div>
+            <h2 data-w="s2.title">When something breaks, scrub back</h2>
+            <p data-w="s2.body">
+              Open the side panel to see every request, console error and click in order, with full
+              headers and bodies.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="num" aria-hidden="true">3</span>
+          <div>
+            <h2 data-w="s3.title">Share one file</h2>
+            <p data-w="s3.body">
+              Save the session as a single HTML replay file that opens in any browser, or send it to
+              Slack, Teams, Discord or a GitHub issue.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <section class="card">
+        <h2 data-w="keys.title">Keyboard shortcuts</h2>
+        <table class="keys">
+          <tbody id="shortcuts"></tbody>
+        </table>
+        <p class="hint">
+          <span data-w="keys.hint">Change them at</span>
+          <code>chrome://extensions/shortcuts</code>
+        </p>
+      </section>
+
+      <section class="card">
+        <h2 data-w="privacy.title">What stays private</h2>
+        <ul class="facts">
+          <li data-w="privacy.1">
+            Everything is stored on this computer. Hindsight has no server.
+          </li>
+          <li data-w="privacy.2">
+            Authorization, Cookie and API-key headers are masked before anything is written.
+          </li>
+          <li data-w="privacy.3">Password fields and card numbers are never stored.</li>
+          <li data-w="privacy.4">Nothing is sent anywhere unless you press Send or Save.</li>
+        </ul>
+      </section>
+
+      <footer class="actions">
+        <button id="open-settings" type="button" class="primary" data-w="actions.settings">
+          Open settings
+        </button>
+        <button id="close" type="button" data-w="actions.close">Start browsing</button>
+      </footer>
+    </main>
+    <script type="module" src="./welcome.ts"></script>
+  </body>
+</html>

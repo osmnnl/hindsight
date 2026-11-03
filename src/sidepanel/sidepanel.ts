@@ -31,6 +31,7 @@ import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
 import { absoluteUrl, originPattern, requestOriginAccess } from '@/lib/permissions';
+import { markPanelHintDone } from '@/lib/onboarding';
 import { omittedEventCount } from '@/lib/storage';
 import {
   type ClearArchiveRuntimeMessage,
@@ -507,6 +508,7 @@ function syncCategoryUi(): void {
 void init();
 
 async function init(): Promise<void> {
+  void markPanelHintDone();
   await initI18n();
   applyI18nToDom();
   await applyTheme();
