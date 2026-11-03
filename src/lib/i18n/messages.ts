@@ -90,6 +90,11 @@ const en = {
   'settings.privacy.origins.empty': 'No origins blocked.',
   'settings.privacy.origins.removeAria': 'Remove {origin}',
   'settings.privacy.origins.invalid': 'Enter a full URL (https://host:port).',
+  'settings.privacy.replayAccess.heading': 'Replay access',
+  'settings.privacy.replayAccess.hint':
+    'Origins you allowed Replay to reach. Hindsight asks for one origin at a time, the first time you replay a request to it. Remove one to revoke it.',
+  'settings.privacy.replayAccess.empty': 'No origins allowed yet.',
+  'settings.privacy.replayAccess.removeAria': 'Revoke Replay access to {origin}',
   'settings.privacy.sandbox.heading': 'Test sandbox',
   'settings.privacy.sandbox.hint':
     'Paste a sample body, pick a rule, see what would be masked. Nothing here is saved.',
@@ -459,6 +464,11 @@ const tr = {
   'settings.privacy.origins.empty': 'Engellenmiş kaynak yok.',
   'settings.privacy.origins.removeAria': '{origin} kaldır',
   'settings.privacy.origins.invalid': 'Tam bir URL gir (https://host:port).',
+  'settings.privacy.replayAccess.heading': 'Yeniden gönderme erişimi',
+  'settings.privacy.replayAccess.hint':
+    'Yeniden gönderme için izin verdiğiniz kaynaklar. Hindsight bir kaynağa ilk kez istek yeniden gönderildiğinde yalnız o kaynak için izin ister. Kaldırarak izni geri alın.',
+  'settings.privacy.replayAccess.empty': 'Henüz izin verilen kaynak yok.',
+  'settings.privacy.replayAccess.removeAria': '{origin} için yeniden gönderme iznini geri al',
   'settings.privacy.sandbox.heading': 'Test ortamı',
   'settings.privacy.sandbox.hint':
     'Örnek bir gövde yapıştır, kural seç, neyin maskeleneceğini gör. Buradaki hiçbir şey kaydedilmez.',

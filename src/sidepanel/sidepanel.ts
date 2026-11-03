@@ -30,6 +30,7 @@ import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
 import { generateBundle } from '@/lib/replay-bundle';
+import { absoluteUrl, originPattern, requestOriginAccess } from '@/lib/permissions';
 import { omittedEventCount } from '@/lib/storage';
 import {
   type ClearArchiveRuntimeMessage,
@@ -2525,6 +2526,20 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
   const result = document.getElementById('replay-result');
   if (!result) return;
   result.classList.remove('hidden');
+  // Ask for this one origin inside the click gesture (PRD §9.2: no host
+  // access at install). Already-granted origins resolve without a prompt.
+  const target = absoluteUrl(c.data.request.url, c.url);
+  const origin = originPattern(target)?.slice(0, -2) ?? target;
+  result.innerHTML = `<div class="replay-status">Replay needs access to <code>${escapeHtml(origin)}</code>. Chrome will ask once; revoke it any time in Settings → Privacy.</div>`;
+  if (!(await requestOriginAccess(target))) {
+    result.innerHTML = `
+      <div class="replay-status replay-fail">
+        <strong>Access not granted</strong> — nothing was sent to ${escapeHtml(origin)}.
+      </div>
+      <p class="hint">Replay only reaches origins you allow. Copy as cURL to run it elsewhere.</p>
+    `;
+    return;
+  }
   result.innerHTML = '<div class="replay-status">… replaying</div>';
   const original = btn.textContent ?? '↻ Replay';
   btn.disabled = true;
@@ -2540,7 +2555,7 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
 
   const start = performance.now();
   try {
-    const resp = await fetch(c.data.request.url, {
+    const resp = await fetch(target, {
       method,
       headers,
       body: method === 'GET' || method === 'HEAD' ? undefined : (c.data.request.body ?? undefined),
