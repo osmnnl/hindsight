@@ -4,6 +4,76 @@ All notable changes to Hindsight. Format roughly follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.0.0] — 2026-11-03 — first stable release
+
+Hindsight 1.0 (M5, PRD §18.6): fewer permissions, first-run onboarding,
+per-site Replay access, and store listings for Chrome, Firefox and Edge.
+
+<!--
+INTEGRATOR: merge ws/a-*, ws/c-*, ws/d-* first, then replace every
+"(integrator)" line below with that workstream's items (one bullet per
+user-visible change, PRD § in parentheses) and delete this comment.
+-->
+
+### Security
+
+- (integrator) Workstream A — replay bundle payload escaping (stored XSS,
+  A1) and the other A items.
+- **Smaller permission set.** `scripting` removed from install-time
+  permissions; `downloads`, `tabs` and `webNavigation` removed from
+  optional permissions. Nothing called them. Install-time: `storage`,
+  `unlimitedStorage`, `activeTab`, `sidePanel`; optional:
+  `notifications` (PRD §9.2, §12).
+- **Replay asks for one site at a time.** The first Replay against an
+  origin requests exactly `<origin>/*` inside the click, explains why,
+  and on denial says nothing was sent. Grants are listed and revocable
+  in Settings → Privacy → Replay access (PRD §6.3.5).
+
+### Fixed
+
+- (integrator) Workstream A — data correctness (event timestamps,
+  detection) and `npm ci` lockfile.
+- (integrator) Workstream D — replay viewer fixes.
+- **Page loads are recorded.** The `webNavigation` listener could never
+  run (the permission was never granted), so full page loads were
+  missing from every timeline. The page-world interceptor now emits one
+  `navigation` event per document load; SPA route changes are unchanged
+  (PRD §6.1.1).
+- **Recording events carry the page URL** again (they came from the
+  removed navigation listener).
+- **Replay of relative URLs** (`fetch('/api/x')`) is resolved against the
+  page URL instead of the extension origin.
+- **Form inputs are named by their label.** Rows read `Email = …` and
+  `Country = Portugal` instead of `<input> = …` or a `<select>`'s glued
+  option text: aria-label → aria-labelledby → `<label>` → placeholder →
+  name → title.
+
+### Added
+
+- (integrator) Workstream C — redesigned side panel and popup, theme
+  toggle, keyboard navigation, accessibility (axe in CI).
+- (integrator) Workstream D — replay viewer accessibility, rendered
+  narrative, header metadata.
+- **First-run welcome page** (PRD §7.1), opened once on install: what is
+  recorded, three steps, your live keyboard shortcuts, four privacy
+  facts. Local only, EN/TR, light/dark. Never reopens on update or
+  restart.
+- **Popup hint** pointing at the side panel until it is opened once.
+- **Store listings** for Chrome Web Store, Firefox Add-ons and Edge
+  Add-ons (EN + TR) in `store/`, a three-store runbook
+  (`docs/CWS-LISTING.md`), an M5 evidence checklist
+  (`docs/M5-CHECKLIST.md`) and a 60-second demo script.
+- **`scripts/store-shots.mjs`** (dev-only) renders every store image from
+  the real built extension: five 1280×800 screenshots, the 1400×560
+  marquee, the 440×280 tile and the Edge 300×300 logo, per language.
+
+### Changed
+
+- Store and privacy copy now match shipped behaviour exactly: error
+  screenshots are attached on tabs where you opened Hindsight
+  (`activeTab`), not on every tab.
+- Promo tiles are flat PNGs; the gradient SVG mockups are gone.
+
 ## [0.7.4] — 2026-07-11 — capture-limit transparency
 
 The size caps added in 0.6.2–0.7.1 were real but undocumented, which

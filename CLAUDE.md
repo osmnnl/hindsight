@@ -132,10 +132,13 @@ surface it in the export "N earlier events omitted" note.
   `textContent` or the existing `escapeHtml` / `escapeAttr`
   helpers).
 - Permissions are progressive. Only `storage`,
-  `unlimitedStorage`, `activeTab`, `scripting`, `sidePanel`
-  are install-time required. Everything else goes in
+  `unlimitedStorage`, `activeTab`, `sidePanel` are
+  install-time required (`scripting` dropped in 1.0.0 —
+  nothing calls it). Everything else goes in
   `optional_permissions` / `optional_host_permissions` and
-  is requested at feature activation.
+  is requested at feature activation — host access one
+  origin at a time (Replay, `src/lib/permissions.ts`).
+  Never add a permission without a call site that needs it.
 - Content scripts: page-world (`MAIN`) does the patching;
   isolated-world (`ISOLATED`) is the bridge to the service
   worker. They communicate via `window.postMessage` with a
@@ -250,8 +253,8 @@ If a request would build any of the above, say so and stop.
 ## 11. Where we are now
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
-Current state: **v0.7.3**. M5 (pre-launch polish) in flight; next
-milestone is CWS public submission → `v1.0.0`.
+Current state: **v1.0.0** — M5 complete in code; store submission
+(CWS, AMO, Edge) per `docs/CWS-LISTING.md` is the remaining step.
 
 ---
 

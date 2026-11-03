@@ -1,0 +1,62 @@
+Hindsight, açmayı unuttuğunuz DevTools'tur.
+
+Her ağ isteğini, konsol hatasını ve kullanıcı eylemini arka planda kaydeder. Bir şey bozulduğunda, olanları geriye sarıp inceler ve hiçbir şeyi yeniden üretmeden eksiksiz bir hata raporu paylaşırsınız.
+
+NEDEN VAR
+
+Bir hata görürsünüz. DevTools'u açarsınız. Sayfayı yenilersiniz. Hata bir daha olmaz, ihtiyacınız olan istek de kaybolmuştur. Hindsight hep kayıttadır; bir şeyin ters gittiğini fark ettiğinizde kanıt zaten elinizdedir.
+
+NELERİ KAYDEDER
+
+• Ağ: fetch, XMLHttpRequest, WebSocket ve Server-Sent Events; istek ve yanıt başlıkları ve gövdeleriyle
+• Konsol: hata ve uyarılar, yakalanmamış hatalar ve işlenmemiş promise redleri; yığın izleriyle
+• Kullanıcı eylemleri: tıklamalar, form girişi (parolalar ve kart numaraları hiç saklanmaz), sayfa yüklemeleri ve tek sayfa uygulama rota değişiklikleri
+• Performans sinyalleri: 100 ms'yi aşan uzun görevler, yerleşim kayması ve boş sayfa kontrolü
+• Ekran görüntüleri: Hindsight'ı açtığınız sekmelerde (araç çubuğu simgesi, yan panel veya kısayol) hatalara eklenir
+• Kayıt modu: Kaydet'e basın; kaydırma, imleç ve 2 saniyede bir ekran görüntüsü eklenir. Durdur'a basınca başı ve sonu belli bir oturum elde edersiniz
+
+TEK DOSYA PAYLAŞIN
+
+Oturumun tamamını tek, kendi kendine yeten bir HTML dosyası olarak kaydedin. Dosyayı açan kişi zaman çizelgesini, sade dilde bir anlatımı ve her isteği ve yanıtı görür; her tarayıcıda, çevrimdışı, hiçbir şey kurmadan.
+
+Ya da kendi webhook'unuzla doğrudan Slack, Microsoft Teams veya Discord'a gönderin; önceden doldurulmuş bir GitHub issue ya da e-posta açın; tek bir isteği cURL, ham istek ve yanıt veya Markdown rapor olarak kopyalayın. Her gönderimden önce bir önizleme tam olarak neyin gideceğini gösterir.
+
+TASARIMDAN GİZLİ
+
+• Her şey bilgisayarınızda saklanır. Hindsight'ın sunucusu yoktur ve kendi adına hiçbir ağ isteği yapmaz
+• Telemetri yok, analitik yok, üçüncü taraf kod yok
+• Authorization, Cookie, Set-Cookie, X-API-Key, X-Auth-Token ve Proxy-Authorization başlıkları yakalandığı anda maskelenir; asıl değerler diske hiç yazılmaz
+• Kart numaraları (Luhn doğrulamalı), TC kimlik numaraları (sağlama doğrulamalı) ve kendi regex desenleriniz gövdelerde maskelenir
+• Dilediğiniz siteyi Ayarlar → Gizlilik'ten tamamen hariç tutun
+
+HIZLA BULUN
+
+• Her iki ucu kırpan çift tutamaçlı zaman çizelgesi
+• Başarısız / API / Tümü filtreleri, tam metin arama ve site seçici
+• Tekrarlanan hatalar tek bir küme satırında toplanır
+• Yakalanan bir isteği yeniden gönderin: Hindsight ilk seferde yalnız o site için izin ister, izni Ayarlar'dan geri alabilirsiniz
+
+KURAL OLARAK HIZLI
+
+Her sürüm CI'da katı performans testlerinden geçmek zorundadır:
+• fetch ek yükü: 0,01 ms'nin altında (p95)
+• XMLHttpRequest ek yükü: 0,002 ms'nin altında (p95)
+• 1.000 olayı filtrelemek: 0,25 ms (p95)
+• sekme başına sınırlı, kayan bir tampon (200 olay / 2 MB); 20'den fazla gerçek sekmeyle denenir
+
+Kurun, sabitleyin ve her zamanki gibi gezinin. Türkçe ve English.
+
+AÇIK KAYNAK (MIT)
+
+Yukarıdaki her gizlilik iddiası kaynak kodda doğrulanabilir.
+
+Web sitesi: https://osmnnl.github.io/hindsight/
+Kaynak kod: https://github.com/osmnnl/hindsight
+Gizlilik politikası: https://osmnnl.github.io/hindsight/privacy.html
+Sorun bildirin: https://github.com/osmnnl/hindsight/issues
+Değişiklik günlüğü: https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md
+
+AYNI GELİŞTİRİCİDEN
+
+StorageNinja: bir sekmenin Local Storage, Session Storage, çerez, IndexedDB ve Cache Storage verisini kopyalayın, yapıştırın, yönetin. https://osmnnl.github.io/StorageNinja/
+Data Helper: geçerli TCKN, VKN, IBAN; tutarlı persona; formu tek tıkla doldurma. https://osmnnl.github.io/TestDataHelper/

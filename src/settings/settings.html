@@ -134,6 +134,15 @@
           </div>
 
           <div class="subsection">
+            <h3 data-i18n="settings.privacy.replayAccess.heading">Replay access</h3>
+            <p class="hint" data-i18n="settings.privacy.replayAccess.hint">
+              Origins you allowed Replay to reach. Hindsight asks for one origin at a time, the
+              first time you replay a request to it. Remove one to revoke it.
+            </p>
+            <div id="replay-access-list" class="chip-group removable" aria-live="polite"></div>
+          </div>
+
+          <div class="subsection">
             <h3 data-i18n="settings.privacy.sandbox.heading">Test sandbox</h3>
             <p class="hint" data-i18n="settings.privacy.sandbox.hint">
               Paste a sample body, pick a rule, see what would be masked. Nothing here is saved.

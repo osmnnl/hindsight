@@ -118,6 +118,8 @@ export default defineConfig(({ mode }) => {
       // Keep the two builds in separate trees so they never clobber.
       outDir,
       rollupOptions: {
+        // Pages the manifest doesn't reference (opened via tabs.create).
+        input: { welcome: 'src/welcome/welcome.html' },
         output: {
           // CRXJS handles entry/chunk naming; we just want deterministic asset names.
           assetFileNames: 'assets/[name]-[hash][extname]',

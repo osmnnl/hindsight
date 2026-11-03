@@ -1,6 +1,7 @@
 // Settings page — General + Privacy + Capture sections (PRD §6.6.1).
 
 import { applyI18nToDom, initI18n, isLocale, setLocaleSync, subscribeLocale, t } from '@/lib/i18n';
+import { listGrantedOrigins, revokeOrigin } from '@/lib/permissions';
 import {
   DEFAULT_BODY_RULES,
   DEFAULT_FORM_RULES,
@@ -44,6 +45,10 @@ async function init(): Promise<void> {
   setupSectionNav();
   await initGeneral();
   await initPrivacy();
+  await renderReplayAccess();
+  // Replay grants happen in the side panel; keep this list live.
+  chrome.permissions.onAdded.addListener(() => void renderReplayAccess());
+  chrome.permissions.onRemoved.addListener(() => void renderReplayAccess());
   await initCapture();
   await initDetection();
   await initSharing();
@@ -58,6 +63,7 @@ async function init(): Promise<void> {
     renderDefaultRuleChips();
     renderCustomPatterns();
     renderOriginList();
+    void renderReplayAccess();
     renderSandboxRules();
     runSandbox();
     relabelBufferOptions();
@@ -400,6 +406,30 @@ function renderOriginList(): void {
         blocklistedOrigins: [...privacyState.blocklistedOrigins],
       }).then(flashPrivacy);
       renderOriginList();
+    });
+  });
+}
+
+async function renderReplayAccess(): Promise<void> {
+  const container = document.getElementById('replay-access-list');
+  if (!container) return;
+  const origins = await listGrantedOrigins();
+  if (origins.length === 0) {
+    container.innerHTML = `<p class="empty-row">${escapeHtml(t('settings.privacy.replayAccess.empty'))}</p>`;
+    return;
+  }
+  container.innerHTML = origins
+    .map((o) => {
+      const aria = t('settings.privacy.replayAccess.removeAria', { origin: o });
+      return `<span class="chip removable">
+          <code>${escapeHtml(o)}</code>
+          <button type="button" data-pattern="${escapeHtml(o)}" aria-label="${escapeHtml(aria)}">✕</button>
+        </span>`;
+    })
+    .join('');
+  container.querySelectorAll<HTMLButtonElement>('button[data-pattern]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      void revokeOrigin(btn.dataset.pattern ?? '').then(renderReplayAccess);
     });
   });
 }

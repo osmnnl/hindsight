@@ -243,7 +243,7 @@ Captures are organized into tiers by overhead and value. Tier 1 and 2 are defaul
 | `fetch()` calls | Page-world content script monkey-patches `window.fetch` | Captures request URL, method, headers, body, response status, headers, body, timing |
 | `XMLHttpRequest` calls | Page-world content script wraps the XHR prototype | Same fields as fetch |
 | Console errors | Page-world `window.addEventListener('error', ...)` and `unhandledrejection` | Captures error message, stack trace, source location |
-| Page navigations | Background `chrome.webNavigation.onCommitted` | Marks document boundaries |
+| Page navigations | Page-world content script: one event per document load (`PerformanceNavigationTiming`), plus `pushState` / `replaceState` / `hashchange` hooks for SPA routes | Marks document boundaries; no `webNavigation` permission needed (1.0.0) |
 
 **Tier 2 — Important (default on, user-toggleable)**
 
@@ -743,14 +743,10 @@ Hindsight v1 explicitly will not include the following. Each is excluded with a 
     "storage",
     "unlimitedStorage",
     "activeTab",
-    "scripting",
     "sidePanel"
   ],
   "optional_permissions": [
-    "notifications",
-    "downloads",
-    "tabs",
-    "webNavigation"
+    "notifications"
   ],
   "host_permissions": [],
   "optional_host_permissions": ["<all_urls>"],
@@ -807,8 +803,8 @@ Hindsight v1 explicitly will not include the following. Each is excluded with a 
 ```
 
 Key decisions:
-- **No host permissions on install** — users grant `<all_urls>` only when they enable "capture on all sites." Default is `activeTab` (works only on click).
-- **Optional permissions** — `notifications`, `downloads`, `tabs`, `webNavigation` requested at feature activation time, not install.
+- **No host permissions on install** — `host_permissions` is empty. The content scripts still match `<all_urls>` (passive capture must already be running when a page breaks). `optional_host_permissions: ["<all_urls>"]` is only ever requested one origin at a time, by Replay (1.0.0). `activeTab` covers screenshots after the user invokes the extension on a tab.
+- **Optional permissions** — only `notifications`, requested when the user enables detection notifications. `scripting`, `downloads`, `tabs` and `webNavigation` were removed in 1.0.0: nothing called them.
 - **Strict CSP** — no inline scripts, no remote code, no `eval`. Protects against XSS and supply-chain attacks.
 - **Module service worker** — modern ES modules, smaller bundles via tree-shaking.
 
@@ -942,18 +938,18 @@ Hindsight uses Chrome's optional permissions model to minimize the install-time 
 **Install-time (required, in `permissions`)**
 - `storage` — to save captures (essential)
 - `unlimitedStorage` — to support recordings without hitting quota
-- `activeTab` — to inject content script in the currently active tab only
-- `scripting` — to inject content scripts via the API
+- `activeTab` — screenshots (`tabs.captureVisibleTab`) after the user invokes the extension on a tab
 - `sidePanel` — to open the side panel
+
+(`scripting` was dropped in 1.0.0 — content scripts are declared in the manifest.)
 
 **Runtime-requested (optional, in `optional_permissions`)**
 - `notifications` — requested when user enables detection notifications
-- `downloads` — requested when user first exports a file
-- `tabs` — requested when user enables cross-tab session features
-- `webNavigation` — requested when user enables navigation tracking
+
+(`downloads`, `tabs`, `webNavigation` were dropped in 1.0.0 — never requested; exports use a normal file download, navigations come from the content script.)
 
 **Host permissions (optional)**
-- `<all_urls>` (in `optional_host_permissions`) — requested when user enables "capture on all sites." Without this, Hindsight works only on the actively clicked tab.
+- `<all_urls>` (in `optional_host_permissions`) — never requested as a whole. Replay requests the single origin of the request being replayed (`https://host/*`); grants are listed and revocable in Settings → Privacy → Replay access.
 
 ### 12.2 Justifications for CWS Review
 
@@ -963,12 +959,11 @@ The Chrome Web Store requires justification for each permission. Hindsight's:
 |---|---|
 | `storage` | Persist captured events across browser sessions |
 | `unlimitedStorage` | Allow long recordings without hitting 10 MB quota |
-| `activeTab` | Inject content script only on user-activated tab |
-| `scripting` | Required API for MV3 content script injection |
+| `activeTab` | Screenshot a tab after the user invokes the extension on it |
 | `sidePanel` | Primary UI surface |
 | `notifications` | Alert user to detected bugs (opt-in) |
-| `downloads` | Save bundle/HAR/JSON exports |
-| `<all_urls>` | Capture on all sites the user wants (opt-in via settings) |
+| content scripts `<all_urls>` | Observe each page's own network / console / user actions so evidence exists before the user knows they need it |
+| `<all_urls>` (optional host) | Replay: one origin at a time, on first use, revocable |
 
 ### 12.3 Privacy Policy
 

@@ -23,112 +23,93 @@ içeriğini al.
 
 **Yapıştır:**
 
-> Hindsight captures browser activity — network requests, console messages, user actions, and screenshots — in the background, so users can review and share a faithful bug report when something breaks. All captured data stays on the user's device until they explicitly click a Share button. There is no backend, no telemetry, and no analytics. The extension's sole purpose is to be the "DevTools you forgot to open" — a passive, privacy-first recorder that turns ephemeral browser state into a shareable artifact at the user's request.
+> Hindsight records browser activity in the background — network requests, console messages, user actions and screenshots — so that when something breaks, the user can review what happened and share a faithful bug report. All captured data stays on the user's device until the user explicitly saves a file or presses Send to a destination they configured. There is no backend, no telemetry and no analytics.
 
 ---
 
 ## 2. İzin gerekçeleri (Permission justifications, her biri max 1.000)
 
-Her izin için **neden gerekli** olduğunu söyle, **gerekmeseydi
-istemezdik** vurgusu yap.
+Dashboard, `manifest.json` içindeki **her** izin için bir kutu açar.
+1.0.0 manifesti tam olarak şunları ister — bu listede olmayan bir izin
+için gerekçe yazma (reviewer "kullanılmayan izin" diye reddeder):
+
+| Manifest alanı              | Değer                                                   |
+| --------------------------- | ------------------------------------------------------- |
+| `permissions`               | `storage`, `unlimitedStorage`, `activeTab`, `sidePanel` |
+| `optional_permissions`      | `notifications`                                         |
+| `host_permissions`          | — (boş)                                                 |
+| `optional_host_permissions` | `<all_urls>` (Replay, köken başına istenir)             |
+| `content_scripts.matches`   | `<all_urls>`                                            |
+
+1.0.0'da kaldırılanlar: `scripting` (kodda hiç çağrılmıyordu; content
+script'ler manifestte tanımlı), opsiyonel `downloads`, `tabs`,
+`webNavigation` (hiçbir yerde istenmiyordu). Eski metinlerini
+dashboard'da görürsen sil.
 
 ### 2.1 `storage`
 
-**Türkçe:** "Eklentinin temel iş alanı yakalama-tampona-yaz. Yerel storage olmadan hiçbir capture
-service-worker uyanışları arasında hayatta kalmaz."
+**Türkçe:** Yakalanan olaylar sekme başına `chrome.storage.local`'de
+tutulur; service worker uykuya geçip uyandığında tampon kaybolmasın
+diye şart.
 
 **Yapıştır:**
 
-> Required to persist captured events (network requests, console messages, user actions, screenshots) to the per-tab buffer in chrome.storage.local. This is the extension's primary working store. Without it, no capture would survive between service-worker wake-ups, defeating the purpose of a passive background recorder.
+> Required to keep the captured events of each tab (network requests, console messages, user actions, screenshots) in chrome.storage.local, plus the user's settings. Manifest V3 service workers are stopped between events, so without local storage no capture would survive from one event to the next. Everything is stored on the user's device only; nothing is synced or uploaded.
 
 ### 2.2 `unlimitedStorage`
 
-**Türkçe:** "5 MB varsayılan storage kotası uzun bir tarama gününde
-patlar — biz 'bilgi kaybı yok' diyoruz, dolayısıyla bu kısıtı
-istiyoruz. Veri yine yerel kalıyor."
+**Türkçe:** Varsayılan kota, gövdeli istekler ve ekran görüntüleriyle
+dolu birkaç sekmede yetmez. Tampon zaten sınırlı (sekme başına 200 olay
+/ 2 MB, en fazla 30 arşiv oturumu); bu izin sınıra gelmeden kota
+hatasıyla yarıda kesilmeyi önler.
 
 **Yapıştır:**
 
-> Heavy-browsing sessions can accumulate several megabytes of captured network bodies and screenshots within a single tab. unlimitedStorage prevents the buffer from being silently truncated by the default 5 MB quota mid-session, preserving the extension's promise of "no information loss." All data still stays on the user's device.
+> Several busy tabs with response bodies and screenshots can exceed the default storage quota. Hindsight bounds its own usage (a rolling buffer of 200 events / 2 MB per tab and at most 30 archived sessions, oldest removed first), and unlimitedStorage prevents a capture from failing with a quota error before those bounds are reached. All data stays on the user's device.
 
 ### 2.3 `activeTab`
 
-**Türkçe:** "Kullanıcı toolbar ikonuna basınca veya yan paneli
-açınca, sadece o anki sekmeye dokunuyoruz. Daha geniş izin yerine
-bunu tercih ettik — install-time prompt küçük kalsın."
+**Türkçe:** Kullanıcı simgeye, kısayola ya da yan panele bastığında o
+sekmenin ekran görüntüsünü alabilmek için (`tabs.captureVisibleTab`).
+Ekran görüntüsü için `<all_urls>` istemek yerine bunu seçtik.
 
 **Yapıştır:**
 
-> The extension only inspects the tab the user is actively looking at when they invoke its UI (toolbar icon click or side-panel open). Used in place of broader host_permissions to keep the install-time permission ask minimal. activeTab grants the minimum surface area needed for the inspection UI to function.
+> Used for screenshots. When the user clicks the toolbar icon, opens the side panel or presses one of the extension's keyboard shortcuts on a tab, activeTab lets Hindsight call tabs.captureVisibleTab for that tab, so error screenshots and recording-mode frames can be attached to the bug report. We chose activeTab over a broad host permission for this. Screenshots are stored locally and never uploaded.
 
-### 2.4 `scripting`
+### 2.4 `sidePanel`
 
-**Türkçe:** "MV3'te content-script enjekte etmenin tek yolu. fetch /
-XHR / console gözlemcilerimiz olmadan eklentinin amacı kalmaz."
-
-**Yapıştır:**
-
-> Required to inject the content scripts that observe fetch / XMLHttpRequest / console events in the page world. Without scripting, the extension cannot see any network or console activity, which is the entire reason it exists. Injection only runs in the user's active tab via activeTab.
-
-### 2.5 `sidePanel`
-
-**Türkçe:** "Yan panel — scrubber, event listesi, detail pane,
-replay-bundle export — tüm asıl UI orada yaşıyor. MV3'te kalıcı
-inceleme yüzeyi sunan tek API bu."
+**Türkçe:** Asıl arayüz yan panel: zaman çizelgesi, olay listesi,
+ayrıntı, dışa aktarma.
 
 **Yapıştır:**
 
-> The side panel is the extension's primary inspection UI. Scrubber, event list, detail pane, filters, and replay-bundle exports all live there. chrome.sidePanel is the only Manifest V3 API that offers a persistent inspection surface alongside the page — without it the user would have to lose their browsing context to inspect captures.
+> The side panel is the extension's main inspection interface: the timeline scrubber, the event list, request/response details, filters and the export buttons all live there. chrome.sidePanel is the Manifest V3 API that shows this next to the page, so the user keeps the page they are debugging in view.
 
-### 2.6 `notifications` (opsiyonel)
+### 2.5 `notifications` (opsiyonel)
 
-**Türkçe:** "10 saniyede 3+ başarısız istek olduğunda tek seferlik
-masaüstü bildirim. Varsayılan KAPALI — kullanıcı Settings'ten açtığında
-isteriz."
-
-**Yapıştır:**
-
-> Optional. Surfaces a one-shot desktop notification when the extension detects a cascade of failed requests (3 or more failures to the same origin within 10 seconds) so the user can switch to the side panel without watching the toolbar icon. Disabled by default; the permission is requested at runtime only when the user enables it in Settings → Detection.
-
-### 2.7 `downloads` (opsiyonel)
-
-**Türkçe:** "Replay bundle .html dosyasını ve ZIP/JSON/HAR
-export'larını diske yazıyor. Hiçbir uzak upload yok — sadece
-chrome.downloads.download bir data: URL ile."
+**Türkçe:** Varsayılan kapalı. Kullanıcı Ayarlar → Algılama'da açınca
+istenir; ardışık hata zinciri algılanınca tek bir masaüstü bildirimi.
 
 **Yapıştır:**
 
-> Optional. Used by the "Save as replay bundle" feature to write a single self-contained HTML file to the user's computer, and by JSON / HAR / ZIP exports. The only API call is chrome.downloads.download with a local data: URL — nothing is uploaded to any remote server. Requested at runtime only when the user triggers a download.
+> Optional and off by default. Requested at runtime only when the user turns on Settings → Detection → Desktop notifications. It shows a desktop notification when Hindsight detects a cascade of failed requests or the same request failing repeatedly, so the user can open the side panel without watching the toolbar badge.
 
-### 2.8 `tabs` (opsiyonel)
+### 2.6 Ana makine izni — content script `<all_urls>` ve opsiyonel `<all_urls>`
 
-**Türkçe:** "Popup özetinde ve yan panelde URL/başlık göstermek için
-sekme metadata'sı okur. Tab navigation veya kontrolü yok."
-
-**Yapıştır:**
-
-> Optional. Reads tab metadata (URL, title, id) for the popup summary and the side-panel display. Not used to enumerate other tabs, switch between them, or modify their navigation. Requested at runtime when the user enables UI features that surface tab context.
-
-### 2.9 `webNavigation` (opsiyonel)
-
-**Türkçe:** "SPA route değişiklerini ve sayfa reload'larını yakalayıp
-zaman çizelgesinde gösteriyoruz. Yönlendirme yapmıyor, navigation'a
-müdahale etmiyor — sadece dinliyor."
+**Türkçe:** Dashboard bu ikisi için tek bir "host permission"
+kutusu açar. İkisini birden açıkla:
+(a) Yakalayıcı content script her sayfada çalışmak zorunda — bir hata
+olmadan önce hangi sekmede olacağını bilemeyiz; ürünün tek amacı bu.
+(b) `optional_host_permissions` yalnız **Replay** içindir ve köken
+başına (`https://ornek.com/*`) istenir; Ayarlar → Gizlilik → Replay
+erişimi'nden geri alınır.
 
 **Yapıştır:**
 
-> Optional. Detects same-document navigation events (SPA route changes) and full reload events so the timeline can show distinct navigation segments. Used purely to enrich the captured event stream — the extension never redirects, blocks, or modifies any navigation.
-
-### 2.10 Ana makine izni — `<all_urls>` (opsiyonel)
-
-**Türkçe:** "fetch/XHR yakalayıcı content-script'in kullanıcının
-ziyaret ettiği sayfada çalışması için gerekli. Manifest'te
-optional_host_permissions olarak — install-time istemiyor, kullanıcı
-'her sitede yakala' feature'ını açınca isteniyor."
-
-**Yapıştır:**
-
-> Required so the content script that intercepts fetch / XMLHttpRequest / console activity runs on whatever page the user visits. Without it, the extension could only see captures from its own pages, which defeats the entire purpose. Declared as optional_host_permissions in the manifest — it is requested only when the user enables the broader "capture on all sites" feature, never at install time. The extension makes zero outbound HTTP requests of its own to any of these hosts; it only observes the user's existing traffic.
+> Content scripts (matches <all_urls>): Hindsight's purpose is to have the evidence already recorded when a page breaks, and that cannot be known in advance, so its two content scripts run on every page at document_start. They only observe the page's own fetch / XMLHttpRequest / console activity and user actions; they make no network requests. Sensitive headers, password fields and card numbers are masked before anything is written, and the user can exclude origins in Settings → Privacy.
+>
+> Optional host permission (<all_urls>): never requested at install. When the user presses Replay on a captured request, Hindsight asks for that single origin only (for example https://api.example.com/*) so the request can be re-sent from the extension. Granted origins are listed in Settings → Privacy → Replay access and can be revoked there.
 
 ---
 
@@ -161,7 +142,7 @@ sebebi olabilir.
 — Sebep: `Authorization`, `Cookie`, `X-API-Key` header'larını yakalama anında görür ve `***MASKED***` ile değiştirir. _Görüyor_ → declare edilmeli.
 
 ✅ **Web geçmişi**
-— Sebep: Ziyaret edilen sayfaların URL'leri, navigation event'leri.
+— Sebep: Ziyaret edilen sayfaların URL'leri, sayfa yükleme ve SPA rota olayları.
 
 ✅ **Kullanıcı etkinliği**
 — Sebep: Tıklamalar, scroll, cursor (recording mode'da), network izleme.
@@ -177,7 +158,7 @@ sebebi olabilir.
 
 ### Reviewer "neden bu kadar kategori?" diye sorarsa hazır cevap:
 
-> Hindsight is a general-purpose passive recorder for developer bug reports. By design, it captures whatever network requests and DOM events the user's tabs generate. The categories above describe the technical surface the extension can touch — not data the extension extracts or transmits. Every captured value is masked at capture time when it matches a sensitive-data rule (Authorization / Cookie / TCKN / credit-card / user-defined regex), stored locally only, and never leaves the device until the user explicitly clicks Send.
+> Hindsight is a general-purpose passive recorder for developer bug reports. By design, it captures whatever network requests and DOM events the user's tabs generate. The categories above describe the technical surface the extension can touch — not data the extension extracts or transmits. Every captured value is masked at capture time when it matches a sensitive-data rule (Authorization / Cookie / TCKN / credit-card / user-defined regex), stored locally only, and never leaves the device until the user explicitly saves a file or clicks Send.
 
 ---
 
@@ -206,7 +187,8 @@ https://osmnnl.github.io/hindsight/privacy.html
 ## Hızlı kontrol — submit etmeden önce
 
 - [ ] Tek amaç metni 1.000 chars altında (~700)
-- [ ] 10 izin gerekçesi dolu (her biri 1.000 chars altında)
+- [ ] 6 izin gerekçesi dolu (storage, unlimitedStorage, activeTab, sidePanel, notifications, host) — her biri 1.000 karakter altında
+- [ ] Dashboard'da `scripting` / `downloads` / `tabs` / `webNavigation` gerekçesi kalmadı
 - [ ] Uzak kod: **Hayır**
 - [ ] 6 veri kategorisi işaretli (PII, Financial, Auth, Web history, User activity, Website content)
 - [ ] 3 beyan kutusu işaretli

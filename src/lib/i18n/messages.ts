@@ -90,6 +90,11 @@ const en = {
   'settings.privacy.origins.empty': 'No origins blocked.',
   'settings.privacy.origins.removeAria': 'Remove {origin}',
   'settings.privacy.origins.invalid': 'Enter a full URL (https://host:port).',
+  'settings.privacy.replayAccess.heading': 'Replay access',
+  'settings.privacy.replayAccess.hint':
+    'Origins you allowed Replay to reach. Hindsight asks for one origin at a time, the first time you replay a request to it. Remove one to revoke it.',
+  'settings.privacy.replayAccess.empty': 'No origins allowed yet.',
+  'settings.privacy.replayAccess.removeAria': 'Revoke Replay access to {origin}',
   'settings.privacy.sandbox.heading': 'Test sandbox',
   'settings.privacy.sandbox.hint':
     'Paste a sample body, pick a rule, see what would be masked. Nothing here is saved.',
@@ -211,6 +216,8 @@ const en = {
   'popup.summary.errorsSuffixOne': '· 1 error',
   'popup.summary.errorsSuffix': '· {n} errors',
   'popup.summary.title.openFiltered': 'Open side panel filtered to failures',
+  'popup.hint.panel': 'Everything this tab did is in the side panel. Open it once to see.',
+  'popup.hint.dismiss': 'Dismiss',
   'popup.actions.openPanel': 'Open side panel',
   'popup.actions.captureMoment': 'Capture last moment',
   'popup.actions.captureMoment.sub': 'Replay file · created on this device',
@@ -471,6 +478,11 @@ const tr = {
   'settings.privacy.origins.empty': 'Engellenmiş kaynak yok.',
   'settings.privacy.origins.removeAria': '{origin} kaldır',
   'settings.privacy.origins.invalid': 'Tam bir URL gir (https://host:port).',
+  'settings.privacy.replayAccess.heading': 'Yeniden gönderme erişimi',
+  'settings.privacy.replayAccess.hint':
+    'Yeniden gönderme için izin verdiğiniz kaynaklar. Hindsight bir kaynağa ilk kez istek yeniden gönderildiğinde yalnız o kaynak için izin ister. Kaldırarak izni geri alın.',
+  'settings.privacy.replayAccess.empty': 'Henüz izin verilen kaynak yok.',
+  'settings.privacy.replayAccess.removeAria': '{origin} için yeniden gönderme iznini geri al',
   'settings.privacy.sandbox.heading': 'Test ortamı',
   'settings.privacy.sandbox.hint':
     'Örnek bir gövde yapıştır, kural seç, neyin maskeleneceğini gör. Buradaki hiçbir şey kaydedilmez.',
@@ -593,6 +605,8 @@ const tr = {
   'popup.summary.errorsSuffixOne': '· 1 hata',
   'popup.summary.errorsSuffix': '· {n} hata',
   'popup.summary.title.openFiltered': 'Yan paneli sadece başarısızlarla aç',
+  'popup.hint.panel': 'Bu sekmenin yaptığı her şey yan panelde. Görmek için bir kez açın.',
+  'popup.hint.dismiss': 'Kapat',
   'popup.actions.openPanel': 'Yan paneli aç',
   'popup.actions.captureMoment': 'Son anı yakala',
   'popup.actions.captureMoment.sub': 'Replay dosyası · bu cihazda oluşturulur',

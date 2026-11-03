@@ -13,6 +13,7 @@ import type { CapturedEvent } from '@/types/events';
 import { isFailedNetwork } from '@/types/events';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { openCapturePanel } from '@/lib/panel';
+import { markPanelHintDone, readOnboarding, shouldShowPanelHint } from '@/lib/onboarding';
 import { generateBundle } from '@/lib/replay-bundle';
 import type {
   ClearEventsRuntimeMessage,
@@ -45,6 +46,17 @@ let lastKnownSequence = -1;
 
 void init();
 
+/** First-run hint (PRD §7.1): shown until the side panel is opened once. */
+async function initPanelHint(): Promise<void> {
+  const hint = document.getElementById('panel-hint');
+  if (!hint || !shouldShowPanelHint(await readOnboarding())) return;
+  hint.classList.remove('hidden');
+  document.getElementById('panel-hint-dismiss')?.addEventListener('click', () => {
+    hint.classList.add('hidden');
+    void markPanelHintDone();
+  });
+}
+
 async function init(): Promise<void> {
   await initI18n();
   applyI18nToDom();
@@ -60,6 +72,8 @@ async function init(): Promise<void> {
   activeTabId = tab?.id;
   renderHostChip(tab?.url);
   void renderShortcut();
+
+  void initPanelHint();
 
   document.getElementById('open-panel')?.addEventListener('click', () => {
     if (activeTabId == null) return;

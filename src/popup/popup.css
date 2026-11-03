@@ -209,6 +209,31 @@ main {
   font-size: 11px;
 }
 
+.panel-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  font-size: 12px;
+}
+
+.panel-hint.hidden {
+  display: none;
+}
+
+.panel-hint button {
+  flex: none;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 .recording-banner.hidden {
   display: none;
 }

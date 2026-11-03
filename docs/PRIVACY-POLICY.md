@@ -1,6 +1,6 @@
 # Hindsight — Privacy Policy
 
-**Last updated:** 2026-05-25
+**Last updated:** 2026-11-03 (Hindsight 1.0.0)
 **Applies to:** Hindsight Chrome extension v0.5.x and later
 
 ---
@@ -41,17 +41,17 @@ When Hindsight is installed and enabled, the extension's content
 scripts run inside the web pages you visit and the service worker
 processes the resulting events. Hindsight captures:
 
-| Category              | Default      | Detail                                                                                                                                                  |
-| --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Network requests      | On           | Method, URL, request headers, request body, response status, response headers, response body, timing. Sensitive headers and bodies are masked (see §3). |
-| Console messages      | On           | Level (error / warn / info / unhandled), message, stack trace.                                                                                          |
-| Navigation events     | On           | From-URL, to-URL, transition type.                                                                                                                      |
-| Clicks                | On (Tier 2)  | Element tag, accessible name, position. Not the actual click coordinates of every cursor move.                                                          |
-| Form input changes    | On (Tier 2)  | Field name and type. Password inputs and credit-card autocomplete fields are always masked.                                                             |
-| Screenshots on error  | On (Tier 3)  | JPEG of the visible tab at the moment of error capture. At most one screenshot per tab per 2 seconds.                                                   |
-| Performance signals   | On (Tier 3)  | Long tasks > 100 ms, cumulative layout shift.                                                                                                           |
-| Cursor / scroll trail | Off (Tier 4) | Captured only while Recording Mode is explicitly active. Stops the moment you stop recording.                                                           |
-| Periodic screenshots  | Off (Tier 4) | 2-second JPEGs, recording mode only.                                                                                                                    |
+| Category              | Default      | Detail                                                                                                                                                     |
+| --------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Network requests      | On           | Method, URL, request headers, request body, response status, response headers, response body, timing. Sensitive headers and bodies are masked (see §3).    |
+| Console messages      | On           | Level (error / warn / info / unhandled), message, stack trace.                                                                                             |
+| Navigation events     | On           | From-URL, to-URL, transition type.                                                                                                                         |
+| Clicks                | On (Tier 2)  | Element tag, accessible name, position. Not the actual click coordinates of every cursor move.                                                             |
+| Form input changes    | On (Tier 2)  | Field name and type. Password inputs and credit-card autocomplete fields are always masked.                                                                |
+| Screenshots on error  | On (Tier 3)  | JPEG of the visible tab at the moment of error capture, on tabs where you have opened Hindsight (Chrome's `activeTab`). At most one per tab per 2 seconds. |
+| Performance signals   | On (Tier 3)  | Long tasks > 100 ms, cumulative layout shift.                                                                                                              |
+| Cursor / scroll trail | Off (Tier 4) | Captured only while Recording Mode is explicitly active. Stops the moment you stop recording.                                                              |
+| Periodic screenshots  | Off (Tier 4) | 2-second JPEGs, recording mode only.                                                                                                                       |
 
 All categories above are toggleable in **Settings → Capture**
 (except Tier 1, which is the bare minimum for the extension to
@@ -68,9 +68,9 @@ yourself — every line of code that touches `fetch()` or
 Specifically:
 
 - The extension has **no `host_permissions` for any analytics or
-  CDN endpoint** — only `<all_urls>` as an _optional_ permission,
-  requested at feature activation time, used to intercept the
-  network requests of pages _you_ visit.
+  CDN endpoint**. Its content scripts run on the pages _you_ visit
+  to observe their own traffic, and the only host permission it can
+  ask for is optional and per site, requested when you press Replay.
 - The service worker makes **zero outbound HTTP requests** of its
   own. The only fetch() calls originate from explicit user actions:
   - You configured a Slack / Discord / Teams webhook URL in
@@ -155,7 +155,7 @@ When you explicitly hit a share button:
   itself navigates; Hindsight does not POST anything. Once the tab
   opens, you control what's submitted.
 - **Replay bundle download:** a single `.html` file is written to
-  your computer via `chrome.downloads`. Nothing is uploaded.
+  your computer through the browser's normal file download. Nothing is uploaded.
 - **ZIP export:** same — local file write only.
 - **Copy to clipboard:** the formatted report is placed on your
   system clipboard. Nothing leaves the machine until you paste.
@@ -178,18 +178,15 @@ and the result panel labels it clearly.
 
 ## 7. Permissions — why we ask for each one
 
-| Permission               | Reason                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `storage`                | Read and write the local capture buffer.                                                                                             |
-| `unlimitedStorage`       | Allow buffers larger than 5 MB on heavy-browsing days.                                                                               |
-| `activeTab`              | Inspect the tab the user is actively looking at without a permanent broad permission grant.                                          |
-| `scripting`              | Inject the content scripts that observe `fetch` / `XMLHttpRequest` / `console`.                                                      |
-| `sidePanel`              | Open the primary inspection UI.                                                                                                      |
-| `notifications` (opt-in) | Surface "failure cascade" desktop notifications. Requested only when the user enables that toggle in Settings → Detection.           |
-| `downloads` (opt-in)     | Save the replay-bundle `.html` and ZIP exports to disk.                                                                              |
-| `tabs` (opt-in)          | Read tab metadata for sidepanel + popup display.                                                                                     |
-| `webNavigation` (opt-in) | Detect SPA route changes and reload events to draw navigation lines on the timeline.                                                 |
-| `<all_urls>` (opt-in)    | Run the content script on the user's page so request interception works. Without this, the only captures available are console logs. |
+| Permission                      | Reason                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storage`                       | Read and write the local capture buffer and your settings.                                                                                                   |
+| `unlimitedStorage`              | Avoid storage-quota errors on busy days. Hindsight still caps itself (200 events / 2 MB per tab, 30 archived sessions).                                      |
+| `activeTab`                     | Take a screenshot of a tab after you open Hindsight on it (toolbar icon, side panel or keyboard shortcut).                                                   |
+| `sidePanel`                     | Open the main inspection UI.                                                                                                                                 |
+| `notifications` (opt-in)        | Desktop notifications for failure cascades. Requested only when you enable that toggle in Settings → Detection.                                              |
+| Content scripts on all sites    | Observe the page's own `fetch` / `XMLHttpRequest` / `console` activity and your clicks and input. They make no network requests.                             |
+| Site access for Replay (opt-in) | When you press Replay, Hindsight asks for that one site (for example `https://api.example.com/*`). Revoke it any time in Settings → Privacy → Replay access. |
 
 Permissions marked "opt-in" are listed in `optional_permissions` /
 `optional_host_permissions` in the manifest and are requested only
