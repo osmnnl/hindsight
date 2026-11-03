@@ -140,7 +140,7 @@ export function failureClass(e: NetworkRequestEvent): FailureClass {
 }
 
 function cascadeKey(e: NetworkRequestEvent): string {
-  return `${safeOrigin(e.data.request.url)} ${failureClass(e)}`;
+  return `${safeOrigin(e.data.request.url, e.url)} ${failureClass(e)}`;
 }
 
 /**
@@ -185,9 +185,11 @@ function countIdenticalFailures(trigger: NetworkRequestEvent, buffer: CapturedEv
   ).length;
 }
 
-function safeOrigin(url: string): string {
+/** Relative request URLs (`fetch('/api/x')`) resolve against the page
+ *  URL, so `/api/a?i=0` and `/api/a?i=1` share one origin key. */
+function safeOrigin(url: string, base: string): string {
   try {
-    return new URL(url).origin;
+    return new URL(url, base).origin;
   } catch {
     return url;
   }

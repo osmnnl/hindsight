@@ -240,6 +240,16 @@ describe('cascade clustering (1.0 A3)', () => {
     expect(clusters(stored).get('a0')).toEqual(['a0', 'a1', 'a2']);
   });
 
+  it('groups relative request URLs by the page origin', () => {
+    // fetch('/api/auth?i=N') is captured with a relative URL.
+    const stored = pipeline(
+      [0, 1, 2].map((i) =>
+        fetchEvt({ id: `r${i}`, ts: BASE_TS + i, status: 401, url: `/api/auth?i=${i}` })
+      )
+    );
+    expect(clusters(stored).get('r0')).toEqual(['r0', 'r1', 'r2']);
+  });
+
   it('later members join the same cluster without backfilling other classes', () => {
     const stored = pipeline(
       [500, 500, 404, 500, 500].map((status, i) =>
