@@ -54,6 +54,7 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
   // JSON with `<` escaped), and the CSP also blocks inline handlers and any
   // network fetch should a future viewer change regress the escaping.
   const nonce = makeNonce();
+  const maskedCount = events.reduce((n, e) => n + (e.meta?.redactions?.length ?? 0), 0);
 
   // The data block sits above the viewer so huge sessions stream-parse
   // before the viewer reads it.
@@ -68,9 +69,12 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="dot"></span> Hindsight replay</div>
+    <h1 class="brand"><span class="dot"></span> Hindsight replay</h1>
     <div class="title">${escapeHtml(title)}</div>
-    <div class="meta"><span id="event-count"></span> · <span id="time-span"></span></div>
+    <div class="meta">
+      <span id="event-count"></span> · <span id="time-span"></span> · ${maskedCount} masked field${maskedCount === 1 ? '' : 's'} · Hindsight v${escapeHtml(opts.appVersion)}
+      <span class="local">Created locally · nothing was uploaded</span>
+    </div>
   </header>
   ${
     opts.omittedEventCount && opts.omittedEventCount > 0
@@ -85,9 +89,9 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
     </section>
     <section class="toolbar" aria-label="Event filters">
       <div class="chips">
-        <button class="chip" data-filter="failed">Failed</button>
-        <button class="chip" data-filter="api" title="Hide static assets and framework internals">API</button>
-        <button class="chip active" data-filter="all">All</button>
+        <button type="button" class="chip" data-filter="failed" aria-pressed="false">Failed</button>
+        <button type="button" class="chip" data-filter="api" aria-pressed="false" title="Hide static assets and framework internals">API</button>
+        <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
       </div>
       <input id="search-input" type="search" placeholder="Search URLs, methods, messages…" aria-label="Search events" />
       <label class="cursor-toggle"><input id="show-cursor" type="checkbox" /> cursor / scroll</label>
@@ -95,10 +99,10 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
     </section>
     <details class="narrative-panel" ${narrative ? 'open' : ''}>
       <summary>Session narrative</summary>
-      <pre id="narrative-text"></pre>
+      <div id="narrative-text" class="narrative"></div>
     </details>
-    <section id="event-list" class="list" role="list"></section>
-    <aside id="detail-pane" class="detail empty" aria-live="polite">
+    <section id="event-list" class="list" aria-label="Events"></section>
+    <aside id="detail-pane" class="detail empty" aria-live="polite" aria-label="Event detail" tabindex="0">
       <p class="hint">Click an event to inspect it. <kbd>←</kbd> / <kbd>→</kbd> step through.</p>
     </aside>
   </main>

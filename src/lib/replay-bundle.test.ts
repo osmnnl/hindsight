@@ -102,4 +102,23 @@ describe('generateBundle', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
   });
+
+  it('shows the masked-field count and the local-only note in the header', () => {
+    const masked = fetchEvt();
+    masked.meta = {
+      redactions: [
+        { scope: 'request.headers', path: 'Authorization', rule: 'header.authorization' },
+        { scope: 'response.body', path: '$.token', rule: 'body.token' },
+      ],
+    };
+    const html = generateBundle([masked, { ...fetchEvt(), id: 'n2' }], { appVersion: '1.0.0' });
+    expect(html).toContain('2 masked fields');
+    expect(html).toContain('nothing was uploaded');
+  });
+
+  it('keeps a 15-event bundle under 120 KB', () => {
+    const events = Array.from({ length: 15 }, (_, i) => ({ ...fetchEvt(), id: `n${i}` }));
+    const html = generateBundle(events, { appVersion: '1.0.0' });
+    expect(new TextEncoder().encode(html).length).toBeLessThan(120 * 1024);
+  });
 });

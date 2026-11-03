@@ -13,24 +13,29 @@ export const VIEWER_CSS = `
   --border: #2a335a;
   --text: #e7ecf5;
   --muted: #8b94b3;
-  --danger: #ef4444;
+  --danger: #f87171;
   --warn: #f59e0b;
   --success: #22c55e;
   --accent: #6366f1;
+  /* Filled controls: white text on --accent-strong clears 4.5:1. */
+  --accent-strong: #4f46e5;
+  --focus: #a5b4fc;
   --mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
 }
 @media (prefers-color-scheme: light) {
   :root { --bg: #f7f8fc; --surface: #ffffff; --surface-2: #eef0f6;
-    --border: #d6dae6; --text: #0b1020; --muted: #5b6478; --success: #16a34a; }
+    --border: #d6dae6; --text: #0b1020; --muted: #5b6478; --success: #16a34a;
+    --danger: #b91c1c; --focus: #4f46e5; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(--sans); }
 .topbar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.brand { font-weight: 600; }
+.brand { font-weight: 600; font-size: inherit; margin: 0; }
 .brand .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: middle; }
 .title { font-family: var(--mono); color: var(--muted); }
-.meta { margin-left: auto; color: var(--muted); font-size: 12px; }
+.meta { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; }
+.meta .local { display: block; font-size: 11px; }
 .grid { display: grid; grid-template-columns: 1fr minmax(320px, 40%); grid-template-rows: auto auto auto 1fr; gap: 0; height: calc(100vh - 90px); }
 .scrubber-wrap { grid-column: 1 / -1; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .scrubber-bars { display: flex; align-items: flex-end; gap: 1px; height: 32px; }
@@ -40,9 +45,9 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(
 .toolbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .toolbar .chips { display: flex; gap: 4px; }
 .toolbar .chip { font: inherit; cursor: pointer; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 11.5px; }
-.toolbar .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1303; font-weight: 600; }
+.toolbar .chip.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; font-weight: 600; }
 .toolbar input[type=search] { flex: 1; min-width: 0; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
-.toolbar input[type=search]:focus { outline: none; border-color: var(--accent); }
+.toolbar input[type=search]:focus { border-color: var(--accent); }
 .toolbar .hint { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 .toolbar .cursor-toggle { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
 .detail kbd { font-family: var(--mono); font-size: 10.5px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface-2); }
@@ -50,7 +55,12 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(
 .narrative-panel[open] { max-height: 30vh; }
 .narrative-panel:not([open]) { max-height: none; }
 .narrative-panel summary { cursor: pointer; font-weight: 600; position: sticky; top: 0; background: var(--surface-2); padding: 4px 0; }
-.narrative-panel pre { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+.narrative { font-size: 12.5px; margin: 6px 0 0; }
+.narrative p, .narrative ul { margin: 4px 0 8px; }
+.narrative ul { padding-left: 18px; }
+.narrative h2, .narrative h3, .narrative h4 { font-size: 12.5px; margin: 8px 0 4px; }
+.narrative code { font-family: var(--mono); font-size: 11.5px; padding: 0 4px; border-radius: 3px; background: var(--surface); }
+.narrative li { overflow-wrap: anywhere; }
 .list { overflow-y: auto; border-right: 1px solid var(--border); }
 .item { display: grid; grid-template-columns: 60px 50px 1fr 90px 70px; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--border); cursor: pointer; align-items: center; }
 .item:hover, .item.active { background: var(--surface-2); }
@@ -68,14 +78,19 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.5 var(
 .cluster-banner .meta { color: var(--muted); font-size: 11.5px; flex: 1; }
 .cluster-banner .toggle { font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .item.cluster-member { padding-left: 28px; background: rgba(99, 102, 241, 0.04); }
-.detail h3.dim { margin-top: 14px; }
+.detail h2.dim { margin-top: 14px; }
 .detail .source-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
 .detail { padding: 16px; overflow-y: auto; background: var(--surface); }
 .detail.empty { color: var(--muted); }
-.detail h3 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.detail h2 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .detail pre { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 360px; }
 .detail .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); font-family: var(--mono); font-size: 11px; }
 .detail img.screenshot { width: 100%; border: 1px solid var(--border); border-radius: 4px; margin-top: 4px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.item:focus-visible, .cluster-banner:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
 .footnote { padding: 8px 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 `;
 
@@ -118,7 +133,52 @@ export const VIEWER_JS = `
     return e.type === 'cursor' || e.type === 'action.scroll';
   }
 
-  if (narrativeEl) narrativeEl.textContent = data.narrative || '';
+  if (narrativeEl) renderMarkdownLite(narrativeEl, data.narrative || '');
+
+  // The narrative is Markdown from narrative.ts: headings, "- " lists,
+  // paragraphs, **bold** and \`code\`. Built with createElement +
+  // textContent only — never innerHTML — so captured URLs and messages in
+  // it stay text.
+  function renderMarkdownLite(root, md) {
+    var list = null;
+    var lines = String(md).split('\\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var h = /^(#{1,4})\\s+(.*)$/.exec(line);
+      var li = /^[-*]\\s+(.*)$/.exec(line);
+      if (!li) list = null;
+      if (h) {
+        // The panel's <summary> already says "Session narrative".
+        if (h[2].trim() === 'Session narrative') continue;
+        var hEl = document.createElement('h' + Math.max(2, h[1].length));
+        appendInline(hEl, h[2]);
+        root.appendChild(hEl);
+      } else if (li) {
+        if (!list) { list = document.createElement('ul'); root.appendChild(list); }
+        var liEl = document.createElement('li');
+        appendInline(liEl, li[1]);
+        list.appendChild(liEl);
+      } else if (line.trim()) {
+        var pEl = document.createElement('p');
+        appendInline(pEl, line);
+        root.appendChild(pEl);
+      }
+    }
+  }
+  function appendInline(parent, text) {
+    var re = /(\\*\\*[^*]+\\*\\*|\\x60[^\\x60]+\\x60)/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var tok = m[0];
+      var el = document.createElement(tok.charAt(0) === '*' ? 'strong' : 'code');
+      el.textContent = tok.charAt(0) === '*' ? tok.slice(2, -2) : tok.slice(1, -1);
+      parent.appendChild(el);
+      last = m.index + tok.length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
 
   function fmt(ts) {
     var d = new Date(ts);
@@ -221,7 +281,7 @@ export const VIEWER_JS = `
     var r = row(e);
     var activeCls = e.id === activeId ? ' active' : '';
     var indentCls = indented ? ' cluster-member' : '';
-    return '<div class="item ' + r.cls + activeCls + indentCls + '" data-id="' + esc(e.id) + '" role="listitem">'
+    return '<div class="item ' + r.cls + activeCls + indentCls + '" data-id="' + esc(e.id) + '" role="button" tabindex="0"' + (e.id === activeId ? ' aria-current="true"' : '') + '>'
       + '<div class="status">' + esc(r.status) + '</div>'
       + '<div class="method">' + esc(r.method) + '</div>'
       + '<div class="url" title="' + esc(r.url) + '">' + esc(r.url) + '</div>'
@@ -336,51 +396,51 @@ export const VIEWER_JS = `
   function renderDetail(e) {
     var lines = [];
     lines.push('<div><span class="pill">' + esc(e.type) + '</span> · ' + esc(new Date(e.timestamp).toLocaleString()) + '</div>');
-    if (e.url) lines.push('<h3>Page URL</h3><pre>' + esc(e.url) + '</pre>');
+    if (e.url) lines.push('<h2>Page URL</h2><pre>' + esc(e.url) + '</pre>');
 
     if (e.type === 'network.fetch' || e.type === 'network.xhr') {
-      lines.push('<h3>Request</h3><pre>' + esc(e.data.request.method + ' ' + e.data.request.url) + '</pre>');
-      lines.push('<h3>Request headers</h3><pre>' + esc(JSON.stringify(e.data.request.headers, null, 2)) + '</pre>');
-      if (e.data.request.body) lines.push('<h3>Request body</h3><pre>' + esc(e.data.request.body) + '</pre>');
-      lines.push('<h3>Response</h3><pre>' + esc(e.data.response.status + ' ' + e.data.response.statusText + ' · ' + e.data.timing.durationMs + 'ms') + '</pre>');
-      lines.push('<h3>Response headers</h3><pre>' + esc(JSON.stringify(e.data.response.headers, null, 2)) + '</pre>');
-      if (e.data.response.body) lines.push('<h3>Response body</h3><pre>' + esc(e.data.response.body) + '</pre>');
+      lines.push('<h2>Request</h2><pre>' + esc(e.data.request.method + ' ' + e.data.request.url) + '</pre>');
+      lines.push('<h2>Request headers</h2><pre>' + esc(JSON.stringify(e.data.request.headers, null, 2)) + '</pre>');
+      if (e.data.request.body) lines.push('<h2>Request body</h2><pre>' + esc(e.data.request.body) + '</pre>');
+      lines.push('<h2>Response</h2><pre>' + esc(e.data.response.status + ' ' + e.data.response.statusText + ' · ' + e.data.timing.durationMs + 'ms') + '</pre>');
+      lines.push('<h2>Response headers</h2><pre>' + esc(JSON.stringify(e.data.response.headers, null, 2)) + '</pre>');
+      if (e.data.response.body) lines.push('<h2>Response body</h2><pre>' + esc(e.data.response.body) + '</pre>');
     } else if (e.type === 'console.error' || e.type === 'console.unhandled' || e.type === 'console.warn' || e.type === 'console.info') {
-      lines.push('<h3>Message</h3><pre>' + esc(e.data.message) + '</pre>');
+      lines.push('<h2>Message</h2><pre>' + esc(e.data.message) + '</pre>');
       if (e.data.source) {
         lines.push('<p class="source-hint">' + esc(e.data.source.file + ':' + e.data.source.line + (e.data.source.column != null ? ':' + e.data.source.column : '')) + '</p>');
       }
-      if (e.data.stack) lines.push('<h3>Stack</h3><pre>' + esc(e.data.stack) + '</pre>');
+      if (e.data.stack) lines.push('<h2>Stack</h2><pre>' + esc(e.data.stack) + '</pre>');
     } else if (e.type === 'action.click') {
       var clickName = e.data.target.accessibleName || e.data.target.tag.toLowerCase();
-      lines.push('<h3>Target</h3><pre>&lt;' + esc(e.data.target.tag.toLowerCase()) + '&gt; ' + esc(clickName) + '</pre>');
-      lines.push('<h3>Modifiers</h3><pre>' + esc(JSON.stringify(e.data.modifiers)) + ' · button=' + esc(String(e.data.button)) + '</pre>');
+      lines.push('<h2>Target</h2><pre>&lt;' + esc(e.data.target.tag.toLowerCase()) + '&gt; ' + esc(clickName) + '</pre>');
+      lines.push('<h2>Modifiers</h2><pre>' + esc(JSON.stringify(e.data.modifiers)) + ' · button=' + esc(String(e.data.button)) + '</pre>');
       if (e.data.target.rect) {
         lines.push('<p class="source-hint">at (' + Math.round(e.data.target.rect.x) + ',' + Math.round(e.data.target.rect.y) + ')</p>');
       }
     } else if (e.type === 'action.input') {
       var inpName = e.data.target.accessibleName || e.data.target.tag.toLowerCase();
-      lines.push('<h3>Target</h3><pre>&lt;' + esc(e.data.target.tag.toLowerCase()) + '&gt; ' + esc(inpName) + '</pre>');
-      lines.push('<h3>Value</h3><pre>' + esc(e.data.value) + '</pre>');
+      lines.push('<h2>Target</h2><pre>&lt;' + esc(e.data.target.tag.toLowerCase()) + '&gt; ' + esc(inpName) + '</pre>');
+      lines.push('<h2>Value</h2><pre>' + esc(e.data.value) + '</pre>');
       if (e.data.inputType) lines.push('<p class="source-hint">input type: ' + esc(e.data.inputType) + '</p>');
     } else if (e.type === 'navigation') {
-      lines.push('<h3>Transition</h3><pre>' + esc((e.data.fromUrl || '(initial)') + '\\n  →\\n' + e.data.toUrl) + '</pre>');
+      lines.push('<h2>Transition</h2><pre>' + esc((e.data.fromUrl || '(initial)') + '\\n  →\\n' + e.data.toUrl) + '</pre>');
       if (e.data.transitionType) lines.push('<p class="source-hint">transitionType: ' + esc(e.data.transitionType) + '</p>');
     } else if (e.type === 'screenshot' && e.data.dataUrl) {
-      lines.push('<h3>Screenshot · ' + esc(e.data.trigger) + '</h3><img class="screenshot" src="' + esc(e.data.dataUrl) + '" />');
+      lines.push('<h2>Screenshot · ' + esc(e.data.trigger) + '</h2><img class="screenshot" alt="Page screenshot at the time of the error" src="' + esc(e.data.dataUrl) + '" />');
     } else if (e.type === 'performance.longtask') {
-      lines.push('<h3>Long task</h3><pre>' + e.data.durationMs + 'ms' + (e.data.attribution ? ' · ' + esc(e.data.attribution) : '') + '</pre>');
+      lines.push('<h2>Long task</h2><pre>' + e.data.durationMs + 'ms' + (e.data.attribution ? ' · ' + esc(e.data.attribution) : '') + '</pre>');
     } else if (e.type === 'performance.cls') {
-      lines.push('<h3>Layout shift</h3><pre>cls=' + e.data.value.toFixed(4) + (e.data.hadRecentInput ? ' (user-input)' : '') + '</pre>');
+      lines.push('<h2>Layout shift</h2><pre>cls=' + e.data.value.toFixed(4) + (e.data.hadRecentInput ? ' (user-input)' : '') + '</pre>');
     } else if (e.type === 'recording.start') {
-      lines.push('<h3>Recording started</h3>');
+      lines.push('<h2>Recording started</h2>');
     } else if (e.type === 'recording.stop') {
-      lines.push('<h3>Recording stopped</h3><pre>duration=' + e.data.durationMs + 'ms</pre>');
+      lines.push('<h2>Recording stopped</h2><pre>duration=' + e.data.durationMs + 'ms</pre>');
     } else {
-      lines.push('<h3>Data</h3><pre>' + esc(JSON.stringify(e.data, null, 2)) + '</pre>');
+      lines.push('<h2>Data</h2><pre>' + esc(JSON.stringify(e.data, null, 2)) + '</pre>');
     }
     if (e.meta && e.meta.redactions && e.meta.redactions.length) {
-      lines.push('<h3>Redactions</h3><pre>' + esc(JSON.stringify(e.meta.redactions, null, 2)) + '</pre>');
+      lines.push('<h2>Redactions</h2><pre>' + esc(JSON.stringify(e.meta.redactions, null, 2)) + '</pre>');
     }
     if (e.meta && e.meta.flags && e.meta.flags.length) {
       lines.push('<p class="source-hint">flags: ' + esc(e.meta.flags.join(', ')) + '</p>');
@@ -392,7 +452,10 @@ export const VIEWER_JS = `
   countEl.textContent = events.length + ' event' + (events.length === 1 ? '' : 's');
   if (events.length > 0) {
     var spanMs = events[events.length - 1].timestamp - events[0].timestamp;
-    spanEl.textContent = Math.round(spanMs / 1000) + 's span';
+    var startD = new Date(events[0].timestamp);
+    spanEl.textContent = startD.toLocaleDateString() + ' ' + fmt(events[0].timestamp)
+      + ' → ' + fmt(events[events.length - 1].timestamp)
+      + ' (' + Math.round(spanMs / 1000) + 's)';
   }
   renderList();
   renderScrubber();
@@ -407,11 +470,17 @@ export const VIEWER_JS = `
     for (var i = 0; i < events.length; i++) { if (events[i].id === id) { found = events[i]; break; } }
     if (!found) return;
     activeId = id;
-    listEl.querySelectorAll('.item.active').forEach(function (el) { el.classList.remove('active'); });
+    listEl.querySelectorAll('.item.active').forEach(function (el) {
+      el.classList.remove('active');
+      el.removeAttribute('aria-current');
+    });
     var row = listEl.querySelector('[data-id="' + id.replace(/"/g, '\\\\"') + '"]');
     if (row) {
       row.classList.add('active');
+      row.setAttribute('aria-current', 'true');
       row.scrollIntoView({ block: 'nearest' });
+      // Arrow-key stepping from a focused row moves focus with it.
+      if (listEl.contains(document.activeElement)) row.focus({ preventScroll: true });
     }
     renderDetail(found);
   }
@@ -424,20 +493,34 @@ export const VIEWER_JS = `
     selectById(visibleIds[next]);
   }
 
-  listEl.addEventListener('click', function (ev) {
-    var t = ev.target;
-    if (!t || !t.closest) return;
+  // Returns true when the target was a row or cluster banner.
+  function activate(t) {
+    if (!t || !t.closest) return false;
     var bannerEl = t.closest('[data-cluster-toggle]');
     if (bannerEl) {
       var headId = bannerEl.getAttribute('data-cluster-toggle');
+      var hadFocus = document.activeElement === bannerEl;
       if (expandedClusters[headId]) delete expandedClusters[headId];
       else expandedClusters[headId] = true;
       renderList();
-      return;
+      // renderList replaces the banner node; keep keyboard focus on it.
+      if (hadFocus) {
+        listEl.querySelectorAll('[data-cluster-toggle]').forEach(function (el) {
+          if (el.getAttribute('data-cluster-toggle') === headId) el.focus();
+        });
+      }
+      return true;
     }
     var row = t.closest('[data-id]');
-    if (!row) return;
+    if (!row) return false;
     selectById(row.getAttribute('data-id'));
+    return true;
+  }
+
+  listEl.addEventListener('click', function (ev) { activate(ev.target); });
+  listEl.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    if (activate(ev.target)) ev.preventDefault();
   });
 
   rangeEl.addEventListener('input', function () {
@@ -452,7 +535,10 @@ export const VIEWER_JS = `
     chipEls.forEach(function (chip) {
       chip.addEventListener('click', function () {
         filter = chip.getAttribute('data-filter') || 'all';
-        chipEls.forEach(function (c) { c.classList.toggle('active', c === chip); });
+        chipEls.forEach(function (c) {
+          c.classList.toggle('active', c === chip);
+          c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+        });
         renderList();
       });
     });
