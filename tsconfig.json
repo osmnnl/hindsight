@@ -30,6 +30,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "bench"],
+  "include": ["src", "bench", "tests"],
   "exclude": ["node_modules", "dist", "network-capture-extension"]
 }

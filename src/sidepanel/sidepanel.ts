@@ -23,13 +23,21 @@ import {
 } from '@/types/events';
 import { resolveClusters } from '@/lib/detection';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
+import { icon } from '@/lib/icons';
+import { extractAccessToken, toFetch } from './copy-formats';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
 import { applyI18nToDom, initI18n, subscribeLocale, t } from '@/lib/i18n';
-import { DEFAULT_BODY_RULES, DEFAULT_FORM_RULES, DEFAULT_HEADER_RULES } from '@/lib/masking';
+import {
+  DEFAULT_BODY_RULES,
+  DEFAULT_FORM_RULES,
+  DEFAULT_HEADER_RULES,
+  MASKED,
+} from '@/lib/masking';
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
+import { graphqlLabel } from '@/lib/request-label';
 import { generateBundle } from '@/lib/replay-bundle';
 import { omittedEventCount } from '@/lib/storage';
 import {
@@ -42,7 +50,12 @@ import {
   type RecordingState,
   type ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
-import { readCaptureSettings, readSharingSettings, type SharingSettings } from '@/lib/settings';
+import {
+  readCaptureSettings,
+  readSharingSettings,
+  writeGeneralSettings,
+  type SharingSettings,
+} from '@/lib/settings';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 import { buildZip, type ZipEntry } from '@/lib/zip';
 
@@ -353,6 +366,9 @@ let panelWindowId: number | undefined;
 // Bumped on every tab switch so a slow refresh from an earlier switch can
 // bail instead of rendering stale data.
 let switchSeq = 0;
+// When pinned, the panel stops following the active tab and stays on the
+// tab it was pinned to (counterpart to the default follow-active-tab).
+let pinned = false;
 let events: CapturedEvent[] = [];
 let filterMode: FilterMode = 'failed';
 // Which coarse categories to show. Layered on top of filterMode (AND).
@@ -506,11 +522,71 @@ function syncCategoryUi(): void {
 
 void init();
 
+/** True if the panel is currently showing the dark theme (explicit
+ *  [data-theme] wins; otherwise fall back to the OS preference). */
+function isShowingDark(): boolean {
+  const explicit = document.documentElement.dataset.theme;
+  if (explicit === 'dark') return true;
+  if (explicit === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Show the icon for the theme you'd switch TO: a sun while dark, a moon
+ *  while light. */
+function syncThemeToggleIcon(btn: HTMLElement): void {
+  const dark = isShowingDark();
+  btn.classList.toggle('show-sun', dark);
+  btn.classList.toggle('show-moon', !dark);
+}
+
+/** Quick light/dark switch in the side panel header. Writes to the shared
+ *  general settings so the choice persists and syncs to the popup +
+ *  settings page (via listenForThemeChanges). Always sets an explicit
+ *  theme — the Settings dropdown still offers "Match system". */
+function wireThemeToggle(): void {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  syncThemeToggleIcon(btn);
+  btn.addEventListener('click', () => {
+    const next = isShowingDark() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next); // instant feedback
+    syncThemeToggleIcon(btn);
+    void writeGeneralSettings({ theme: next }).catch(() => {});
+  });
+  // Stay in sync when the theme changes elsewhere (settings page edit, or
+  // listenForThemeChanges re-applying after a storage change).
+  new MutationObserver(() => syncThemeToggleIcon(btn)).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+}
+
+/** Pin / unpin the panel to the current tab. While pinned, tab switches are
+ *  ignored; unpinning immediately re-points at whatever tab is now active. */
+function wirePinToggle(): void {
+  const btn = document.getElementById('pin-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    pinned = !pinned;
+    btn.classList.toggle('active', pinned);
+    btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+    if (!pinned) {
+      void chrome.tabs
+        .query({ active: true, currentWindow: true })
+        .then(([t]) => {
+          if (t?.id != null) void switchToTab(t.id);
+        })
+        .catch(() => {});
+    }
+  });
+}
+
 async function init(): Promise<void> {
   await initI18n();
   applyI18nToDom();
   await applyTheme();
   listenForThemeChanges();
+  wireThemeToggle();
   subscribeLocale(() => {
     applyI18nToDom();
     renderRecordingButton();
@@ -527,6 +603,7 @@ async function init(): Promise<void> {
   // this window, re-point the panel at the new tab. Ignore activations in
   // other windows — each window has its own panel.
   chrome.tabs.onActivated.addListener((info) => {
+    if (pinned) return;
     if (panelWindowId != null && info.windowId !== panelWindowId) return;
     void switchToTab(info.tabId);
   });
@@ -536,6 +613,7 @@ async function init(): Promise<void> {
   await loadCategoryFilter();
   syncCategoryUi();
   wireCategoryPopover();
+  wirePinToggle();
 
   document.querySelectorAll<HTMLElement>('.filter').forEach((btn) => {
     btn.addEventListener('click', () => setFilter(btn.dataset.filter as FilterMode));
@@ -620,10 +698,26 @@ async function init(): Promise<void> {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const detail = document.getElementById('detail');
     if (!detail || detail.classList.contains('hidden')) return;
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+    closeDetail();
+  });
+
+  // List shortcuts (1.0 C3): `/` focuses search, `f` / `a` switch to the
+  // Failed / API filters. Ignored while typing, with modifiers held, or
+  // when the detail view or a modal owns the keyboard.
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (document.querySelector('.privacy-modal-overlay')) return;
+    if (!document.getElementById('detail')?.classList.contains('hidden')) return;
+    if (e.key === '/') {
+      const search = document.getElementById('search-input');
+      if (search instanceof HTMLInputElement && !search.closest('.hidden')) {
+        e.preventDefault();
+        search.focus();
+      }
+    } else if (e.key === 'f' || e.key === 'a') {
+      setFilter(e.key === 'f' ? 'failed' : 'api');
+    }
   });
 
   window.addEventListener('unload', () => {
@@ -1062,6 +1156,21 @@ function render(): void {
   const bulkBar = document.getElementById('bulk-bar');
   if (!list || !bulkBar) return;
 
+  // Tracked-tab indicator: now that the panel follows the active tab, show
+  // the host it's currently reflecting so the user always knows the context.
+  const hostEl = document.getElementById('tab-host');
+  if (hostEl) {
+    const last = events[events.length - 1];
+    let host = '';
+    try {
+      host = last?.url ? new URL(last.url).host : '';
+    } catch {
+      host = '';
+    }
+    hostEl.textContent = host;
+    hostEl.classList.toggle('hidden', host === '');
+  }
+
   // Query bar visible whenever we have at least 2 events — same gate
   // as the scrubber. Avoids the awkward "empty panel + search box"
   // first impression.
@@ -1103,15 +1212,25 @@ function render(): void {
     const e = empties[reason] ?? empties.all;
     list.innerHTML = `
       <div class="empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
         <div class="empty-title">${escapeHtml(e!.title)}</div>
         <div class="empty-sub">${escapeHtml(e!.sub)}</div>
       </div>`;
+    list.removeAttribute('role');
     bulkBar.classList.add('hidden');
     return;
   }
 
+  // Listbox semantics only while there are rows; the empty state is prose.
+  list.setAttribute('role', 'listbox');
   renderedById.clear();
+  const hadFocus = list.contains(document.activeElement);
   list.innerHTML = renderListHtml(data);
+  syncRovingTabindex(list);
+  if (hadFocus) focusRow(activeRowKey);
 
   // One delegated click listener on the list — independent of how many
   // rows are in the DOM. Also handles cluster expand/collapse via
@@ -1120,23 +1239,89 @@ function render(): void {
     list.addEventListener('click', (clickEvent) => {
       const target = clickEvent.target;
       if (!(target instanceof Element)) return;
-      const clusterToggle = target.closest<HTMLElement>('[data-cluster-toggle]');
-      if (clusterToggle) {
-        const headId = clusterToggle.dataset.clusterToggle;
-        if (headId) toggleCluster(headId);
-        return;
-      }
-      const row = target.closest<HTMLElement>('[data-event-id]');
-      if (!row) return;
-      const id = row.dataset.eventId;
-      if (!id) return;
-      const evt = renderedById.get(id);
-      if (evt) showDetail(evt);
+      const option = target.closest<HTMLElement>('[role="option"]');
+      if (option) activateOption(option);
     });
+    list.addEventListener('keydown', onListKeydown);
     listDelegationWired = true;
   }
 
   renderBulkBar(data);
+}
+
+// Keyboard listbox (1.0 C3, WCAG 2.1.1): the list is one tab stop; arrows,
+// Home/End move between rows (roving tabindex), Enter/Space opens the row
+// or toggles a cluster. `activeRowKey` survives the 1 s refresh re-render.
+let activeRowKey: string | null = null;
+
+function optionKey(option: HTMLElement): string | null {
+  return option.dataset.eventId ?? option.dataset.clusterToggle ?? null;
+}
+
+function listOptions(list: ParentNode): HTMLElement[] {
+  return Array.from(list.querySelectorAll<HTMLElement>('[role="option"]'));
+}
+
+function syncRovingTabindex(list: HTMLElement): void {
+  const options = listOptions(list);
+  const active = options.find((o) => optionKey(o) === activeRowKey) ?? options[0];
+  for (const o of options) {
+    const on = o === active;
+    o.tabIndex = on ? 0 : -1;
+    o.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+}
+
+function focusRow(key: string | null): void {
+  const list = document.getElementById('list');
+  if (!list) return;
+  activeRowKey = key;
+  syncRovingTabindex(list);
+  list.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus();
+}
+
+function activateOption(option: HTMLElement): void {
+  activeRowKey = optionKey(option);
+  const headId = option.dataset.clusterToggle;
+  if (headId) {
+    toggleCluster(headId);
+    return;
+  }
+  const evt = option.dataset.eventId ? renderedById.get(option.dataset.eventId) : undefined;
+  if (evt) showDetail(evt);
+}
+
+function onListKeydown(e: KeyboardEvent): void {
+  const current =
+    e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[role="option"]') : null;
+  if (!current || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    activateOption(current);
+    return;
+  }
+  const options = listOptions(e.currentTarget as HTMLElement);
+  const i = options.indexOf(current);
+  const nextIndex: Record<string, number> = {
+    ArrowDown: Math.min(i + 1, options.length - 1),
+    ArrowUp: Math.max(i - 1, 0),
+    Home: 0,
+    End: options.length - 1,
+  };
+  const target = options[nextIndex[e.key] ?? -1];
+  if (!target) return;
+  e.preventDefault();
+  focusRow(optionKey(target));
+  target.scrollIntoView({ block: 'nearest' });
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
 }
 
 // Set of cluster heads currently expanded. Persists across renders.
@@ -1198,7 +1383,7 @@ function renderListHtml(data: CapturedEvent[]): string {
 
 function renderEventRow(e: CapturedEvent, indented: boolean): string {
   const row = formatRow(e);
-  return `<div class="item ${row.className}${indented ? ' cluster-member' : ''}" data-event-id="${escapeHtml(e.id)}">
+  return `<div class="item ${row.className}${indented ? ' cluster-member' : ''}" data-event-id="${escapeHtml(e.id)}" role="option" tabindex="-1" aria-selected="false">
     <div class="status">${escapeHtml(row.statusBadge)}</div>
     <div class="method">${escapeHtml(row.method)}</div>
     <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
@@ -1208,7 +1393,7 @@ function renderEventRow(e: CapturedEvent, indented: boolean): string {
 }
 
 /** Renders one banner per cluster summarizing all members at a glance
- *  (PRD §6.2.3 example: "🔴 401 cascade — POST /Token/auth — 3 failures
+ *  (PRD §6.2.3 example: "401 cascade — POST /Token/auth — 3 failures
  *  in 5s [expand 3 →]"). The banner is itself the toggle target. */
 function renderClusterBanner(
   head: CapturedEvent,
@@ -1219,7 +1404,7 @@ function renderClusterBanner(
   const summary = summarizeCluster(all);
   const arrow = expanded ? '▾' : '▸';
   const totalCount = all.length;
-  return `<div class="cluster-banner ${summary.severity}" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}" role="button" tabindex="0">
+  return `<div class="cluster-banner ${summary.severity}" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}" role="option" tabindex="-1" aria-selected="false">
     <span class="cluster-banner-icon" aria-hidden="true">${summary.icon}</span>
     <span class="cluster-banner-title"><strong>${escapeHtml(summary.title)}</strong></span>
     <span class="cluster-banner-meta">${escapeHtml(summary.subtitle)}</span>
@@ -1263,7 +1448,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
     return {
       title: `${dominantStatus} cascade — ${dominantMethod} ${pathLabel}`,
       subtitle: `${failingMembers.length} failure${failingMembers.length === 1 ? '' : 's'} in ${spanSec}s${host ? ` · ${host}` : ''}`,
-      icon: '🔴',
+      icon: icon('alert-circle'),
       severity: 'severity-error',
     };
   }
@@ -1273,7 +1458,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
     return {
       title: `console cluster — ${consoleMembers.length} error${consoleMembers.length === 1 ? '' : 's'}`,
       subtitle: `${consoleMembers.length} in ${spanSec}s`,
-      icon: '🔴',
+      icon: icon('alert-circle'),
       severity: 'severity-error',
     };
   }
@@ -1281,7 +1466,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
   return {
     title: `cluster — ${all.length} events`,
     subtitle: `${all.length} in ${spanSec}s`,
-    icon: '⚠️',
+    icon: icon('alert'),
     severity: 'severity-warn',
   };
 }
@@ -1450,7 +1635,8 @@ function formatRow(e: CapturedEvent): {
       className: classNameFromFlags(failed ? 'failed' : 'success', e),
       statusBadge: String(e.data.response.status || 'ERR'),
       method: e.data.request.method,
-      urlText: shortUrl(e.data.request.url),
+      urlText:
+        graphqlLabel(e.data.request.url, e.data.request.body) ?? shortUrl(e.data.request.url),
       urlTitle: e.data.request.url,
       timestamp: e.data.timing.startedAt,
       duration: `${e.data.timing.durationMs}ms`,
@@ -1492,10 +1678,10 @@ function formatRow(e: CapturedEvent): {
   }
   if (e.type === 'action.input') {
     const name = e.data.target.accessibleName ?? e.data.target.tag.toLowerCase();
-    const masked = e.meta?.redactions?.some((r) => r.scope === 'form.value');
+    // A masked value already reads as the mask text in urlText.
     return {
       className: 'success',
-      statusBadge: masked ? 'INP🛡' : 'INP',
+      statusBadge: 'INP',
       method: '',
       urlText: `${name} = ${e.data.value}`,
       urlTitle: name,
@@ -1554,7 +1740,7 @@ function formatRow(e: CapturedEvent): {
   if (e.type === 'screenshot') {
     return {
       className: 'success',
-      statusBadge: '📷',
+      statusBadge: 'IMG',
       method: e.data.trigger,
       urlText: 'Screenshot at error moment',
       urlTitle: e.data.storageRef,
@@ -1594,13 +1780,14 @@ function renderBulkBar(data: CapturedEvent[]): void {
       ${hasNetwork ? `· ${networkItems.length} network` : ''}
     </div>
     <div class="bulk-actions">
-      ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">📋 Copy network</button>` : ''}
+      ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">${icon('copy')} Copy network</button>` : ''}
       <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
       <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
       <button id="download-bundle" title="Download as a self-contained HTML replay bundle (PRD §5)">⤓ Bundle</button>
       <button id="download-zip" title="Download everything as one ZIP — markdown, JSON, HAR, bundle, screenshots">⤓ ZIP</button>
       <span id="share-buttons" class="share-buttons"></span>
     </div>
+    <div class="keys-hint">${escapeHtml(t('sidepanel.keys.hint'))}</div>
   `;
   // Async-populate the share buttons after the bulk-bar HTML lands so
   // the render() function stays synchronous. Sharing config lives in
@@ -2029,11 +2216,24 @@ function downloadAllAsFile(items: NetworkRequestEvent[]): void {
 }
 
 function showDetail(e: CapturedEvent): void {
+  activeRowKey = e.id;
   if (isRequestLike(e)) {
     showNetworkDetail(e);
   } else {
     showSimpleDetail(e);
   }
+  document.getElementById('back')?.focus();
+}
+
+/** Closes the detail view and hands focus back to the row it came from. */
+function closeDetail(): void {
+  const detail = document.getElementById('detail');
+  if (!detail) return;
+  detail.classList.add('hidden');
+  detail.innerHTML = '';
+  const data = filteredEvents(events, filterMode);
+  if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+  focusRow(activeRowKey);
 }
 
 /**
@@ -2156,8 +2356,13 @@ function wireDetailSearch(detail: HTMLElement): void {
 
   const bar = document.createElement('div');
   bar.className = 'detail-search';
+  const label = document.createElement('label');
+  label.className = 'sr-only';
+  label.htmlFor = 'detail-search-input';
+  label.textContent = t('sidepanel.detailSearch.placeholder');
   const input = document.createElement('input');
   input.type = 'search';
+  input.id = 'detail-search-input';
   input.placeholder = t('sidepanel.detailSearch.placeholder');
   const count = document.createElement('span');
   count.className = 'search-count';
@@ -2171,7 +2376,7 @@ function wireDetailSearch(detail: HTMLElement): void {
   next.className = 'search-nav';
   next.textContent = '↓';
   next.setAttribute('aria-label', t('sidepanel.detailSearch.next'));
-  bar.append(input, count, prev, next);
+  bar.append(label, input, count, prev, next);
   top.appendChild(bar);
 
   let hits: HTMLElement[] = [];
@@ -2240,12 +2445,7 @@ function showSimpleDetail(e: CapturedEvent): void {
     ${body}
   `;
 
-  document.getElementById('back')?.addEventListener('click', () => {
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
-  });
+  document.getElementById('back')?.addEventListener('click', closeDetail);
   document.getElementById('bulk-bar')?.classList.add('hidden');
   enhanceDetailView(detail);
 }
@@ -2343,6 +2543,10 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   const curlText = toCurl(c);
   const respText = c.data.response.body ?? '';
   const isOversize = bugReportText.length > SLACK_SAFE_THRESHOLD;
+  // When Authorization masking is on (the default), the stored token is
+  // ***MASKED*** — copying it is useless and misleading. Lock the Token
+  // chip and explain how to unmask instead of copying the placeholder.
+  const tokenMasked = extractAccessToken(c).includes(MASKED);
 
   detail.classList.remove('hidden');
   detail.innerHTML = `
@@ -2361,7 +2565,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
 
     <div class="copy-row">
       <button data-copy="report" class="${isOversize ? 'warning' : ''}">
-        Copy bug report · ${fmtSize(bugReportText.length)}${isOversize ? ' ⚠' : ''}
+        Copy bug report · ${fmtSize(bugReportText.length)}${isOversize ? ` ${icon('alert')}` : ''}
       </button>
       <button data-action="download" class="${isOversize ? '' : 'secondary'}">⤓ Download JSON</button>
       <button data-action="replay" class="secondary" title="Re-fire this request from the extension context (PRD §6.3.5)">↻ Replay</button>
@@ -2373,7 +2577,15 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       <button data-copy="response" class="slice" title="Response body · ${fmtSize(respText.length)}">Response</button>
       <button data-copy="req-resp" class="slice" title="Request + response side by side, no narrative or screenshot">Req + Resp</button>
       <button data-copy="curl" class="slice" title="cURL command · ${fmtSize(curlText.length)}">cURL</button>
-      <button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>
+      <button data-copy="fetch" class="slice" title="Reproduce as a runnable fetch() call">fetch()</button>
+      ${
+        tokenMasked
+          ? `<span class="slice-locked-wrap">
+        <button data-token-locked class="slice slice-locked" type="button" aria-label="${escapeHtml(t('sidepanel.token.lockedAria'))}">${icon('lock')} Token</button>
+        <span class="slice-tip" role="tooltip">${escapeHtml(t('sidepanel.token.lockedTip'))}</span>
+      </span>`
+          : `<button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>`
+      }
     </div>
     <div id="replay-result" class="replay-result hidden" aria-live="polite"></div>
 
@@ -2416,12 +2628,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
     </div>
   `;
 
-  document.getElementById('back')?.addEventListener('click', () => {
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
-  });
+  document.getElementById('back')?.addEventListener('click', closeDetail);
 
   document.getElementById('bulk-bar')?.classList.add('hidden');
 
@@ -2464,6 +2671,18 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
   // Per-section copy — grabs the adjacent <pre> text verbatim so the user
   // copies exactly what they're looking at (headers / body) without scrolling
   // back up to the slice bar.
+  // Masked Token chip — never copies the ***MASKED*** placeholder; clicking
+  // opens Settings so the user can disable Authorization masking.
+  detail.querySelectorAll<HTMLButtonElement>('[data-token-locked]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      // Open Settings straight on the Privacy section so the user can find
+      // the Authorization masking rule without hunting.
+      void chrome.tabs.create({
+        url: chrome.runtime.getURL('src/settings/settings.html#privacy'),
+      });
+    });
+  });
+
   detail.querySelectorAll<HTMLButtonElement>('[data-copy-section]').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       // Don't let the click bubble to the (collapsible) section header.
@@ -2583,10 +2802,19 @@ async function replayRequest(c: NetworkRequestEvent, btn: HTMLButtonElement): Pr
 
 // ---------- formatters ----------
 
-type CopyFormat = 'report' | 'curl' | 'response' | 'url' | 'request' | 'req-resp' | 'token';
+type CopyFormat =
+  | 'report'
+  | 'curl'
+  | 'fetch'
+  | 'response'
+  | 'url'
+  | 'request'
+  | 'req-resp'
+  | 'token';
 
 function formatForCopy(c: NetworkRequestEvent, format: CopyFormat): string {
   if (format === 'curl') return toCurl(c);
+  if (format === 'fetch') return toFetch(c);
   if (format === 'response') return c.data.response.body ?? '';
   if (format === 'url') return c.data.request.url;
   if (format === 'request') return toRequestText(c);
@@ -2621,19 +2849,6 @@ function toRequestResponseText(c: NetworkRequestEvent): string {
     respLines.push('', 'Body:', c.data.response.body);
   }
   return reqPart + '\n' + respLines.join('\n');
-}
-
-/** Pull the access token out of the Authorization header. Strips the
- *  scheme prefix (Bearer / Token / JWT) so the user can paste the raw
- *  credential into a JWT decoder, Postman, etc. If the header is masked
- *  (Authorization rule still enabled in Settings → Privacy) this
- *  returns ***MASKED***, which is honest about what storage holds. */
-function extractAccessToken(c: NetworkRequestEvent): string {
-  const auth =
-    c.data.request.headers['Authorization'] ?? c.data.request.headers['authorization'] ?? '';
-  if (!auth) return '';
-  const m = auth.match(/^\s*(Bearer|Token|JWT|Basic)\s+(.+)$/i);
-  return m && m[2] ? m[2] : auth;
 }
 
 function toCurl(c: NetworkRequestEvent): string {
@@ -2852,7 +3067,7 @@ function renderRedactionsPanel(redactions: Redaction[] | undefined): string {
   return `
     <details class="redactions">
       <summary>
-        <span class="redactions-icon" aria-hidden="true">🛡️</span>
+        <span class="redactions-icon">${icon('shield')}</span>
         <strong>${total} ${noun} masked at capture time</strong>
         <span class="muted"> — ${escapeHtml(summary)}</span>
       </summary>

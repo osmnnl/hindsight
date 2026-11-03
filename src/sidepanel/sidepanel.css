@@ -1,44 +1,4 @@
-:root {
-  color-scheme: light dark;
-  --bg: #0b1020;
-  --surface: #131a2e;
-  --surface-2: #1a2340;
-  --border: #2a335a;
-  --text: #e7ecf5;
-  --muted: #8b94b3;
-  --danger: #ef4444;
-  --success: #22c55e;
-  --warn: #f59e0b;
-  --accent: #f59e0b;
-  --mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
-}
-
-/* prefers-color-scheme drives the default; explicit [data-theme] from the
-   Settings General → Theme preference overrides via theme.ts. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --bg: #f7f8fc;
-    --surface: #ffffff;
-    --surface-2: #eef0f6;
-    --border: #d6dae6;
-    --text: #0b1020;
-    --muted: #5b6478;
-    --success: #16a34a;
-    --accent: #d97706;
-  }
-}
-
-:root[data-theme='light'] {
-  --bg: #f7f8fc;
-  --surface: #ffffff;
-  --surface-2: #eef0f6;
-  --border: #d6dae6;
-  --text: #0b1020;
-  --muted: #5b6478;
-  --success: #16a34a;
-  --accent: #d97706;
-}
+@import '../styles/tokens.css';
 
 * {
   box-sizing: border-box;
@@ -48,9 +8,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  /* Side panel takes whatever width Chrome allocates — typically 400–
-     500 px but resizable. Min-width keeps the 5-column table readable. */
-  min-width: 400px;
+  /* Side panel takes whatever width Chrome allocates — typically 360–
+     500 px and resizable; the top bar wraps instead of scrolling. */
+  min-width: 320px;
   width: 100%;
   height: 100vh;
   background: var(--bg);
@@ -58,6 +18,8 @@ body {
   font-family: var(--sans);
   font-size: 13px;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
@@ -70,31 +32,105 @@ body {
 /* ---------- top bar ---------- */
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  gap: 8px;
+  padding: 11px 14px;
+  background: var(--bar-bg);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border);
+  /* backdrop-filter creates a stacking context; lift the whole bar (and
+     its category popover) above the scrubber / query bar below it. The
+     detail overlay sits higher still (see .detail) so it still covers the
+     bar when open. */
+  position: relative;
+  z-index: 30;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  font-size: 14px;
+  letter-spacing: -0.01em;
 }
 
 .brand-icon {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   display: block;
   flex: none;
 }
 
+/* tracked-tab host indicator — which tab the panel is currently reflecting */
+.tab-host {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-host.hidden {
+  display: none;
+}
+
 .filters {
   display: flex;
-  gap: 6px;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.filters > button,
+.category-filter > button {
+  padding: 4px 9px;
+}
+.filters .theme-toggle,
+.filters .pin-toggle,
+#category-filter-btn,
+.filters .icon-btn {
+  display: inline-flex;
+  padding: 5px 6px;
+}
+/* Filter chips left, panel utilities pushed right on the second row. */
+.category-filter {
+  margin-left: auto;
+}
+
+/* theme toggle — shows the icon for the theme you'd switch TO */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+.theme-toggle .ti {
+  display: none;
+}
+.theme-toggle.show-sun .ti-sun {
+  display: block;
+}
+.theme-toggle.show-moon .ti-moon {
+  display: block;
+}
+.pin-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+.pin-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ---------- category show/hide filter ---------- */
@@ -159,34 +195,54 @@ button {
   color: var(--text);
   background: transparent;
   border: 1px solid var(--border);
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background 0.18s var(--ease),
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease),
+    transform 0.1s var(--ease);
 }
 button:hover {
   background: var(--surface-2);
 }
+button:active {
+  transform: scale(0.97);
+}
 
+/* Failed / API / All read as an Apple segmented control. */
+.filter {
+  border-color: transparent;
+  color: var(--muted);
+  font-weight: 500;
+  border-radius: 999px;
+}
+.filter:hover {
+  color: var(--text);
+}
 .filter.active {
   background: var(--accent);
-  border-color: var(--accent);
-  color: #1a1303;
+  border-color: transparent;
+  color: var(--accent-text);
   font-weight: 600;
+}
+.filter.active:hover {
+  background: var(--accent);
 }
 
 .ghost {
   color: var(--muted);
+  border-color: transparent;
 }
 .ghost:hover {
   color: var(--text);
+  background: var(--surface-2);
 }
 
 .share-buttons {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-left: 4px;
 }
@@ -397,7 +453,6 @@ select:focus-visible {
 }
 
 .query-bar input[type='search']:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -428,7 +483,6 @@ select:focus-visible {
 }
 
 .host-picker select:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
@@ -616,17 +670,39 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 40px 24px;
+  padding: 48px 28px;
   text-align: center;
-  gap: 6px;
+  gap: 7px;
+  animation: empty-in 0.4s var(--ease) both;
+}
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  opacity: 0.55;
 }
 .empty-title {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
 }
 .empty-sub {
   color: var(--muted);
   font-size: 12px;
+  max-width: 30ch;
+  line-height: 1.5;
+}
+@keyframes empty-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .item {
@@ -639,6 +715,10 @@ select:focus-visible {
   cursor: pointer;
   transition: background 100ms ease;
 }
+.list [role='option']:focus-visible {
+  outline-offset: -2px;
+}
+
 .item:hover {
   background: var(--surface);
 }
@@ -659,11 +739,11 @@ select:focus-visible {
   border-left: 2px solid var(--warn);
 }
 .item.flag-cascade {
-  background: rgba(99, 102, 241, 0.05);
-  border-left: 2px solid #6366f1;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
 }
 .item.flag-anomaly {
-  border-left-color: #ec4899;
+  border-left-color: #ff2d55;
 }
 
 /* Cluster banner (PRD §6.2.3) — sits above each cluster's events,
@@ -681,17 +761,17 @@ select:focus-visible {
 }
 
 .cluster-banner:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--accent-soft);
 }
 
 .cluster-banner.severity-error {
   border-left: 3px solid var(--danger);
-  background: rgba(239, 68, 68, 0.06);
+  background: var(--danger-soft);
 }
 
 .cluster-banner.severity-warn {
   border-left: 3px solid var(--warn);
-  background: rgba(245, 158, 11, 0.06);
+  background: var(--warn-soft);
 }
 
 .cluster-banner.severity-info {
@@ -731,20 +811,20 @@ select:focus-visible {
 
 .item.cluster-member {
   padding-left: 28px;
-  background: rgba(99, 102, 241, 0.04);
+  background: var(--accent-soft);
 }
 
 .item.failed .status {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--danger-soft);
 }
 .item.success .status {
   color: var(--success);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-soft);
 }
 .item.pending .status {
   color: var(--warn);
-  background: rgba(245, 158, 11, 0.12);
+  background: var(--warn-soft);
 }
 
 .item .method {
@@ -781,6 +861,7 @@ select:focus-visible {
 /* ---------- bulk bar ---------- */
 .bulk-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
@@ -792,7 +873,14 @@ select:focus-visible {
   display: none;
 }
 
+.keys-hint {
+  flex: 1 1 100%;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .bulk-count {
+  white-space: nowrap;
   font-size: 11.5px;
   color: var(--muted);
   font-family: var(--mono);
@@ -804,23 +892,36 @@ select:focus-visible {
 
 .bulk-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .bulk-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11.5px;
   padding: 5px 10px;
+  white-space: nowrap;
 }
 .bulk-actions button.primary {
   background: var(--accent);
-  border-color: var(--accent);
-  color: #1a1303;
+  border-color: transparent;
+  color: var(--accent-text);
   font-weight: 600;
+}
+.bulk-bar {
+  background: var(--bar-bg);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+.bulk-actions button {
+  border-radius: 999px;
 }
 .bulk-actions button.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
 }
 .bulk-actions button.warning {
   color: var(--warn);
@@ -836,9 +937,29 @@ select:focus-visible {
   padding: 0;
   display: flex;
   flex-direction: column;
+  /* Above the topbar (z-index 30) so the detail overlay covers it. */
+  z-index: 100;
+  /* Slide + fade in when opened (display flips from none, re-triggering). */
+  animation: detail-in 0.24s var(--ease);
 }
 .detail.hidden {
   display: none;
+}
+@keyframes detail-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail,
+  .empty {
+    animation: none;
+  }
 }
 
 .detail-top {
@@ -879,11 +1000,11 @@ select:focus-visible {
 }
 .detail-heading.failed .pill {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.12);
+  background: var(--danger-soft);
 }
 .detail-heading.success .pill {
   color: var(--success);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--success-soft);
 }
 
 .detail-url {
@@ -901,8 +1022,9 @@ select:focus-visible {
 }
 .copy-row button {
   background: var(--accent);
-  color: #1a1303;
-  border-color: var(--accent);
+  color: var(--accent-text);
+  border-color: transparent;
+  border-radius: 999px;
   font-weight: 600;
 }
 .copy-row button.secondary {
@@ -914,7 +1036,7 @@ select:focus-visible {
 .copy-row button.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
 }
 
 .copy-row button.warning {
@@ -967,10 +1089,80 @@ select:focus-visible {
 .copy-slices button.slice.copied {
   background: var(--success);
   border-color: var(--success);
-  color: #052013;
+  color: var(--bg);
+}
+
+/* Copy-success feedback: a brief confirm pulse on any copied button. */
+.bulk-actions button.copied,
+.copy-row button.copied,
+.copy-slices button.slice.copied,
+.section-copy.copied {
+  animation: copied-pulse 0.32s var(--ease);
+}
+@keyframes copied-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bulk-actions button.copied,
+  .copy-row button.copied,
+  .copy-slices button.slice.copied,
+  .section-copy.copied {
+    animation: none;
+  }
+}
+
+/* Masked-token chip: locked look + hover tooltip explaining how to unmask. */
+.slice-locked-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.copy-slices button.slice.slice-locked {
+  color: var(--muted);
+  border-style: dashed;
+  cursor: help;
+}
+.copy-slices button.slice.slice-locked:hover {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: transparent;
+}
+.slice-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 240px;
+  padding: 9px 11px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  font-size: 11.5px;
+  line-height: 1.45;
+  font-weight: 400;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity 0.16s var(--ease),
+    transform 0.16s var(--ease);
+}
+.slice-locked-wrap:hover .slice-tip,
+.slice-locked-wrap:focus-within .slice-tip {
+  opacity: 1;
+  transform: translateY(0);
 }
 .copy-row button.warning:hover {
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--warn-soft);
 }
 
 /* Privacy preview modal — PRD §6.4.4 */
@@ -1031,8 +1223,8 @@ select:focus-visible {
 }
 
 .privacy-modal-redactions {
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
   border-radius: 6px;
   padding: 10px 12px;
   margin-bottom: 12px;
@@ -1070,7 +1262,7 @@ select:focus-visible {
 .privacy-modal-actions button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1303;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1149,7 +1341,7 @@ select:focus-visible {
 .size-warning {
   margin: 4px 14px 8px;
   padding: 10px 12px;
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--warn-soft);
   border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: 6px;
   font-size: 12px;
@@ -1165,7 +1357,7 @@ select:focus-visible {
   margin: 8px 14px 0;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.06);
+  background: var(--accent-soft);
   padding: 0;
   font-size: 12px;
 }
@@ -1340,7 +1532,6 @@ select:focus-visible {
   font-size: 12px;
 }
 .detail-search input[type='search']:focus {
-  outline: none;
   border-color: var(--accent);
 }
 .detail-search .search-count {
@@ -1363,7 +1554,7 @@ mark.search-hit {
 }
 mark.search-hit.active {
   background: var(--accent);
-  color: #1a1303;
+  color: var(--accent-text);
 }
 
 /* ---------- interactive JSON tree (PRD §6.3 detail view) ---------- */

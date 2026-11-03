@@ -27,6 +27,7 @@
     "bench:xhr": "tsx bench/xhr-overhead.bench.ts",
     "bench:masking": "tsx bench/masking-cost.bench.ts",
     "bench:filter": "tsx bench/filter-1000.bench.ts",
+    "test:a11y": "tsx tests/a11y/a11y.ts",
     "bench:fanout": "npm run build && tsx bench/messageport-fanout.bench.ts",
     "prepare": "husky",
     "bench:multitab": "npm run build && tsx bench/multitab-storage.bench.ts"
