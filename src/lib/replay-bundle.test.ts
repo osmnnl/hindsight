@@ -29,6 +29,12 @@ function fetchEvt(over: Partial<NetworkFetchEvent['data']> = {}): NetworkFetchEv
   };
 }
 
+function readData(html: string): unknown {
+  const m = /<script type="application\/json" id="hs-data">([\s\S]*?)<\/script>/.exec(html);
+  if (!m) throw new Error('no data block');
+  return JSON.parse(m[1]!);
+}
+
 describe('generateBundle', () => {
   it('returns a full HTML document', () => {
     const html = generateBundle([fetchEvt()], { appVersion: '0.4.0' });
@@ -38,9 +44,10 @@ describe('generateBundle', () => {
     expect(html).toContain('</body>');
   });
 
-  it('embeds the events as JSON under window.__HINDSIGHT__', () => {
+  it('embeds the events as an inert JSON data block', () => {
     const html = generateBundle([fetchEvt()], { appVersion: '0.4.0' });
-    expect(html).toContain('window.__HINDSIGHT__');
+    expect(html).toContain('<script type="application/json" id="hs-data">');
+    expect(html).not.toContain('window.__HINDSIGHT__');
     expect(html).toContain('"network.fetch"');
     expect(html).toContain('"sess"');
   });
@@ -73,9 +80,8 @@ describe('generateBundle', () => {
 
   it('survives an empty event list', () => {
     const html = generateBundle([], { appVersion: '0.4.0' });
-    expect(html).toContain('window.__HINDSIGHT__');
-    // Empty events → empty array literal, narrative is empty string
-    expect(html).toMatch(/events:\s*\[\]/);
+    // Empty events → empty array, narrative is empty string
+    expect(readData(html)).toEqual({ events: [], narrative: '' });
   });
 
   it('embeds a narrative banner when events span 2+ entries', () => {
