@@ -1,7 +1,7 @@
 # Promo assets
 
 Store images for Chrome Web Store, Firefox Add-ons and Edge Add-ons.
-Flat colours only (no gradients), 24-bit PNG (no alpha channel).
+Flat colours only, 24-bit PNG (no alpha channel).
 
 | File                 | Size       | Slot                                                               |
 | -------------------- | ---------- | ------------------------------------------------------------------ |

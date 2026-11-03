@@ -109,7 +109,7 @@ Data Helper: valid Turkish test data (TCKN, VKN, IBAN), consistent personas, one
 ## Visual assets
 
 Rendered from the real built extension by `scripts/store-shots.mjs`
-(dev-only, not shipped). PNG, 24-bit, no alpha, no gradients.
+(dev-only, not shipped). PNG, 24-bit, no alpha, flat colour only.
 
 | Asset                   | Size       | File                                                                     |
 | ----------------------- | ---------- | ------------------------------------------------------------------------ |

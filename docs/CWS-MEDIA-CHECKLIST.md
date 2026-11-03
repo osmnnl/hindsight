@@ -34,7 +34,7 @@ PLAYWRIGHT=/path/to/node_modules/playwright/index.mjs \
 | 5   | `screenshot-5-dark.png`     | Dark theme: side panel plus the toolbar popup over the page.            |
 
 Each is 1280 × 800, 24-bit PNG without alpha, on a flat caption band
-(no gradients). `--lang tr` renders the Turkish UI and captions for the
+(flat colour only). `--lang tr` renders the Turkish UI and captions for the
 Turkish listing. Re-run after any UI change; the files are not
 committed.
 

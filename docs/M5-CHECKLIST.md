@@ -45,7 +45,7 @@ Measured on branch `ws/b-release` (2026-11-03, Node 24, Apple Silicon).
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
 | Site at https://osmnnl.github.io/hindsight/ (PRD says hindsight.dev; GitHub Pages is the decided host) | ✅ live                                          |
 | Privacy page updated for 1.0.0 permissions                                                             | ✅ `docs/privacy.html`, `docs/PRIVACY-POLICY.md` |
-| No gradients, cross-links between the three extension sites                                            | ⬜ (integrator, F)                               |
+| Flat colour only, cross-links between the three extension sites                                            | ⬜ (integrator, F)                               |
 
 ## 5. Marketing landing page
 
@@ -62,7 +62,7 @@ manual step.
 | ---------------------------------------------------------------------------- | ------------------------------------------------------- | --------- |
 | Description EN + TR, claims match 1.0.0 behaviour                            | `store/cws/description-*.txt`                           | ✅        |
 | Permission justifications match the manifest                                 | `CWS-PRIVACY-FORM.md` §2 (6 entries, all < 1,000 chars) | ✅        |
-| Images: 440×280, 1400×560, 5× 1280×800 (1 dark), RGB, no alpha, no gradients | `scripts/store-shots.mjs`                               | ✅        |
+| Images: 440×280, 1400×560, 5× 1280×800 (1 dark), RGB, no alpha, flat colour only | `scripts/store-shots.mjs`                               | ✅        |
 | Submitted / approved                                                         | dashboard                                               | ⬜ manual |
 
 ## 8. Edge Add-ons submission
