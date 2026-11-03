@@ -45,6 +45,7 @@ import {
 } from '@/lib/masking';
 import { detect } from '@/lib/detection';
 import { openCapturePanel } from '@/lib/panel';
+import { createCommandHandler } from './commands';
 import { captureTimestamp } from '@/lib/capture-time';
 import { initI18n, t } from '@/lib/i18n';
 import {
@@ -1074,12 +1075,17 @@ const lastUrlPerTab = new Map<number, string>();
 // Keyboard commands (manifest.commands — PRD §9.2).
 // ---------------------------------------------------------------------------
 
+const handleCommand = createCommandHandler({
+  openPanel: () => openSidePanelForActiveTab(),
+  activeTabId: async () =>
+    (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id,
+  setLocal: (items) => chrome.storage.local.set(items),
+  toggleRecording: (tabId) => toggleRecording(tabId),
+  now: () => Date.now(),
+});
+
 chrome.commands?.onCommand?.addListener?.((command) => {
-  if (command === 'open-side-panel') {
-    void openSidePanelForActiveTab().catch(() => {});
-  }
-  // capture-last-moment and toggle-recording land in M4 alongside
-  // recording mode (PRD §6.5).
+  void handleCommand(command).catch(() => {});
 });
 
 async function openSidePanelForActiveTab(): Promise<void> {

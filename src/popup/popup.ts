@@ -15,6 +15,8 @@ import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/w
 import { openCapturePanel } from '@/lib/panel';
 import { markPanelHintDone, readOnboarding, shouldShowPanelHint } from '@/lib/onboarding';
 import { generateBundle } from '@/lib/replay-bundle';
+import { bundleFileName } from '@/lib/pending-action';
+import { omittedEventCount } from '@/lib/storage';
 import type {
   ClearEventsRuntimeMessage,
   EventsUnchanged,
@@ -233,15 +235,22 @@ function renderHostChip(url: string | undefined): void {
   el.classList.toggle('hidden', host === '');
 }
 
-/** Shows the user's actual "open side panel" shortcut (chrome://extensions
- *  → Keyboard shortcuts), or nothing when it is unassigned. */
+/** Shows the user's actual shortcuts (chrome://extensions → Keyboard
+ *  shortcuts) next to their buttons, or nothing when unassigned. */
 async function renderShortcut(): Promise<void> {
-  const el = document.getElementById('open-panel-key');
-  if (!el || !chrome.commands?.getAll) return;
+  if (!chrome.commands?.getAll) return;
   try {
-    const cmd = (await chrome.commands.getAll()).find((c) => c.name === 'open-side-panel');
-    el.textContent = cmd?.shortcut ?? '';
-    el.classList.toggle('hidden', !cmd?.shortcut);
+    const commands = await chrome.commands.getAll();
+    for (const [name, id] of [
+      ['open-side-panel', 'open-panel-key'],
+      ['capture-last-moment', 'capture-key'],
+    ] as const) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const shortcut = commands.find((c) => c.name === name)?.shortcut ?? '';
+      el.textContent = shortcut;
+      el.classList.toggle('hidden', !shortcut);
+    }
   } catch {
     /* commands API unavailable */
   }
@@ -395,24 +404,15 @@ async function openSidePanel(opts: {
 
 function downloadReplayBundle(events: CapturedEvent[]): void {
   if (events.length === 0) return;
-  const html = generateBundle(events, { appVersion: __APP_VERSION__ });
+  const html = generateBundle(events, {
+    appVersion: __APP_VERSION__,
+    omittedEventCount: omittedEventCount(events),
+  });
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const host = (() => {
-    for (const e of events) {
-      try {
-        const h = new URL(e.url).host;
-        if (h) return h;
-      } catch {
-        /* keep looking */
-      }
-    }
-    return 'session';
-  })();
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const a = document.createElement('a');
   a.href = url;
-  a.download = `hindsight-${host}-${ts}.html`;
+  a.download = bundleFileName(events, new Date());
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {

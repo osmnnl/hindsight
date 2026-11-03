@@ -37,7 +37,9 @@ import {
 } from '@/lib/masking';
 import { buildJsonTree } from '@/lib/json-tree';
 import { narrate } from '@/lib/narrative';
+import { newestFirst } from './list-order';
 import { graphqlLabel } from '@/lib/request-label';
+import { isFreshPendingAction, PENDING_ACTION_KEY } from '@/lib/pending-action';
 import { generateBundle } from '@/lib/replay-bundle';
 import { absoluteUrl, originPattern, requestOriginAccess } from '@/lib/permissions';
 import { markPanelHintDone } from '@/lib/onboarding';
@@ -673,6 +675,7 @@ async function init(): Promise<void> {
   await refreshArchive();
   await refreshRecordingState();
   await applyPopupFocus();
+  await consumePendingAction();
   pollTimer = setInterval(() => {
     void refresh();
     updateRecordTimer();
@@ -1357,7 +1360,7 @@ function renderListHtml(data: CapturedEvent[]): string {
     for (const e of arr) memberIds.add(e.id);
   }
 
-  const reversed = data.slice().reverse();
+  const reversed = newestFirst(data);
   const parts: string[] = [];
 
   for (const e of reversed) {
@@ -2066,6 +2069,30 @@ function decodeDataUrlToBytes(dataUrl: string): { bytes: Uint8Array; ext: string
   const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
   return { bytes, ext };
 }
+
+/** ⌘⇧B handoff: the SW opened this panel and planted a download action
+ *  (`src/lib/pending-action.ts`). Runs once events for that tab are
+ *  loaded; a stale or other-tab action is dropped. */
+async function consumePendingAction(): Promise<void> {
+  let value: unknown;
+  try {
+    value = (await chrome.storage.local.get(PENDING_ACTION_KEY))[PENDING_ACTION_KEY];
+    if (value === undefined) return;
+    await chrome.storage.local.remove(PENDING_ACTION_KEY);
+  } catch {
+    return;
+  }
+  if (!isFreshPendingAction(value, Date.now())) return;
+  if (tabId != null && value.tabId !== tabId) return;
+  await refresh();
+  if (events.length > 0) downloadAsBundle(events);
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[PENDING_ACTION_KEY]?.newValue !== undefined) {
+    void consumePendingAction();
+  }
+});
 
 function downloadAsBundle(items: CapturedEvent[]): void {
   const html = generateBundle(items, {
