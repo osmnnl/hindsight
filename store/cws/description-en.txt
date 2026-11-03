@@ -1,0 +1,62 @@
+Hindsight is the DevTools you forgot to open.
+
+It records every network request, console error and user action in the background. When something breaks, you scrub back through what already happened and share a faithful bug report, without reproducing anything.
+
+WHY IT EXISTS
+
+You hit a bug. You open DevTools. You refresh. It doesn't happen again, and the request you needed is gone. Hindsight is always recording, so by the time you notice something went wrong, the evidence is already there.
+
+WHAT IT RECORDS
+
+• Network: fetch, XMLHttpRequest, WebSocket and Server-Sent Events, with request and response headers and bodies
+• Console: errors and warnings, uncaught errors and unhandled promise rejections, with stack traces
+• User actions: clicks, form input (passwords and card numbers are never stored), page loads and single-page-app route changes
+• Performance signals: long tasks over 100 ms, layout shift, and a blank-page check
+• Screenshots: attached to errors on tabs where you have opened Hindsight (toolbar icon, side panel or shortcut)
+• Recording mode: press Record to add scroll, cursor and a screenshot every 2 seconds; press Stop for a bookended session
+
+SHARE ONE FILE
+
+Save the whole session as one self-contained HTML file. Whoever opens it sees the timeline, a plain-language narrative and every request and response, in any browser, offline, without installing anything.
+
+Or send it straight to Slack, Microsoft Teams or Discord through your own webhook, open a pre-filled GitHub issue or email, or copy a single request as cURL, raw request and response, or a Markdown report. A preview shows exactly what will be sent before every send.
+
+PRIVATE BY DESIGN
+
+• Everything is stored on your computer. Hindsight has no server and makes no network requests of its own
+• No telemetry, no analytics, no third-party code
+• Authorization, Cookie, Set-Cookie, X-API-Key, X-Auth-Token and Proxy-Authorization headers are masked when they are captured, so the original values are never written to disk
+• Card numbers (Luhn-checked), Turkish national IDs (checksum-validated) and your own regex patterns are masked in bodies
+• Exclude any site entirely in Settings → Privacy
+
+FIND IT FAST
+
+• Timeline scrubber with a two-handle range to clip both ends
+• Failed / API / All filters, full-text search and a per-site picker
+• Repeated failures are grouped into one cluster row
+• Replay a captured request: Hindsight asks for access to that one site the first time, and you can revoke it in Settings
+
+FAST BY RULE
+
+Every release must pass hard performance benchmarks in CI:
+• fetch overhead: under 0.01 ms (p95)
+• XMLHttpRequest overhead: under 0.002 ms (p95)
+• filtering 1,000 events: 0.25 ms (p95)
+• a bounded rolling buffer per tab (200 events / 2 MB), checked with 20+ real tabs
+
+Install it, pin it, and browse as usual. English and Türkçe.
+
+OPEN SOURCE (MIT)
+
+Every privacy claim above can be checked in the source code.
+
+Website: https://osmnnl.github.io/hindsight/
+Source: https://github.com/osmnnl/hindsight
+Privacy policy: https://osmnnl.github.io/hindsight/privacy.html
+Report a problem: https://github.com/osmnnl/hindsight/issues
+Changelog: https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md
+
+MORE FROM THE SAME AUTHOR
+
+StorageNinja: copy, paste and manage Local Storage, Session Storage, cookies, IndexedDB and Cache Storage of a tab. https://osmnnl.github.io/StorageNinja/
+Data Helper: valid Turkish test data (TCKN, VKN, IBAN), consistent personas, one-click form fill. https://osmnnl.github.io/TestDataHelper/
