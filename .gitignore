@@ -15,8 +15,6 @@ web-ext-artifacts/
 
 # CWS screenshots — captured locally, not versioned (large binary)
 docs/screenshots/
-# Generated PNGs from the SVG promo mockups (keep SVG sources, not exports)
-docs/promo/*.png
 
 # Editor
 .vscode/
@@ -47,3 +45,6 @@ Thumbs.db
 
 # Claude working notes (local-only progress/plan ledger)
 .claude/
+
+# scripts/store-shots.mjs default output
+/store-shots/
