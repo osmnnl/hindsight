@@ -23,6 +23,7 @@ import type {
   ToggleRecordingRuntimeMessage,
 } from '@/lib/runtime-messages';
 import { readSharingSettings } from '@/lib/settings';
+import { recentFailures } from './recent-failures';
 import { applyTheme, listenForThemeChanges } from '@/lib/theme';
 
 declare const __APP_VERSION__: string;
@@ -57,6 +58,8 @@ async function init(): Promise<void> {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tab?.id;
+  renderHostChip(tab?.url);
+  void renderShortcut();
 
   document.getElementById('open-panel')?.addEventListener('click', () => {
     if (activeTabId == null) return;
@@ -201,7 +204,53 @@ function inlineConfirm(message: string): Promise<boolean> {
   });
 }
 
+/** Header chip naming the tab the popup reflects. */
+function renderHostChip(url: string | undefined): void {
+  const el = document.getElementById('tab-host');
+  if (!el) return;
+  let host = '';
+  try {
+    host = url ? new URL(url).host : '';
+  } catch {
+    host = '';
+  }
+  el.textContent = host;
+  el.title = host;
+  el.classList.toggle('hidden', host === '');
+}
+
+/** Shows the user's actual "open side panel" shortcut (chrome://extensions
+ *  → Keyboard shortcuts), or nothing when it is unassigned. */
+async function renderShortcut(): Promise<void> {
+  const el = document.getElementById('open-panel-key');
+  if (!el || !chrome.commands?.getAll) return;
+  try {
+    const cmd = (await chrome.commands.getAll()).find((c) => c.name === 'open-side-panel');
+    el.textContent = cmd?.shortcut ?? '';
+    el.classList.toggle('hidden', !cmd?.shortcut);
+  } catch {
+    /* commands API unavailable */
+  }
+}
+
+function renderPrivacyNote(events: CapturedEvent[]): void {
+  const el = document.getElementById('privacy-text');
+  if (!el) return;
+  const masked = events.reduce((n, e) => n + (e.meta?.redactions?.length ?? 0), 0);
+  el.textContent =
+    masked === 0
+      ? t('popup.footer.local')
+      : masked === 1
+        ? t('popup.footer.maskedOne')
+        : t('popup.footer.masked', { n: masked });
+}
+
 function renderSummary(events: CapturedEvent[]): void {
+  renderPrivacyNote(events);
+  // Without activeTab (popup opened programmatically) the tab URL is hidden;
+  // fall back to the page URL the captures carry.
+  const chip = document.getElementById('tab-host');
+  if (chip && !chip.textContent) renderHostChip(events[events.length - 1]?.url);
   const totalEl = document.querySelector('.count-total strong');
   if (totalEl) totalEl.textContent = String(events.length);
 
@@ -223,20 +272,25 @@ function renderSummary(events: CapturedEvent[]): void {
     }
   }
 
+  const section = document.getElementById('failures');
   const listEl = document.getElementById('failure-list');
   const bundleBtn = document.getElementById('download-bundle');
-  if (!listEl) return;
+  if (!listEl || !section) return;
 
-  if (errors.length === 0) {
-    listEl.classList.add('hidden');
+  const recent = recentFailures(events, MAX_POPUP_FAILURES);
+  if (recent.length === 0) {
+    section.classList.add('hidden');
     listEl.innerHTML = '';
   } else {
-    // Show the N most recent failures; newest first.
-    const recent = errors.slice(-MAX_POPUP_FAILURES).reverse();
-    listEl.classList.remove('hidden');
+    section.classList.remove('hidden');
     listEl.innerHTML = recent
-      .map((e) => {
+      .map(({ event: e, clusterSize }) => {
         const summary = describeError(e);
+        const client = /^4\d\d$/.test(summary.status);
+        const line =
+          clusterSize > 1
+            ? t('popup.failures.cluster', { status: summary.status, n: clusterSize })
+            : summary.line;
         const time = new Date(e.timestamp).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -244,8 +298,8 @@ function renderSummary(events: CapturedEvent[]): void {
         });
         return `
           <button class="failure-row" type="button" data-event-id="${escapeAttr(e.id)}" role="listitem">
-            <span class="failure-status">${escapeHtml(summary.status)}</span>
-            <span class="failure-line">${escapeHtml(summary.line)}</span>
+            <span class="failure-status${client ? ' client' : ''}">${escapeHtml(summary.status)}</span>
+            <span class="failure-line" title="${escapeAttr(summary.line)}">${escapeHtml(line)}</span>
             <span class="failure-time">${escapeHtml(time)}</span>
           </button>
         `;
@@ -354,12 +408,12 @@ function downloadReplayBundle(events: CapturedEvent[]): void {
 
   // Flash the button so the user knows something happened.
   const btn = document.getElementById('download-bundle');
-  if (btn instanceof HTMLButtonElement) {
-    const original = btn.textContent ?? '';
-    btn.textContent = t('popup.actions.bundleDownloaded');
+  const label = document.getElementById('capture-label');
+  if (btn && label) {
+    label.textContent = t('popup.actions.bundleDownloaded');
     btn.classList.add('copied');
     setTimeout(() => {
-      btn.textContent = original;
+      label.textContent = t('popup.actions.captureMoment');
       btn.classList.remove('copied');
     }, 1600);
   }

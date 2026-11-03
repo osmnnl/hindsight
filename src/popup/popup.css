@@ -10,7 +10,7 @@
 
 body {
   margin: 0;
-  width: 340px;
+  width: 360px;
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
@@ -56,6 +56,20 @@ body {
   font-weight: 600;
   font-size: 15px;
   letter-spacing: -0.01em;
+}
+
+/* active-tab host chip */
+.tab-host {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 main {
@@ -163,6 +177,11 @@ main {
   text-align: center;
 }
 
+.failure-status.client {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
 .failure-line {
   font-family: var(--mono);
   font-size: 11.5px;
@@ -181,13 +200,13 @@ main {
 .recording-banner {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 12px;
-  border: 1px solid var(--error-soft);
-  border-radius: var(--radius-sm);
+  gap: 7px;
+  margin-left: auto;
+  padding: 3px 4px 3px 9px;
+  border-radius: 999px;
   background: var(--error-soft);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .recording-banner.hidden {
@@ -199,7 +218,6 @@ main {
   height: 8px;
   border-radius: 999px;
   background: var(--error);
-  box-shadow: 0 0 10px var(--error);
   animation: rec-pulse 1.4s ease-in-out infinite;
 }
 
@@ -223,7 +241,7 @@ main {
   border: 1px solid var(--error);
   color: var(--error);
   border-radius: 999px;
-  padding: 4px 11px;
+  padding: 2px 9px;
   font: inherit;
   font-size: 11px;
   font-weight: 500;
@@ -274,6 +292,60 @@ main {
   font-weight: 600;
 }
 
+.actions button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.actions button.capture {
+  padding: 12px 14px;
+}
+
+.capture-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.capture-sub {
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.actions button.primary:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.kbd {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* ---------- recent failures ---------- */
+.failures.hidden {
+  display: none;
+}
+
+.section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .actions button.primary:hover {
   background: var(--accent);
   filter: brightness(1.07);
@@ -294,29 +366,22 @@ main {
 /* ---------- per-page controls ---------- */
 .page-controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.reload-group {
-  display: flex;
-  gap: 8px;
-}
-
-.reload-group button {
-  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .page-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--bg-elev);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 11px;
-  padding: 10px 12px;
+  border-radius: 999px;
+  padding: 5px 11px;
   font: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   box-shadow: var(--shadow-sm);
   transition:
@@ -400,12 +465,21 @@ main {
 
 /* ---------- footer ---------- */
 .popup-footer {
-  padding-top: 10px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border);
-  margin-top: 2px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.privacy-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .popup-footer a {

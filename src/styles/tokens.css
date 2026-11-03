@@ -124,3 +124,10 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Inline SVG icons (lib/icons.ts) sit on the text baseline. */
+.icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: -2px;
+}

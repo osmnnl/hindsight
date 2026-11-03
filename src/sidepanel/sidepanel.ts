@@ -22,6 +22,7 @@ import {
   type EventCategory,
 } from '@/types/events';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
+import { icon } from '@/lib/icons';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
@@ -1389,7 +1390,7 @@ function renderEventRow(e: CapturedEvent, indented: boolean): string {
 }
 
 /** Renders one banner per cluster summarizing all members at a glance
- *  (PRD §6.2.3 example: "🔴 401 cascade — POST /Token/auth — 3 failures
+ *  (PRD §6.2.3 example: "401 cascade — POST /Token/auth — 3 failures
  *  in 5s [expand 3 →]"). The banner is itself the toggle target. */
 function renderClusterBanner(
   head: CapturedEvent,
@@ -1444,7 +1445,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
     return {
       title: `${dominantStatus} cascade — ${dominantMethod} ${pathLabel}`,
       subtitle: `${failingMembers.length} failure${failingMembers.length === 1 ? '' : 's'} in ${spanSec}s${host ? ` · ${host}` : ''}`,
-      icon: '🔴',
+      icon: icon('alert-circle'),
       severity: 'severity-error',
     };
   }
@@ -1454,7 +1455,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
     return {
       title: `console cluster — ${consoleMembers.length} error${consoleMembers.length === 1 ? '' : 's'}`,
       subtitle: `${consoleMembers.length} in ${spanSec}s`,
-      icon: '🔴',
+      icon: icon('alert-circle'),
       severity: 'severity-error',
     };
   }
@@ -1462,7 +1463,7 @@ function summarizeCluster(all: CapturedEvent[]): ClusterSummary {
   return {
     title: `cluster — ${all.length} events`,
     subtitle: `${all.length} in ${spanSec}s`,
-    icon: '⚠️',
+    icon: icon('alert'),
     severity: 'severity-warn',
   };
 }
@@ -1674,10 +1675,10 @@ function formatRow(e: CapturedEvent): {
   }
   if (e.type === 'action.input') {
     const name = e.data.target.accessibleName ?? e.data.target.tag.toLowerCase();
-    const masked = e.meta?.redactions?.some((r) => r.scope === 'form.value');
+    // A masked value already reads as the mask text in urlText.
     return {
       className: 'success',
-      statusBadge: masked ? 'INP🛡' : 'INP',
+      statusBadge: 'INP',
       method: '',
       urlText: `${name} = ${e.data.value}`,
       urlTitle: name,
@@ -1736,7 +1737,7 @@ function formatRow(e: CapturedEvent): {
   if (e.type === 'screenshot') {
     return {
       className: 'success',
-      statusBadge: '📷',
+      statusBadge: 'IMG',
       method: e.data.trigger,
       urlText: 'Screenshot at error moment',
       urlTitle: e.data.storageRef,
@@ -1776,13 +1777,14 @@ function renderBulkBar(data: CapturedEvent[]): void {
       ${hasNetwork ? `· ${networkItems.length} network` : ''}
     </div>
     <div class="bulk-actions">
-      ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">📋 Copy network</button>` : ''}
+      ${hasNetwork ? `<button id="copy-all" class="${isOversize ? 'warning' : 'primary'}" title="Copy ${networkItems.length} network request${networkItems.length === 1 ? '' : 's'} + screenshot">${icon('copy')} Copy network</button>` : ''}
       <button id="download-all" title="Download every captured event as JSON">⤓ JSON</button>
       <button id="download-har" ${hasNetwork ? '' : 'disabled title="No network requests in scope — HAR has nothing to export"'}>⤓ HAR</button>
       <button id="download-bundle" title="Download as a self-contained HTML replay bundle (PRD §5)">⤓ Bundle</button>
       <button id="download-zip" title="Download everything as one ZIP — markdown, JSON, HAR, bundle, screenshots">⤓ ZIP</button>
       <span id="share-buttons" class="share-buttons"></span>
     </div>
+    <div class="keys-hint">${escapeHtml(t('sidepanel.keys.hint'))}</div>
   `;
   // Async-populate the share buttons after the bulk-bar HTML lands so
   // the render() function stays synchronous. Sharing config lives in
@@ -2560,7 +2562,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
 
     <div class="copy-row">
       <button data-copy="report" class="${isOversize ? 'warning' : ''}">
-        Copy bug report · ${fmtSize(bugReportText.length)}${isOversize ? ' ⚠' : ''}
+        Copy bug report · ${fmtSize(bugReportText.length)}${isOversize ? ` ${icon('alert')}` : ''}
       </button>
       <button data-action="download" class="${isOversize ? '' : 'secondary'}">⤓ Download JSON</button>
       <button data-action="replay" class="secondary" title="Re-fire this request from the extension context (PRD §6.3.5)">↻ Replay</button>
@@ -2576,7 +2578,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
       ${
         tokenMasked
           ? `<span class="slice-locked-wrap">
-        <button data-token-locked class="slice slice-locked" type="button" aria-label="${escapeHtml(t('sidepanel.token.lockedAria'))}">🔒 Token</button>
+        <button data-token-locked class="slice slice-locked" type="button" aria-label="${escapeHtml(t('sidepanel.token.lockedAria'))}">${icon('lock')} Token</button>
         <span class="slice-tip" role="tooltip">${escapeHtml(t('sidepanel.token.lockedTip'))}</span>
       </span>`
           : `<button data-copy="token" class="slice" title="Access token from Authorization header (Bearer prefix stripped). Works only if Authorization masking is disabled in Settings → Privacy.">Token</button>`
@@ -3089,7 +3091,7 @@ function renderRedactionsPanel(redactions: Redaction[] | undefined): string {
   return `
     <details class="redactions">
       <summary>
-        <span class="redactions-icon" aria-hidden="true">🛡️</span>
+        <span class="redactions-icon">${icon('shield')}</span>
         <strong>${total} ${noun} masked at capture time</strong>
         <span class="muted"> — ${escapeHtml(summary)}</span>
       </summary>
