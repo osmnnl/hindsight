@@ -232,6 +232,24 @@ import type {
     emitSpaNavigation(e.oldURL, e.newURL, 'hashchange');
   });
 
+  // Full page loads (Tier 1). The content script runs at document_start
+  // on every top-frame load, so it marks the load itself — no
+  // webNavigation permission needed. transitionType mirrors the
+  // Navigation Timing type: navigate | reload | back_forward | prerender.
+  try {
+    const entry = performance.getEntriesByType('navigation')[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    const data: NavigationData = {
+      fromUrl: document.referrer || null,
+      toUrl: window.location.href,
+      transitionType: entry?.type ?? 'navigate',
+    };
+    post({ type: 'navigation', data });
+  } catch {
+    /* never break the page */
+  }
+
   function emitSpaNavigation(fromUrl: string, toUrl: string, transitionType: string): void {
     if (fromUrl === toUrl) return;
     try {

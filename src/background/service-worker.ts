@@ -65,8 +65,6 @@ import {
   type CapturedEvent,
   type EventMeta,
   type EventType,
-  type NavigationData,
-  type NavigationEvent,
   type NetworkFetchData,
   type NetworkXhrData,
   type Redaction,
@@ -590,6 +588,8 @@ async function handleCapture(tabId: number, msg: CaptureRuntimeMessage): Promise
   // Dropped silently — the user explicitly told us to ignore this origin.
   if (privacy.blocklist.has(origin)) return;
 
+  if (msg.pageUrl) lastUrlPerTab.set(tabId, msg.pageUrl);
+
   // Tier 2 toggle. OQ-M2-J: only NEW captures are filtered — existing
   // buffer stays untouched. Tier 1 cannot be disabled per PRD §6.1.1.
   if (!captureCfg.tier2Enabled && isTier2(msg.capture.type)) return;
@@ -1049,64 +1049,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     .catch(() => {});
 });
 
-// Per-tab "last committed top-frame URL" — used to fill NavigationData.fromUrl
-// without an extra chrome.tabs.get round-trip. Volatile; resets on
-// service-worker eviction. The first navigation after eviction reports
-// fromUrl=null, which is acceptable (PRD §6.1.3 lets live state lapse).
+// Per-tab "last page URL seen in a capture" — labels SW-originated events
+// (recording ticks, recording start/stop) without an extra chrome.tabs.get
+// round-trip, which would need the tabs permission. Volatile; resets on
+// service-worker eviction until the next capture arrives.
 const lastUrlPerTab = new Map<number, string>();
-
-chrome.webNavigation?.onCommitted?.addListener?.((details) => {
-  if (details.frameId !== 0) return; // top frame only — sub-frames are not navigations in PRD §6.1.1 terms.
-  const { tabId, url, transitionType } = details;
-
-  if (transitionType === 'reload') {
-    lastUrlPerTab.delete(tabId);
-    void clearSession(tabId).catch(() => {});
-    void clearBadge(tabId).catch(() => {});
-    return;
-  }
-
-  const fromUrl = lastUrlPerTab.get(tabId) ?? null;
-  lastUrlPerTab.set(tabId, url);
-  void emitNavigationEvent(tabId, url, fromUrl, transitionType).catch(() => {});
-});
-
-async function emitNavigationEvent(
-  tabId: number,
-  toUrl: string,
-  fromUrl: string | null,
-  transitionType: string
-): Promise<void> {
-  const origin = safeOrigin(toUrl);
-  const privacy = await loadPrivacyConfig();
-  // Same blocklist rule as handleCapture: a blocked origin drops every
-  // event family, navigation markers included.
-  if (privacy.blocklist.has(origin)) return;
-
-  // navigation is Tier 1 (always on), so no tier-2 gate here.
-  const captureCfg = await loadCaptureConfig();
-  const session = await getOrCreateSession(tabId, origin);
-  const sequenceNumber = nextSequence(session.sessionId, session.lastSequence);
-
-  const data: NavigationData = {
-    fromUrl,
-    toUrl,
-    ...(transitionType ? { transitionType } : {}),
-  };
-  const event: NavigationEvent = {
-    id: crypto.randomUUID(),
-    type: 'navigation',
-    timestamp: Date.now(),
-    sessionId: session.sessionId,
-    sequenceNumber,
-    tabId,
-    url: toUrl,
-    data,
-  };
-
-  const buffer = await queueEvent(tabId, event, sequenceNumber, captureCfg.maxEventsPerTab);
-  await renderBadge(tabId, buffer);
-}
 
 // ---------------------------------------------------------------------------
 // Keyboard commands (manifest.commands — PRD §9.2).
