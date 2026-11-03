@@ -81,7 +81,7 @@ describe('generateBundle', () => {
   it('survives an empty event list', () => {
     const html = generateBundle([], { appVersion: '0.4.0' });
     // Empty events → empty array, narrative is empty string
-    expect(readData(html)).toEqual({ events: [], narrative: '' });
+    expect(readData(html)).toEqual({ events: [], narrative: '', clusters: {} });
   });
 
   it('embeds a narrative banner when events span 2+ entries', () => {

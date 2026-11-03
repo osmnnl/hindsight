@@ -17,6 +17,7 @@
 //
 // Tests: replay-bundle.test.ts.
 
+import { resolveClusters } from '@/lib/detection';
 import { narrate } from '@/lib/narrative';
 import type { CapturedEvent } from '@/types/events';
 
@@ -41,7 +42,10 @@ export interface GenerateBundleOptions {
 export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOptions): string {
   const narrative = narrate(events);
   const title = opts.title ?? deriveTitle(events);
-  const dataJson = jsonForScriptElement({ events, narrative });
+  // Cluster membership is resolved here (TS) rather than re-implemented in
+  // the viewer, so both surfaces count a cascade the same way.
+  const clusters = Object.fromEntries(resolveClusters(events));
+  const dataJson = jsonForScriptElement({ events, narrative, clusters });
   // Per-bundle nonce: only the viewer script below may run. Captured
   // payloads can't reach a script context anyway (the data block is inert
   // JSON with `<` escaped), and the CSP also blocks inline handlers and any
@@ -240,6 +244,7 @@ const VIEWER_JS = `
   } catch (_) {
     /* corrupt data block — render an empty session rather than nothing */
   }
+  var clusterOf = data.clusters || Object.create(null);
   var events = (data.events || []).slice().sort(function (a, b) { return a.timestamp - b.timestamp; });
   var listEl = document.getElementById('event-list');
   var detailEl = document.getElementById('detail-pane');
@@ -419,9 +424,12 @@ const VIEWER_JS = `
     var filtered = applyFilter();
     // Build cluster index: headId → members.
     var membersByHead = Object.create(null);
+    var present = Object.create(null);
+    for (var p = 0; p < filtered.length; p++) present[filtered[p].id] = true;
     for (var i = 0; i < filtered.length; i++) {
-      var head = filtered[i].meta && filtered[i].meta.cascadeOf;
-      if (!head) continue;
+      var head = clusterOf[filtered[i].id];
+      // A filter can hide the head; its members then render as plain rows.
+      if (!head || !present[head]) continue;
       if (!membersByHead[head]) membersByHead[head] = [];
       membersByHead[head].push(filtered[i]);
     }
