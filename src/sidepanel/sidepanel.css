@@ -698,6 +698,10 @@ select:focus-visible {
   cursor: pointer;
   transition: background 100ms ease;
 }
+.list [role='option']:focus-visible {
+  outline-offset: -2px;
+}
+
 .item:hover {
   background: var(--surface);
 }

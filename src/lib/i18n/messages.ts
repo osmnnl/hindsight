@@ -267,6 +267,7 @@ const en = {
   // — Sidepanel: search —
   'sidepanel.search.placeholder': 'Search URLs, messages, payloads…',
   'sidepanel.search.label': 'Search captured events',
+  'sidepanel.list.label': 'Captured events',
   'sidepanel.host.label': 'Host',
   'sidepanel.host.clear': 'Clear host filter',
   'sidepanel.results.count': '{n} results',
@@ -642,6 +643,7 @@ const tr = {
   // — Sidepanel: search —
   'sidepanel.search.placeholder': 'URL, mesaj veya yük içinde ara…',
   'sidepanel.search.label': 'Yakalanan olaylarda ara',
+  'sidepanel.list.label': 'Yakalanan olaylar',
   'sidepanel.host.label': 'Host',
   'sidepanel.host.clear': 'Host filtresini temizle',
   'sidepanel.results.count': '{n} sonuç',

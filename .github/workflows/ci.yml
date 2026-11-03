@@ -73,3 +73,34 @@ jobs:
           path: hindsight-*.zip
           if-no-files-found: error
           retention-days: 30
+
+  a11y:
+    name: Accessibility (WCAG AA) · 1000-event render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        # Extensions only load in the full chromium channel, not the
+        # headless shell.
+        run: npx playwright install --with-deps chromium
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Contrast · names · focus · keyboard · render budget
+        # Loads dist/ in real Chromium; fails on any AA contrast miss,
+        # unlabeled control, invisible focus, broken list keyboard flow,
+        # or a 1000-event side-panel render >= 200 ms (PRD §13.1).
+        run: npm run test:a11y

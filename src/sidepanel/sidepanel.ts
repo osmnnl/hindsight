@@ -695,10 +695,26 @@ async function init(): Promise<void> {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const detail = document.getElementById('detail');
     if (!detail || detail.classList.contains('hidden')) return;
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+    closeDetail();
+  });
+
+  // List shortcuts (1.0 C3): `/` focuses search, `f` / `a` switch to the
+  // Failed / API filters. Ignored while typing, with modifiers held, or
+  // when the detail view or a modal owns the keyboard.
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (document.querySelector('.privacy-modal-overlay')) return;
+    if (!document.getElementById('detail')?.classList.contains('hidden')) return;
+    if (e.key === '/') {
+      const search = document.getElementById('search-input');
+      if (search instanceof HTMLInputElement && !search.closest('.hidden')) {
+        e.preventDefault();
+        search.focus();
+      }
+    } else if (e.key === 'f' || e.key === 'a') {
+      setFilter(e.key === 'f' ? 'failed' : 'api');
+    }
   });
 
   window.addEventListener('unload', () => {
@@ -1200,12 +1216,18 @@ function render(): void {
         <div class="empty-title">${escapeHtml(e!.title)}</div>
         <div class="empty-sub">${escapeHtml(e!.sub)}</div>
       </div>`;
+    list.removeAttribute('role');
     bulkBar.classList.add('hidden');
     return;
   }
 
+  // Listbox semantics only while there are rows; the empty state is prose.
+  list.setAttribute('role', 'listbox');
   renderedById.clear();
+  const hadFocus = list.contains(document.activeElement);
   list.innerHTML = renderListHtml(data);
+  syncRovingTabindex(list);
+  if (hadFocus) focusRow(activeRowKey);
 
   // One delegated click listener on the list — independent of how many
   // rows are in the DOM. Also handles cluster expand/collapse via
@@ -1214,23 +1236,89 @@ function render(): void {
     list.addEventListener('click', (clickEvent) => {
       const target = clickEvent.target;
       if (!(target instanceof Element)) return;
-      const clusterToggle = target.closest<HTMLElement>('[data-cluster-toggle]');
-      if (clusterToggle) {
-        const headId = clusterToggle.dataset.clusterToggle;
-        if (headId) toggleCluster(headId);
-        return;
-      }
-      const row = target.closest<HTMLElement>('[data-event-id]');
-      if (!row) return;
-      const id = row.dataset.eventId;
-      if (!id) return;
-      const evt = renderedById.get(id);
-      if (evt) showDetail(evt);
+      const option = target.closest<HTMLElement>('[role="option"]');
+      if (option) activateOption(option);
     });
+    list.addEventListener('keydown', onListKeydown);
     listDelegationWired = true;
   }
 
   renderBulkBar(data);
+}
+
+// Keyboard listbox (1.0 C3, WCAG 2.1.1): the list is one tab stop; arrows,
+// Home/End move between rows (roving tabindex), Enter/Space opens the row
+// or toggles a cluster. `activeRowKey` survives the 1 s refresh re-render.
+let activeRowKey: string | null = null;
+
+function optionKey(option: HTMLElement): string | null {
+  return option.dataset.eventId ?? option.dataset.clusterToggle ?? null;
+}
+
+function listOptions(list: ParentNode): HTMLElement[] {
+  return Array.from(list.querySelectorAll<HTMLElement>('[role="option"]'));
+}
+
+function syncRovingTabindex(list: HTMLElement): void {
+  const options = listOptions(list);
+  const active = options.find((o) => optionKey(o) === activeRowKey) ?? options[0];
+  for (const o of options) {
+    const on = o === active;
+    o.tabIndex = on ? 0 : -1;
+    o.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+}
+
+function focusRow(key: string | null): void {
+  const list = document.getElementById('list');
+  if (!list) return;
+  activeRowKey = key;
+  syncRovingTabindex(list);
+  list.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus();
+}
+
+function activateOption(option: HTMLElement): void {
+  activeRowKey = optionKey(option);
+  const headId = option.dataset.clusterToggle;
+  if (headId) {
+    toggleCluster(headId);
+    return;
+  }
+  const evt = option.dataset.eventId ? renderedById.get(option.dataset.eventId) : undefined;
+  if (evt) showDetail(evt);
+}
+
+function onListKeydown(e: KeyboardEvent): void {
+  const current =
+    e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[role="option"]') : null;
+  if (!current || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    activateOption(current);
+    return;
+  }
+  const options = listOptions(e.currentTarget as HTMLElement);
+  const i = options.indexOf(current);
+  const nextIndex: Record<string, number> = {
+    ArrowDown: Math.min(i + 1, options.length - 1),
+    ArrowUp: Math.max(i - 1, 0),
+    Home: 0,
+    End: options.length - 1,
+  };
+  const target = options[nextIndex[e.key] ?? -1];
+  if (!target) return;
+  e.preventDefault();
+  focusRow(optionKey(target));
+  target.scrollIntoView({ block: 'nearest' });
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
 }
 
 // Set of cluster heads currently expanded. Persists across renders.
@@ -1291,7 +1379,7 @@ function renderListHtml(data: CapturedEvent[]): string {
 
 function renderEventRow(e: CapturedEvent, indented: boolean): string {
   const row = formatRow(e);
-  return `<div class="item ${row.className}${indented ? ' cluster-member' : ''}" data-event-id="${escapeHtml(e.id)}">
+  return `<div class="item ${row.className}${indented ? ' cluster-member' : ''}" data-event-id="${escapeHtml(e.id)}" role="option" tabindex="-1" aria-selected="false">
     <div class="status">${escapeHtml(row.statusBadge)}</div>
     <div class="method">${escapeHtml(row.method)}</div>
     <div class="url" title="${escapeHtml(row.urlTitle)}">${escapeHtml(row.urlText)}</div>
@@ -1312,7 +1400,7 @@ function renderClusterBanner(
   const summary = summarizeCluster(all);
   const arrow = expanded ? '▾' : '▸';
   const totalCount = all.length;
-  return `<div class="cluster-banner ${summary.severity}" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}" role="button" tabindex="0">
+  return `<div class="cluster-banner ${summary.severity}" data-cluster-toggle="${escapeHtml(head.id)}" aria-expanded="${expanded ? 'true' : 'false'}" role="option" tabindex="-1" aria-selected="false">
     <span class="cluster-banner-icon" aria-hidden="true">${summary.icon}</span>
     <span class="cluster-banner-title"><strong>${escapeHtml(summary.title)}</strong></span>
     <span class="cluster-banner-meta">${escapeHtml(summary.subtitle)}</span>
@@ -2123,11 +2211,24 @@ function downloadAllAsFile(items: NetworkRequestEvent[]): void {
 }
 
 function showDetail(e: CapturedEvent): void {
+  activeRowKey = e.id;
   if (isRequestLike(e)) {
     showNetworkDetail(e);
   } else {
     showSimpleDetail(e);
   }
+  document.getElementById('back')?.focus();
+}
+
+/** Closes the detail view and hands focus back to the row it came from. */
+function closeDetail(): void {
+  const detail = document.getElementById('detail');
+  if (!detail) return;
+  detail.classList.add('hidden');
+  detail.innerHTML = '';
+  const data = filteredEvents(events, filterMode);
+  if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
+  focusRow(activeRowKey);
 }
 
 /**
@@ -2250,8 +2351,13 @@ function wireDetailSearch(detail: HTMLElement): void {
 
   const bar = document.createElement('div');
   bar.className = 'detail-search';
+  const label = document.createElement('label');
+  label.className = 'sr-only';
+  label.htmlFor = 'detail-search-input';
+  label.textContent = t('sidepanel.detailSearch.placeholder');
   const input = document.createElement('input');
   input.type = 'search';
+  input.id = 'detail-search-input';
   input.placeholder = t('sidepanel.detailSearch.placeholder');
   const count = document.createElement('span');
   count.className = 'search-count';
@@ -2265,7 +2371,7 @@ function wireDetailSearch(detail: HTMLElement): void {
   next.className = 'search-nav';
   next.textContent = '↓';
   next.setAttribute('aria-label', t('sidepanel.detailSearch.next'));
-  bar.append(input, count, prev, next);
+  bar.append(label, input, count, prev, next);
   top.appendChild(bar);
 
   let hits: HTMLElement[] = [];
@@ -2334,12 +2440,7 @@ function showSimpleDetail(e: CapturedEvent): void {
     ${body}
   `;
 
-  document.getElementById('back')?.addEventListener('click', () => {
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
-  });
+  document.getElementById('back')?.addEventListener('click', closeDetail);
   document.getElementById('bulk-bar')?.classList.add('hidden');
   enhanceDetailView(detail);
 }
@@ -2522,12 +2623,7 @@ function showNetworkDetail(c: NetworkRequestEvent): void {
     </div>
   `;
 
-  document.getElementById('back')?.addEventListener('click', () => {
-    detail.classList.add('hidden');
-    detail.innerHTML = '';
-    const data = filteredEvents(events, filterMode);
-    if (data.length > 0) document.getElementById('bulk-bar')?.classList.remove('hidden');
-  });
+  document.getElementById('back')?.addEventListener('click', closeDetail);
 
   document.getElementById('bulk-bar')?.classList.add('hidden');
 
