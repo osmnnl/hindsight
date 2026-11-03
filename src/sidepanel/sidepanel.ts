@@ -21,6 +21,7 @@ import {
   isFailedNetwork,
   type EventCategory,
 } from '@/types/events';
+import { resolveClusters } from '@/lib/detection';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { toMarkdownReport } from '@/lib/formatters/markdown';
@@ -1153,8 +1154,9 @@ function toggleCluster(headId: string): void {
 function renderListHtml(data: CapturedEvent[]): string {
   // Build cluster index: headId → members (excluding head itself).
   const membersByHead = new Map<string, CapturedEvent[]>();
+  const clusterOf = resolveClusters(data);
   for (const e of data) {
-    const head = e.meta?.cascadeOf;
+    const head = clusterOf.get(e.id);
     if (!head) continue;
     const arr = membersByHead.get(head) ?? [];
     arr.push(e);

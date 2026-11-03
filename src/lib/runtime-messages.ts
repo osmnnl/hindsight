@@ -63,6 +63,10 @@ export interface PageBridgeMessage {
    *  The service worker merges these with its own header / body
    *  redactions before persisting EventMeta. */
   redactions?: Redaction[];
+  /** Epoch ms stamped in the page world at the moment of capture. The
+   *  bridge batches for 250 ms, so the SW's receipt time would reorder
+   *  actions against requests; see lib/capture-time.ts. */
+  t?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +108,8 @@ export interface CaptureRuntimeMessage {
   /** Page-world-applied redactions; the service worker concatenates
    *  these with its own to form the final EventMeta.redactions list. */
   redactions?: Redaction[];
+  /** Capture-time epoch ms from the page world (PageBridgeMessage.t). */
+  t?: number;
 }
 
 /** One queued capture inside a CAPTURE_BATCH — the per-event slice of
@@ -111,6 +117,7 @@ export interface CaptureRuntimeMessage {
 export interface QueuedCapture {
   capture: RawCapture;
   redactions?: Redaction[];
+  t?: number;
 }
 
 /**

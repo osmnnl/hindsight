@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CASCADE_WINDOW_MS, SLOW_REQUEST_MS, detect } from './detection';
+import { CASCADE_WINDOW_MS, SLOW_REQUEST_MS, detect, resolveClusters } from './detection';
 import type { CapturedEvent, ConsoleErrorEvent, NetworkFetchEvent } from '@/types/events';
 
 const BASE_TS = Date.UTC(2026, 4, 21, 14, 0, 0);
@@ -192,5 +192,60 @@ describe('detect — repeated identical failure', () => {
     ];
     const r = detect(fetchEvt({ id: 'b', url: 'https://api.example.com/x', status: 503 }), buffer);
     expect(r.flags).not.toContain('anomaly');
+  });
+});
+
+/** Runs events through detect() the way the SW does: stamp, then append. */
+function pipeline(events: NetworkFetchEvent[]): CapturedEvent[] {
+  const stored: CapturedEvent[] = [];
+  for (const e of events) {
+    const r = detect(e, stored);
+    stored.push(r.cascadeOf ? { ...e, meta: { flags: r.flags, cascadeOf: r.cascadeOf } } : e);
+  }
+  return stored;
+}
+
+function clusters(stored: CapturedEvent[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const [member, head] of resolveClusters(stored)) {
+    out.set(head, [...(out.get(head) ?? [head]), member].sort());
+  }
+  return out;
+}
+
+describe('cascade clustering (1.0 A3)', () => {
+  it('[500, 401, 401, 401, 404] → one 401 cluster of 3; 500 and 404 stay single', () => {
+    const statuses = [500, 401, 401, 401, 404];
+    const stored = pipeline(
+      statuses.map((status, i) => fetchEvt({ id: `e${i}`, ts: BASE_TS + i * 200, status }))
+    );
+    const c = clusters(stored);
+    expect([...c.entries()]).toEqual([['e1', ['e1', 'e2', 'e3']]]);
+    expect(stored[3]!.meta?.flags).toContain('cascade-head');
+    expect(stored[0]!.meta).toBeUndefined();
+    expect(stored[4]!.meta).toBeUndefined();
+  });
+
+  it('still triggers a generic cascade for 3× 5xx (head counted)', () => {
+    const stored = pipeline(
+      [500, 502, 503].map((status, i) => fetchEvt({ id: `s${i}`, ts: BASE_TS + i * 100, status }))
+    );
+    expect([...clusters(stored).entries()]).toEqual([['s0', ['s0', 's1', 's2']]]);
+  });
+
+  it('keeps 403 in the auth class with 401', () => {
+    const stored = pipeline(
+      [401, 403, 401].map((status, i) => fetchEvt({ id: `a${i}`, ts: BASE_TS + i, status }))
+    );
+    expect(clusters(stored).get('a0')).toEqual(['a0', 'a1', 'a2']);
+  });
+
+  it('later members join the same cluster without backfilling other classes', () => {
+    const stored = pipeline(
+      [500, 500, 404, 500, 500].map((status, i) =>
+        fetchEvt({ id: `m${i}`, ts: BASE_TS + i * 100, status })
+      )
+    );
+    expect([...clusters(stored).entries()]).toEqual([['m0', ['m0', 'm1', 'm3', 'm4']]]);
   });
 });

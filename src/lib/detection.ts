@@ -23,7 +23,8 @@ type NetworkRequestEvent = NetworkFetchEvent | NetworkXhrEvent;
 export const SLOW_REQUEST_MS = 3000;
 
 /** PRD §6.2.1 cascade rule: three failed requests to the same origin
- *  within ten seconds count as one cascade. */
+ *  and failure class (see failureClass) within ten seconds count as one
+ *  cascade. */
 export const CASCADE_WINDOW_MS = 10_000;
 export const CASCADE_MIN_COUNT = 3;
 
@@ -87,7 +88,7 @@ interface CascadeMatch {
 
 function detectCascade(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): CascadeMatch | null {
   const since = trigger.timestamp - CASCADE_WINDOW_MS;
-  const triggerOrigin = safeOrigin(trigger.data.request.url);
+  const key = cascadeKey(trigger);
 
   const recentSameOriginFailures = buffer
     .filter(
@@ -95,7 +96,7 @@ function detectCascade(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): C
         (e.type === 'network.fetch' || e.type === 'network.xhr') &&
         isFailedNetwork(e) &&
         e.timestamp >= since &&
-        safeOrigin(e.data.request.url) === triggerOrigin
+        cascadeKey(e) === key
     )
     .sort((a, b) => a.timestamp - b.timestamp);
 
@@ -123,6 +124,54 @@ function detectCascade(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): C
   // hit the inheritedHead branch above with isHead:false and just
   // join the cluster.
   return { headId: oldest.id, isHead: true };
+}
+
+export type FailureClass = 'auth' | 'client' | 'server' | 'network';
+
+/** Bucket a failed request so unrelated failures don't merge into one
+ *  cascade: an expired session (401/403) is a different story from a
+ *  backend outage (5xx) or a stray 404 on the same origin. */
+export function failureClass(e: NetworkRequestEvent): FailureClass {
+  const status = e.data.response.status;
+  if (status === 401 || status === 403) return 'auth';
+  if (status >= 500) return 'server';
+  if (status >= 400) return 'client';
+  return 'network';
+}
+
+function cascadeKey(e: NetworkRequestEvent): string {
+  return `${safeOrigin(e.data.request.url)} ${failureClass(e)}`;
+}
+
+/**
+ * Cluster membership for rendering: member id → head id (heads aren't
+ * keys). detect() can only stamp cascadeOf from the threshold-tripping
+ * failure onward, so the failures between the head and that event (the
+ * 2nd of 3) carry no link; this backfills them from the same cascade key
+ * so the cluster count matches what the rule saw. `events` is
+ * oldest-first.
+ */
+export function resolveClusters(events: readonly CapturedEvent[]): Map<string, string> {
+  const byId = new Map<string, CapturedEvent>();
+  for (const e of events) byId.set(e.id, e);
+  const clusterOf = new Map<string, string>();
+  for (let i = 0; i < events.length; i++) {
+    const member = events[i]!;
+    const headId = member.meta?.cascadeOf;
+    if (!headId || headId === member.id) continue;
+    const head = byId.get(headId);
+    if (!head) continue;
+    clusterOf.set(member.id, headId);
+    if (!isFailedNetwork(head)) continue;
+    const key = cascadeKey(head);
+    for (let j = i - 1; j >= 0; j--) {
+      const prior = events[j]!;
+      if (prior.timestamp < head.timestamp) break;
+      if (prior.id === headId || clusterOf.has(prior.id)) continue;
+      if (isFailedNetwork(prior) && cascadeKey(prior) === key) clusterOf.set(prior.id, headId);
+    }
+  }
+  return clusterOf;
 }
 
 function countIdenticalFailures(trigger: NetworkRequestEvent, buffer: CapturedEvent[]): number {
