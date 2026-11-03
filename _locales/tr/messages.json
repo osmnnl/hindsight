@@ -16,7 +16,7 @@
     "description": "Klavye kısayolu açıklaması."
   },
   "cmdCaptureLastMoment": {
-    "message": "Son 30 saniyeyi hızlıca yakala",
+    "message": "Son anı yakala (kayıt dosyasını indir)",
     "description": "Klavye kısayolu açıklaması."
   },
   "cmdToggleRecording": {

@@ -785,7 +785,7 @@ Hindsight v1 explicitly will not include the following. Each is excluded with a 
     },
     "capture-last-moment": {
       "suggested_key": { "default": "Ctrl+Shift+B", "mac": "Command+Shift+B" },
-      "description": "Quick capture last 30 seconds"
+      "description": "Capture last moment (download the replay file)"
     },
     "toggle-recording": {
       "description": "Start/stop recording mode"

@@ -16,7 +16,7 @@
     "description": "Keyboard shortcut description."
   },
   "cmdCaptureLastMoment": {
-    "message": "Quick capture last 30 seconds",
+    "message": "Capture last moment (download the replay file)",
     "description": "Keyboard shortcut description."
   },
   "cmdToggleRecording": {

@@ -24,7 +24,7 @@ const EN: Copy = {
     'Save the session as a single HTML replay file that opens in any browser, or send it to Slack, Teams, Discord or a GitHub issue.',
   'keys.title': 'Keyboard shortcuts',
   'keys.hint': 'Change them at',
-  'keys.unset': 'not set',
+  'keys.unset': 'Set in chrome://extensions/shortcuts',
   'privacy.title': 'What stays private',
   'privacy.1': 'Everything is stored on this computer. Hindsight has no server.',
   'privacy.2': 'Authorization, Cookie and API-key headers are masked before anything is written.',
@@ -33,7 +33,7 @@ const EN: Copy = {
   'actions.settings': 'Open settings',
   'actions.close': 'Start browsing',
   'cmd.open-side-panel': 'Open the side panel',
-  'cmd.capture-last-moment': 'Capture the last 30 seconds',
+  'cmd.capture-last-moment': 'Capture last moment',
   'cmd.toggle-recording': 'Start or stop recording mode',
 };
 
@@ -52,7 +52,7 @@ const TR: Copy = {
     'Oturumu her tarayıcıda açılan tek bir HTML kayıt dosyası olarak kaydedin ya da Slack, Teams, Discord veya GitHub issue’ya gönderin.',
   'keys.title': 'Klavye kısayolları',
   'keys.hint': 'Değiştirmek için:',
-  'keys.unset': 'atanmamış',
+  'keys.unset': 'chrome://extensions/shortcuts adresinden atayın',
   'privacy.title': 'Ne gizli kalır',
   'privacy.1': 'Her şey bu bilgisayarda saklanır. Hindsight’ın sunucusu yoktur.',
   'privacy.2': 'Authorization, Cookie ve API anahtarı başlıkları kaydedilmeden önce maskelenir.',
@@ -61,7 +61,7 @@ const TR: Copy = {
   'actions.settings': 'Ayarları aç',
   'actions.close': 'Gezinmeye başla',
   'cmd.open-side-panel': 'Yan paneli aç',
-  'cmd.capture-last-moment': 'Son 30 saniyeyi yakala',
+  'cmd.capture-last-moment': 'Son anı yakala',
   'cmd.toggle-recording': 'Kayıt modunu başlat / durdur',
 };
 
