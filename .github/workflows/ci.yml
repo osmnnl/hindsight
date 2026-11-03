@@ -13,8 +13,13 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint · Type-check · Build · Test · Bench
+    name: Lint · Type-check · Build · Test · Bench (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # .nvmrc pins local dev to 20; 22 is the next LTS users run.
+        node: [20, 22]
 
     steps:
       - name: Checkout
@@ -23,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
 
       - name: Install dependencies
