@@ -258,24 +258,6 @@
         text-align: center;
         overflow: hidden;
       }
-      .hero::before {
-        content: '';
-        position: absolute;
-        top: -200px;
-        left: 50%;
-        width: 900px;
-        height: 900px;
-        transform: translateX(-50%);
-        background: radial-gradient(
-          closest-side,
-          rgba(0, 0, 0, 0.18),
-          rgba(0, 0, 0, 0.04) 50%,
-          transparent 75%
-        );
-        pointer-events: none;
-        z-index: 0;
-        filter: blur(20px);
-      }
       .hero-content {
         position: relative;
         z-index: 1;
@@ -322,10 +304,7 @@
         text-wrap: balance;
       }
       .hero h1 .accent {
-        background: linear-gradient(180deg, #1d1d1f 0%, #1d1d1f 55%, #6e6e73 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        color: var(--text-mute);
         display: inline-block;
       }
       .hero-lede {
@@ -429,7 +408,7 @@
         perspective: 1400px;
       }
       .device-frame {
-        background: linear-gradient(180deg, #fbfbfd 0%, #f0f0f3 100%);
+        background: var(--surface);
         border: 1px solid var(--hairline-strong);
         border-radius: 20px;
         overflow: hidden;
@@ -489,7 +468,6 @@
         height: 7px;
         border-radius: 50%;
         background: #ff3b30;
-        box-shadow: 0 0 8px #ff3b30;
         animation: pulse 1.6s ease-in-out infinite;
       }
       .device-body {
@@ -623,9 +601,8 @@
       }
       .bento-card.featured {
         grid-column: span 6;
-        background:
-          radial-gradient(120% 200% at 100% 0%, rgba(0, 0, 0, 0.14) 0%, transparent 50%),
-          var(--surface);
+        background: var(--surface);
+        border-color: var(--hairline-strong);
       }
       .bento-card.half {
         grid-column: span 3;
@@ -763,15 +740,7 @@
         width: 100%;
         aspect-ratio: 16 / 10;
         border-radius: 14px;
-        background:
-          linear-gradient(
-            135deg,
-            rgba(0, 0, 0, 0.18) 0%,
-            transparent 40%,
-            rgba(138, 180, 255, 0.12) 100%
-          ),
-          repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 12px),
-          var(--bg-elev);
+        background: var(--bg-elev);
         border: 1px solid var(--hairline);
         position: relative;
         overflow: hidden;
@@ -825,7 +794,7 @@
       .perf-chip .bar i {
         display: block;
         height: 100%;
-        background: linear-gradient(90deg, #d70015, #febc2e, #1d8a34);
+        background: #1d8a34;
         border-radius: 999px;
       }
       .perf-chip .val {
@@ -834,14 +803,10 @@
 
       /* — Privacy moment — */
       .privacy {
-        background:
-          radial-gradient(120% 80% at 50% 0%, rgba(0, 0, 0, 0.06) 0%, transparent 60%), var(--bg);
+        background: var(--bg);
       }
       .privacy h2 .accent {
-        background: linear-gradient(180deg, #1d1d1f, #000000);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        color: var(--text-mute);
       }
       .mask-card {
         margin: clamp(48px, 7vw, 72px) auto 0;
@@ -1016,21 +981,16 @@
           transform 280ms var(--ease-out),
           background 280ms var(--ease);
       }
-      .other::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(120% 80% at 100% 0%, rgba(0, 0, 0, 0.06), transparent 60%);
-        opacity: 0;
-        transition: opacity 280ms var(--ease);
-        pointer-events: none;
-      }
       .other:hover {
         border-color: var(--text);
         transform: translateY(-4px);
       }
-      .other:hover::before {
-        opacity: 1;
+      .other-icon {
+        display: block;
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        margin-bottom: 20px;
       }
       .other-kicker {
         display: inline-block;
@@ -1235,6 +1195,12 @@
         }
       }
 
+      /* Phone width: the Firefox link stays in the hero, the nav keeps Chrome only. */
+      @media (max-width: 440px) {
+        .nav-cta:not(.nav-cta-primary) {
+          display: none !important;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -2035,8 +2001,8 @@
         <div class="container">
           <div class="section-head reveal">
             <div class="eyebrow">
-              <span data-lang="en">More from osmnnl</span>
-              <span data-lang="tr">osmnnl'den dahası</span>
+              <span data-lang="en">More from the same developer</span>
+              <span data-lang="tr">Aynı geliştiriciden</span>
             </div>
             <h2>
               <span data-lang="en">Extensions worth your toolbar.</span>
@@ -2055,84 +2021,34 @@
 
           <div class="others reveal">
             <article class="other">
+              <img class="other-icon" src="./family/storageninja.png" alt="" width="56" height="56" />
               <div class="other-kicker">Chrome Extension · 01</div>
               <h3>StorageNinja</h3>
               <p>
-                <span data-lang="en"
-                  >Inspect, edit and wipe browser storage — localStorage, sessionStorage, cookies
-                  and IndexedDB — from a single keyboard-friendly panel.</span
-                >
-                <span data-lang="tr"
-                  >Tek bir klavyeye dost panelden localStorage, sessionStorage, cookie ve IndexedDB
-                  — tarayıcı depolamasını incele, düzenle ve sıfırla.</span
-                >
+                <span data-lang="en">Copy the access token, storage and cookies of any page in one click. Snapshots, paste between environments and a DevTools panel.</span>
+                <span data-lang="tr">Her sayfanın access token'ını, storage'ını ve çerezlerini tek tıkla kopyalayın. Anlık görüntüler, ortamlar arası yapıştırma ve DevTools paneli.</span>
               </p>
               <div class="other-actions">
-                <a
-                  href="https://chromewebstore.google.com/search/StorageNinja"
-                  class="btn btn-primary btn-sm"
-                  data-lang="en"
-                  >Add to Chrome</a
-                >
-                <a
-                  href="https://chromewebstore.google.com/search/StorageNinja"
-                  class="btn btn-primary btn-sm"
-                  data-lang="tr"
-                  >Chrome'a Ekle</a
-                >
-                <a
-                  href="https://osmnnl.github.io/StorageNinja/"
-                  class="btn btn-secondary btn-sm btn-arrow"
-                  data-lang="en"
-                  >Visit site</a
-                >
-                <a
-                  href="https://osmnnl.github.io/StorageNinja/"
-                  class="btn btn-secondary btn-sm btn-arrow"
-                  data-lang="tr"
-                  >Siteyi ziyaret et</a
-                >
+                <a href="https://chromewebstore.google.com/detail/storageninja/kenpefhgbcjkofomcfajmhmilhkfdedp" class="btn btn-primary btn-sm" data-lang="en">Add to Chrome</a>
+                <a href="https://chromewebstore.google.com/detail/storageninja/kenpefhgbcjkofomcfajmhmilhkfdedp" class="btn btn-primary btn-sm" data-lang="tr">Chrome'a Ekle</a>
+                <a href="https://osmnnl.github.io/StorageNinja/" class="btn btn-secondary btn-sm btn-arrow" data-lang="en">Visit site</a>
+                <a href="https://osmnnl.github.io/StorageNinja/" class="btn btn-secondary btn-sm btn-arrow" data-lang="tr">Siteyi ziyaret et</a>
               </div>
             </article>
 
             <article class="other">
+              <img class="other-icon" src="./family/datahelper.png" alt="" width="56" height="56" />
               <div class="other-kicker">Chrome Extension · 02</div>
-              <h3>TestDataHelper</h3>
+              <h3>Data Helper</h3>
               <p>
-                <span data-lang="en"
-                  >Generate realistic test data — Turkish IDs, IBANs, names, emails, dates — and
-                  drop them into any form field with one click.</span
-                >
-                <span data-lang="tr"
-                  >Gerçekçi test verisi üret — TCKN, IBAN, ad, e-posta, tarih — ve tek tıkla
-                  herhangi bir form alanına yerleştir.</span
-                >
+                <span data-lang="en">Valid Turkish test data (TCKN, VKN, IBAN) and one-click form filling, with preview, undo and CSV / XLSX export.</span>
+                <span data-lang="tr">Geçerli Türkçe test verisi (TCKN, VKN, IBAN) ve tek tıkla form doldurma; önizleme, geri alma ve CSV / XLSX dışa aktarma.</span>
               </p>
               <div class="other-actions">
-                <a
-                  href="https://chromewebstore.google.com/search/TestDataHelper"
-                  class="btn btn-primary btn-sm"
-                  data-lang="en"
-                  >Add to Chrome</a
-                >
-                <a
-                  href="https://chromewebstore.google.com/search/TestDataHelper"
-                  class="btn btn-primary btn-sm"
-                  data-lang="tr"
-                  >Chrome'a Ekle</a
-                >
-                <a
-                  href="https://osmnnl.github.io/TestDataHelper/"
-                  class="btn btn-secondary btn-sm btn-arrow"
-                  data-lang="en"
-                  >Visit site</a
-                >
-                <a
-                  href="https://osmnnl.github.io/TestDataHelper/"
-                  class="btn btn-secondary btn-sm btn-arrow"
-                  data-lang="tr"
-                  >Siteyi ziyaret et</a
-                >
+                <a href="https://chromewebstore.google.com/detail/hboimhjgdphpokonjindjhgoihkmboli" class="btn btn-primary btn-sm" data-lang="en">Add to Chrome</a>
+                <a href="https://chromewebstore.google.com/detail/hboimhjgdphpokonjindjhgoihkmboli" class="btn btn-primary btn-sm" data-lang="tr">Chrome'a Ekle</a>
+                <a href="https://osmnnl.github.io/TestDataHelper/" class="btn btn-secondary btn-sm btn-arrow" data-lang="en">Visit site</a>
+                <a href="https://osmnnl.github.io/TestDataHelper/" class="btn btn-secondary btn-sm btn-arrow" data-lang="tr">Siteyi ziyaret et</a>
               </div>
             </article>
           </div>
@@ -2149,6 +2065,8 @@
         </div>
         <nav class="footer-links">
           <a href="https://github.com/osmnnl/hindsight" class="muted-link">GitHub</a>
+          <a href="https://osmnnl.github.io/StorageNinja/" class="muted-link">StorageNinja</a>
+          <a href="https://osmnnl.github.io/TestDataHelper/" class="muted-link">Data Helper</a>
           <a href="./privacy.html" class="muted-link" data-lang="en">Privacy</a>
           <a href="./privacy.html" class="muted-link" data-lang="tr">Gizlilik</a>
           <a
