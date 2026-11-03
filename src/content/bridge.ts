@@ -4,6 +4,7 @@
 // and forwards them to the service worker. Both halves agree on the
 // shape via src/lib/runtime-messages.ts.
 
+import { createWindowIntakeGate } from '@/lib/bridge-intake';
 import {
   CAPTURE_BRIDGE_TAG,
   type CaptureBatchRuntimeMessage,
@@ -173,6 +174,8 @@ let hsTimer: number | null = null;
  *  losers are closed — otherwise up to HS_MAX_ATTEMPTS-1 entangled port
  *  pairs leak per frame / page-load, left to GC (perf review finding). */
 const offeredPorts: MessagePort[] = [];
+/** Stops the page forging captures over window once the port is live. */
+const windowIntake = createWindowIntakeGate();
 
 function onPortMessage(p: MessagePort, data: PortControlMessage | PageBridgeMessage): void {
   if ('hs' in data) {
@@ -203,7 +206,10 @@ function onPortMessage(p: MessagePort, data: PortControlMessage | PageBridgeMess
     }
     return;
   }
-  if (data.capture) enqueueCapture(data);
+  if (data.capture) {
+    windowIntake.notePortCapture(Date.now());
+    enqueueCapture(data);
+  }
 }
 
 function offerPort(): void {
@@ -222,12 +228,15 @@ function offerPort(): void {
 }
 
 // Capture intake over window: the fallback path, and the only path until
-// the port round-trip completes. Ignores the bridge's own port-offer echo.
+// the port round-trip completes. Ignores the bridge's own port-offer echo,
+// and — once the port carries captures — anything after the switch-over
+// grace period (bridge-intake.ts).
 window.addEventListener('message', (event: MessageEvent<PageBridgeMessage>) => {
   if (event.source !== window) return;
   const data = event.data;
   if (!data || data.source !== CAPTURE_BRIDGE_TAG) return;
   if (!data.capture) return;
+  if (!windowIntake.acceptWindowCapture(Date.now())) return;
   enqueueCapture(data);
 });
 
