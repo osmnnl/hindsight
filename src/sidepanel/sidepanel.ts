@@ -23,6 +23,7 @@ import {
 } from '@/types/events';
 import { buildGithubIssueUrl, buildMailtoUrl } from '@/lib/destinations/web-intents';
 import { icon } from '@/lib/icons';
+import { extractAccessToken, toFetch } from './copy-formats';
 import { dispatchToWebhook, type WebhookDestination } from '@/lib/destinations/webhooks';
 import { toMarkdownReport } from '@/lib/formatters/markdown';
 import { toHar } from '@/lib/har';
@@ -2820,20 +2821,6 @@ function formatForCopy(c: NetworkRequestEvent, format: CopyFormat): string {
   return toBugReport(c);
 }
 
-/** Reproduce the request as a runnable fetch() call — paste into a console
- *  or a .js file. Headers are masked (same as cURL). */
-function toFetch(c: NetworkRequestEvent): string {
-  const init: string[] = [`  method: ${JSON.stringify(c.data.request.method)}`];
-  const headers = maskHeaders(c.data.request.headers);
-  if (Object.keys(headers).length > 0) {
-    init.push(`  headers: ${JSON.stringify(headers, null, 2).replace(/\n/g, '\n  ')}`);
-  }
-  if (c.data.request.body != null && c.data.request.body !== '') {
-    init.push(`  body: ${JSON.stringify(String(c.data.request.body))}`);
-  }
-  return `fetch(${JSON.stringify(c.data.request.url)}, {\n${init.join(',\n')},\n});`;
-}
-
 /** Plain text request dump — method + URL + headers + body, no cURL
  *  decoration. Useful to paste into a different HTTP client. */
 function toRequestText(c: NetworkRequestEvent): string {
@@ -2860,19 +2847,6 @@ function toRequestResponseText(c: NetworkRequestEvent): string {
     respLines.push('', 'Body:', c.data.response.body);
   }
   return reqPart + '\n' + respLines.join('\n');
-}
-
-/** Pull the access token out of the Authorization header. Strips the
- *  scheme prefix (Bearer / Token / JWT) so the user can paste the raw
- *  credential into a JWT decoder, Postman, etc. If the header is masked
- *  (Authorization rule still enabled in Settings → Privacy) this
- *  returns ***MASKED***, which is honest about what storage holds. */
-function extractAccessToken(c: NetworkRequestEvent): string {
-  const auth =
-    c.data.request.headers['Authorization'] ?? c.data.request.headers['authorization'] ?? '';
-  if (!auth) return '';
-  const m = auth.match(/^\s*(Bearer|Token|JWT|Basic)\s+(.+)$/i);
-  return m && m[2] ? m[2] : auth;
 }
 
 function toCurl(c: NetworkRequestEvent): string {
