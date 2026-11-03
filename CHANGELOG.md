@@ -38,7 +38,9 @@ per-site Replay access, and store listings for Chrome, Firefox and Edge.
   that timestamp (PRD §6.1.2, §13.2).
 - **Cascades are keyed by origin + failure class** (auth 401/403, other
   4xx, 5xx, network), and every member is linked, so 3× 401 shows as one
-  cascade of three instead of a loose row plus "cascade — 2" (PRD §6.2.3).
+  cascade of three instead of a loose row plus "cascade — 2". Relative
+  request URLs (`fetch('/api/x')`) resolve against the page first, so
+  they cluster too (PRD §6.2.3).
 - **`npm ci` works on npm 10 and 11.** Lockfile regenerated and in sync
   with 1.0.0; `engines` is `>=20.10 <25`; CI tests Node 20 and 22.
 - **Replay viewer** narrative renders headings, lists, **bold** and
