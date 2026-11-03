@@ -314,11 +314,9 @@
         <span data-lang="tr">Gizlilik politikası</span>
       </h1>
       <p class="meta">
-        <span data-lang="en"
-          >Last updated: 2026-05-26 · Applies to Hindsight v0.5.x and later.</span
-        >
+        <span data-lang="en">Last updated: 2026-11-03 · Applies to Hindsight 1.0.0 and later.</span>
         <span data-lang="tr"
-          >Son güncelleme: 2026-05-26 · Hindsight v0.5.x ve sonrasını kapsar.</span
+          >Son güncelleme: 2026-11-03 · Hindsight 1.0.0 ve sonrasını kapsar.</span
         >
       </p>
 
@@ -425,9 +423,13 @@
             <td data-lang="en">On (Tier 3)</td>
             <td data-lang="tr">Açık (Tier 3)</td>
             <td data-lang="en">
-              JPEG of visible tab at error moment; throttled to one per tab per 2s.
+              JPEG of the visible tab at error time, on tabs where you opened Hindsight; one per tab
+              per 2s.
             </td>
-            <td data-lang="tr">Hata anında görünür sekmenin JPEG'i; sekme başına 2 sn'de bir.</td>
+            <td data-lang="tr">
+              Hindsight'ı açtığınız sekmelerde hata anında görünür sekmenin JPEG'i; sekme başına 2
+              sn'de bir.
+            </td>
           </tr>
           <tr>
             <td data-lang="en">Performance signals</td>
@@ -674,10 +676,10 @@
         <li>
           <span data-lang="en"
             ><strong>Replay bundle download</strong>: a single <code>.html</code> file is written to
-            your computer via <code>chrome.downloads</code>. Nothing is uploaded.</span
+            your computer through the browser's normal file download. Nothing is uploaded.</span
           >
           <span data-lang="tr"
-            ><strong>Replay paketi indirme</strong>: <code>chrome.downloads</code> üzerinden
+            ><strong>Replay paketi indirme</strong>: tarayıcının normal dosya indirmesiyle
             bilgisayarına tek bir <code>.html</code> dosya yazılır. Hiçbir şey yüklenmez.</span
           >
         </li>
@@ -742,30 +744,43 @@
         </thead>
         <tbody>
           <tr>
-            <td><code>storage</code></td>
-            <td data-lang="en">Read and write the local capture buffer.</td>
-            <td data-lang="tr">Yerel yakalama tamponunu okur ve yazar.</td>
+            <td>
+              <code>storage</code>
+            </td>
+            <td data-lang="en">Read and write the local capture buffer and your settings.</td>
+            <td data-lang="tr">Yerel yakalama tamponunu ve ayarlarınızı okur ve yazar.</td>
           </tr>
           <tr>
-            <td><code>unlimitedStorage</code></td>
-            <td data-lang="en">Allow buffers larger than 5 MB on heavy-browsing days.</td>
-            <td data-lang="tr">Yoğun gezinme günlerinde 5 MB üstü tamponlara izin verir.</td>
-          </tr>
-          <tr>
-            <td><code>activeTab</code></td>
-            <td data-lang="en">Inspect the tab the user is actively looking at.</td>
-            <td data-lang="tr">Aktif olarak baktığın sekmeyi inceler.</td>
-          </tr>
-          <tr>
-            <td><code>scripting</code></td>
-            <td data-lang="en">Inject content scripts that observe fetch / XHR / console.</td>
+            <td>
+              <code>unlimitedStorage</code>
+            </td>
+            <td data-lang="en">
+              Avoid storage-quota errors on busy days. Hindsight still caps itself: 200 events / 2
+              MB per tab, 30 archived sessions.
+            </td>
             <td data-lang="tr">
-              fetch / XHR / console'u gözlemleyen content script'leri enjekte eder.
+              Yoğun günlerde depolama kotası hatalarını önler. Hindsight yine kendini sınırlar:
+              sekme başına 200 olay / 2 MB, 30 arşiv oturumu.
             </td>
           </tr>
           <tr>
-            <td><code>sidePanel</code></td>
-            <td data-lang="en">Open the primary inspection UI.</td>
+            <td>
+              <code>activeTab</code>
+            </td>
+            <td data-lang="en">
+              Take a screenshot of a tab after you open Hindsight on it (toolbar icon, side panel or
+              keyboard shortcut).
+            </td>
+            <td data-lang="tr">
+              Hindsight'ı bir sekmede açtıktan sonra (simge, yan panel veya kısayol) o sekmenin
+              ekran görüntüsünü alır.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>sidePanel</code>
+            </td>
+            <td data-lang="en">Open the main inspection UI.</td>
             <td data-lang="tr">Ana inceleme arayüzünü açar.</td>
           </tr>
           <tr>
@@ -774,46 +789,40 @@
               <span data-lang="en"> (opt-in)</span><span data-lang="tr"> (opsiyonel)</span>
             </td>
             <td data-lang="en">
-              Failure-cascade desktop notifications. Requested only when enabled.
+              Failure-cascade desktop notifications. Requested only when you enable them in Settings
+              → Detection.
             </td>
             <td data-lang="tr">
-              Hata zinciri masaüstü bildirimleri. Sadece etkinleştirildiğinde istenir.
+              Hata zinciri masaüstü bildirimleri. Yalnız Ayarlar → Algılama'da açtığınızda istenir.
             </td>
           </tr>
           <tr>
             <td>
-              <code>downloads</code>
-              <span data-lang="en"> (opt-in)</span><span data-lang="tr"> (opsiyonel)</span>
+              <span data-lang="en">Content scripts on all sites</span
+              ><span data-lang="tr">Tüm sitelerde içerik betikleri</span>
             </td>
-            <td data-lang="en">Save replay-bundle HTML and ZIP exports.</td>
-            <td data-lang="tr">Replay paketi HTML ve ZIP export'larını kaydeder.</td>
+            <td data-lang="en">
+              Observe the page's own fetch / XHR / console activity and your clicks and input. They
+              make no network requests.
+            </td>
+            <td data-lang="tr">
+              Sayfanın kendi fetch / XHR / konsol etkinliğini ve tıklama ve girişlerinizi gözlemler.
+              Kendileri hiçbir ağ isteği yapmaz.
+            </td>
           </tr>
           <tr>
             <td>
-              <code>tabs</code>
-              <span data-lang="en"> (opt-in)</span><span data-lang="tr"> (opsiyonel)</span>
-            </td>
-            <td data-lang="en">Read tab metadata for sidepanel + popup display.</td>
-            <td data-lang="tr">Yan panel ve popup gösterimi için sekme metaverisi okur.</td>
-          </tr>
-          <tr>
-            <td>
-              <code>webNavigation</code>
-              <span data-lang="en"> (opt-in)</span><span data-lang="tr"> (opsiyonel)</span>
-            </td>
-            <td data-lang="en">Detect SPA route changes and reload events.</td>
-            <td data-lang="tr">SPA yönlendirme değişiklikleri ve reload olaylarını tespit eder.</td>
-          </tr>
-          <tr>
-            <td>
-              <code>&lt;all_urls&gt;</code>
+              <span data-lang="en">Site access for Replay</span
+              ><span data-lang="tr">Replay için site erişimi</span>
               <span data-lang="en"> (opt-in)</span><span data-lang="tr"> (opsiyonel)</span>
             </td>
             <td data-lang="en">
-              Run the content script on user pages so request interception works.
+              When you press Replay, Hindsight asks for that one site only. Revoke it any time in
+              Settings → Privacy → Replay access.
             </td>
             <td data-lang="tr">
-              İstek yakalamanın çalışması için content script'i kullanıcı sayfalarında çalıştırır.
+              Replay'e bastığınızda Hindsight yalnız o site için izin ister. Ayarlar → Gizlilik →
+              Yeniden gönderme erişimi'nden istediğiniz an geri alın.
             </td>
           </tr>
         </tbody>

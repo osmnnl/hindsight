@@ -15,50 +15,28 @@ exact CWS form field they map to.
 
 ### 1+ screenshot, 1280 × 800 **or** 640 × 400 PNG/JPEG
 
-CWS lets you upload up to 5 screenshots. **One** is mandatory.
-Recommendation: ship 4, in this order (CWS shows them as a
-carousel):
+CWS lets you upload up to 5 screenshots; one is mandatory. Ship all 5,
+in this order (the store shows them as a carousel). They are rendered
+from the real built extension, not mocked:
 
-| #   | Surface                     | What it shows                                                             |
-| --- | --------------------------- | ------------------------------------------------------------------------- |
-| 1   | Side panel — failed cascade | The "moment of value" — three red 400 rows, cluster banner, scrubber lit. |
-| 2   | Popup                       | Compact toolbar surface — event count, failure list, Open side panel CTA. |
-| 3   | Replay bundle viewer        | Single-file HTML opened in a different browser, narrative panel visible.  |
-| 4   | Settings → Privacy          | Default rules + per-rule disable chips + the danger banner.               |
-
-#### How to capture each
-
-For each screenshot:
-
-1. Open Chrome at 1280 × 800 viewport (DevTools → Toggle device toolbar → "Responsive" set 1280×800).
-2. Load the extension (`chrome://extensions` → Load unpacked → `dist/`).
-3. Set up the surface you want to capture:
-   - **Screenshot 1**: navigate to a site with a few real failures
-     (e.g. a dev environment that returns 500s). Hit ● Record once
-     to seed Tier 4 captures, then trigger the failures. Open the
-     side panel.
-   - **Screenshot 2**: same session, popup view.
-   - **Screenshot 3**: side panel → ⤓ Save as replay bundle → open
-     the downloaded `.html` in a new tab.
-   - **Screenshot 4**: settings page, Privacy section, scroll so
-     the danger banner is visible.
-4. macOS: `Cmd-Shift-4` then space-bar to capture the window. The
-   resulting PNG will have the system shadow — keep it, it reads
-   well on the CWS gallery.
-5. If the screenshot is wider than 1280 px (Retina), open it in
-   Preview → Tools → Adjust Size → set width 1280, keep aspect.
-
-Save them in `docs/screenshots/`:
-
-```
-docs/screenshots/
-├── 1-sidepanel-cascade.png
-├── 2-popup-summary.png
-├── 3-replay-bundle.png
-└── 4-settings-privacy.png
+```sh
+npm run build
+PLAYWRIGHT=/path/to/node_modules/playwright/index.mjs \
+  node scripts/store-shots.mjs --out ~/Desktop/Hindsight-store --lang en,tr
 ```
 
-That directory is `.gitignore`d by default (binary blobs).
+| #   | File                        | What it shows                                                           |
+| --- | --------------------------- | ----------------------------------------------------------------------- |
+| 1   | `screenshot-1-timeline.png` | Demo shop with a failed checkout next to the side panel timeline.       |
+| 2   | `screenshot-2-request.png`  | The failed `POST /api/checkout` in full, Authorization and card masked. |
+| 3   | `screenshot-3-share.png`    | The saved single-file HTML replay, opened as a recipient sees it.       |
+| 4   | `screenshot-4-privacy.png`  | Settings → Privacy: default masking rules.                              |
+| 5   | `screenshot-5-dark.png`     | Dark theme: side panel plus the toolbar popup over the page.            |
+
+Each is 1280 × 800, 24-bit PNG without alpha, on a flat caption band
+(no gradients). `--lang tr` renders the Turkish UI and captions for the
+Turkish listing. Re-run after any UI change; the files are not
+committed.
 
 ### Detailed description
 
@@ -87,20 +65,19 @@ Paste verbatim into the "Single purpose description" field.
 
 ### Permission justifications
 
-CWS asks for one line per permission. Boilerplate:
+Full paste-ready text (EN, ≤ 1,000 chars each) is in
+[`CWS-PRIVACY-FORM.md`](./CWS-PRIVACY-FORM.md) §2. One-line summary of
+the 1.0.0 manifest:
 
-| Permission         | Justification                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------------- |
-| `storage`          | Persist captured events to the local per-tab buffer.                                            |
-| `unlimitedStorage` | Allow > 5 MB buffers on long browsing sessions; pure local, never synced.                       |
-| `activeTab`        | Inject the content script on the user's active tab to observe its network and console activity. |
-| `scripting`        | Required by Manifest V3 to inject content scripts.                                              |
-| `sidePanel`        | Primary inspection UI lives in chrome.sidePanel.                                                |
-| `notifications`    | Optional. Surface "failure cascade" desktop notifications when the user enables that feature.   |
-| `downloads`        | Optional. Save the replay bundle HTML and ZIP exports to disk.                                  |
-| `tabs`             | Optional. Read tab metadata (URL, title) for sidepanel display.                                 |
-| `webNavigation`    | Optional. Detect SPA route changes and full reloads to draw navigation lines.                   |
-| `<all_urls>`       | Optional. Run the network/console interceptor on whatever page the user visits.                 |
+| Permission                   | Justification                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `storage`                    | Keep each tab's captured events and the user's settings in chrome.storage.local.                  |
+| `unlimitedStorage`           | Avoid quota errors before Hindsight's own caps (200 events / 2 MB per tab, 30 archived sessions). |
+| `activeTab`                  | Screenshot the tab (tabs.captureVisibleTab) after the user invokes Hindsight on it.               |
+| `sidePanel`                  | Main inspection UI.                                                                               |
+| `notifications` (optional)   | Desktop alert on failure cascades; requested when the user enables it in Settings → Detection.    |
+| content scripts `<all_urls>` | Observe each page's own fetch / XHR / console / user actions; no requests of their own.           |
+| `<all_urls>` (optional host) | Replay only: one origin is requested at a time on first use; revocable in Settings → Privacy.     |
 
 ---
 
@@ -108,14 +85,14 @@ CWS asks for one line per permission. Boilerplate:
 
 ### Marquee promo tile, 1400 × 560
 
-SVG mockup ready at `docs/promo/promo-1400x560.svg`. Convert to PNG
-via `rsvg-convert` (see `docs/promo/README.md`). CWS only shows
-marquee on featured listings — skippable for initial submission.
+`docs/promo/promo-1400x560.png`, rendered by `scripts/store-shots.mjs`
+(see `docs/promo/README.md`). CWS only shows the marquee on featured
+listings, but upload it anyway.
 
 ### Small promo tile, 440 × 280
 
-SVG mockup ready at `docs/promo/promo-440x280.svg`. CWS uses this
-in search-result thumbnails — worth shipping with v1.
+`docs/promo/promo-440x280.png`, rendered by `scripts/store-shots.mjs`.
+CWS uses it in search results and category grids.
 
 ### Demo video, 60–90 seconds
 

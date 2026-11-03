@@ -1,248 +1,83 @@
-# Chrome Web Store listing — v0.2.0 (unlisted beta)
+# Store submission runbook — 1.0.0 (public)
 
-> **⚠️ Superseded / historical.** This is the original v0.2.0 beta-submission
-> working draft; the app is now at v0.7.4 and its side-panel / replay-bundle /
-> sharing-hub features have shipped. For current store copy use
-> [CWS-DESCRIPTION.md](./CWS-DESCRIPTION.md). The CI zip-naming (§ near top)
-> and permission-justification table below still match `manifest.json`; the
-> feature/roadmap prose does not and should be rewritten before the next
-> submission.
+One page for publishing Hindsight 1.0.0 on the Chrome Web Store,
+Firefox Add-ons (AMO) and Microsoft Edge Add-ons. The paste-ready text
+lives in [`store/`](../store/) and the two CWS form docs; this file
+says which file goes where and in what order.
 
-Working document for the first CWS submission. Unlisted means the
-extension is installable by anyone with the link but won't surface
-in store search results — the right mode for the closed beta per
-OQ-3 and PRD §18.8.
+A Turkish, field-by-field walkthrough of the same steps is generated
+next to the store images as `YAYIN-ADIMLARI.html`.
 
-The actual submission is a user-driven step (Chrome Web Store
-developer dashboard, requires the developer account holder to
-sign in). This file holds the copy + checklist so the submission
-takes minutes, not hours.
-
----
-
-## Submission package
-
-CI produces `hindsight-${VERSION}-${SHORT_SHA}.zip` on every push as
-the **`hindsight-cws-zip-${SHA}`** artifact. Download that, upload
-to the developer dashboard. Don't zip `dist/` manually — the CI
-artifact has the right shape (zip-of-contents, not zip-of-folder).
+| What                                             | Source                                                                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| CWS description (EN / TR)                        | [`store/cws/description-en.txt`](../store/cws/description-en.txt), [`-tr.txt`](../store/cws/description-tr.txt) |
+| CWS privacy tab (purpose, permissions, data use) | [`CWS-PRIVACY-FORM.md`](./CWS-PRIVACY-FORM.md)                                                                  |
+| AMO listing, reviewer notes, source build        | [`store/amo/`](../store/amo/)                                                                                   |
+| Edge listing (EN / TR)                           | [`store/edge/`](../store/edge/)                                                                                 |
+| Images                                           | `node scripts/store-shots.mjs` — see [`promo/README.md`](./promo/README.md)                                     |
+| Release checklist with evidence                  | [`M5-CHECKLIST.md`](./M5-CHECKLIST.md)                                                                          |
+| 60-second demo                                   | [`DEMO-SCRIPT.md`](./DEMO-SCRIPT.md)                                                                            |
 
 ---
 
-## Store listing — fields to fill
+## 1. Package
 
-### Title
+CI builds `hindsight-${VERSION}-${SHORT_SHA}.zip` on every push and
+uploads it as the **`hindsight-cws-zip-${SHA}`** artifact. Use that
+zip for Chrome and Edge. Don't zip `dist/` by hand — the artifact is a
+zip of the contents, not of the folder.
 
-`Hindsight — Bug capture without DevTools`
+Firefox: `npm run build:firefox && npm run lint:firefox && npm run
+package:firefox` → `release/hindsight-firefox-v1.0.0.zip`, plus a
+source archive (`git archive --format=zip -o
+hindsight-1.0.0-source.zip v1.0.0`).
 
-### Short summary (132 char cap)
+## 2. Manifest the reviewers will see (1.0.0)
 
-> DevTools you didn't open. Captures fetch/XHR, console errors,
-> clicks, navigation — share a complete bug report in one click.
+| Field                       | Value                                                   |
+| --------------------------- | ------------------------------------------------------- |
+| `permissions`               | `storage`, `unlimitedStorage`, `activeTab`, `sidePanel` |
+| `optional_permissions`      | `notifications`                                         |
+| `host_permissions`          | none                                                    |
+| `optional_host_permissions` | `<all_urls>` — requested one origin at a time by Replay |
+| `content_scripts.matches`   | `<all_urls>` (MAIN interceptor + ISOLATED bridge)       |
 
-(Comes in just under the cap.)
+Removed in 1.0.0: `scripting`, optional `downloads`, `tabs`,
+`webNavigation`. If the CWS dashboard still shows justification boxes
+for them, they disappear after the new zip is uploaded; don't fill them.
 
-### Detailed description
+## 3. Chrome Web Store
 
-```
-Hindsight silently records what happens in your browser — every
-network request, console error, click, form input, and page
-navigation — so when something breaks, you can scrub back through
-exactly what happened and share a complete bug report with one
-click.
+1. Developer Dashboard → Hindsight → **Package** → Upload new package.
+2. **Store listing**: description from `store/cws/description-en.txt`;
+   add Türkçe and paste `description-tr.txt`. Category Developer Tools.
+   Upload the 128 icon, `small-tile-440x280.png`,
+   `marquee-1400x560.png` and the five screenshots (per language: `en/`,
+   `tr/`).
+3. **Privacy**: follow `CWS-PRIVACY-FORM.md` §1–§6 top to bottom.
+4. **Distribution**: Public, all regions.
+5. Submit for review. Review takes hours to a couple of weeks; don't
+   announce a date before approval.
 
-Built for QA testers, developers, support agents, product managers,
-and the rest of us who hit a bug at the worst possible moment.
+## 4. Firefox Add-ons
 
-WHY HINDSIGHT
-• No SDK, no signup, no server. Works on any website.
-• Open source under MIT — auditable end to end.
-• Captures your past activity, not just the next bug.
-• Single-file HTML replay export (coming in M4) — your recipient
-  needs nothing installed.
+1. Developer Hub → Hindsight → **Upload new version** → the Firefox zip.
+2. Answer "yes" to "Do you need to submit source code?" and upload the
+   source archive. Paste the reviewer notes from
+   `store/amo/listing-en.md`.
+3. Edit product page with the EN and TR texts from `store/amo/`.
 
-WHAT IT CAPTURES
-• Network requests (fetch, XMLHttpRequest, WebSocket frames)
-• Console errors, warnings, unhandled rejections
-• Page navigations (real + SPA / pushState / hashchange)
-• Clicks and form input changes
-• User-configurable custom regex masking + per-domain blocklist
+## 5. Microsoft Edge Add-ons
 
-PRIVACY-FIRST BY ARCHITECTURE
-• No backend. No telemetry. The extension makes zero outbound
-  requests of its own — webhook posts, web intents, and file
-  downloads are always user-initiated.
-• Sensitive headers (Authorization, Cookie, Set-Cookie, X-API-Key,
-  X-Auth-Token, Proxy-Authorization) masked at capture time.
-• Body patterns for credit-card numbers (Luhn-validated) and
-  Turkish national IDs (checksum-validated) masked at capture time
-  with no false-positive sprawl.
-• Password and credit-card-autocomplete form fields masked at the
-  DOM site — the value never leaves the page-world unmasked.
-• The original value is never written to storage — masking is
-  irreversible.
+1. Partner Center → Edge → Hindsight (or **Create new extension**) →
+   Packages → upload the Chrome zip.
+2. Properties, store listings (EN + TR) and certification notes from
+   `store/edge/`. Edge needs a 300 × 300 store logo:
+   `store-logo-300x300.png`.
+3. Publish.
 
-WHAT'S COMING
-• M3: chrome.sidePanel migration, visual timeline scrubber,
-  screenshot capture on error, detection rule engine.
-• M4: standalone HTML replay bundle, recording mode, multi-
-  destination sharing (Slack / Discord / Teams / GitHub / Linear /
-  email / Notion).
-• M5: Chrome Web Store full launch.
+## 6. After approval
 
-AI / LLM features are explicitly deferred to v2+. This release
-ships zero AI calls.
-
-Source code, full PRD, and roadmap:
-[REPO URL — fill in when repo goes public]
-
-License: MIT.
-```
-
-### Category
-
-Primary: **Developer Tools**
-Secondary: **Productivity**
-
-### Language
-
-English (primary). Turkish translation lands at v0.3+.
-
----
-
-## Permissions — justification text
-
-The CWS reviewer asks for a per-permission justification. Mirror
-PRD §12.2 exactly so the audit trail is clean.
-
-| Permission                   | Justification                                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`                    | Persist captured events across browser sessions in `chrome.storage.local`. Required for the per-tab event buffer and the closed-tab archive (7-day TTL). |
-| `unlimitedStorage`           | Allow long captures and the closed-tab archive without hitting Chrome's 10 MB quota. Storage is local-only — see privacy policy.                         |
-| `activeTab`                  | Inject content scripts only on the user-activated tab when host permissions are not granted.                                                             |
-| `scripting`                  | Required API for Manifest V3 content-script injection.                                                                                                   |
-| `sidePanel`                  | Primary UI surface for the M3 visual timeline (declared now, populated in v0.3).                                                                         |
-| `notifications` (optional)   | Surface detected failures (network errors, console errors) via the system notification channel. Opt-in only.                                             |
-| `downloads` (optional)       | Save HAR / JSON exports the user explicitly triggers.                                                                                                    |
-| `tabs` (optional)            | Read tab metadata for the per-tab session model.                                                                                                         |
-| `webNavigation` (optional)   | Detect page navigations to mark document boundaries.                                                                                                     |
-| `<all_urls>` (optional host) | Capture on every site when the user enables "capture on all sites" in settings. Otherwise activeTab-only.                                                |
-
----
-
-## Privacy policy
-
-Required field. One-page text — hosted at `hindsight.dev/privacy`
-after the repo + site go public, mirrored at the GitHub Pages
-equivalent.
-
-Working draft:
-
-```
-HINDSIGHT PRIVACY POLICY
-
-Hindsight does not collect, transmit, store, or sell any user data
-outside of the user's own browser.
-
-WHAT WE CAPTURE
-Hindsight captures network requests, console messages, user actions,
-and navigation events from the tabs you visit while the extension
-is active. All capture data is stored in chrome.storage.local on
-your own machine.
-
-WHAT WE DO NOT DO
-• We do not have a backend. There is no server-side component to
-  Hindsight.
-• We do not send telemetry of any kind. The extension makes zero
-  outbound network requests except those you explicitly initiate
-  (webhook posts, web intents, file downloads).
-• We do not have analytics. We learn how Hindsight is doing through
-  Chrome Web Store metrics that Google provides — Google's terms
-  govern that data, not us.
-• We do not run AI / LLM features in v1. AI integration is deferred
-  to a future major version and will be opt-in if it ships.
-
-SENSITIVE DATA HANDLING
-Sensitive request and response data is masked AT CAPTURE TIME —
-before it is written to storage — using built-in patterns for
-common auth headers, credit cards, and Turkish national ID
-numbers, plus any custom regex patterns you configure. The original
-value is irreversibly replaced with the literal string
-"***MASKED***" and cannot be recovered.
-
-YOUR RIGHTS
-• Export everything: Settings → Privacy → "Export all my data"
-  (lands in v0.3 alongside the side panel).
-• Delete everything: chrome://extensions → Hindsight → Remove.
-• Opt out of any specific origin: Settings → Privacy → "Never
-  capture on these origins".
-
-CONTACT
-GitHub issues at [REPO URL] are the primary support channel. For
-sensitive disclosures, email [PROJECT EMAIL].
-
-Last updated: 2026-05-21
-```
-
-Repo URL and project email get filled in at public-push time.
-
----
-
-## Screenshots — five at 1280×800
-
-CWS requires up to five screenshots. Plan:
-
-1. **Popup with mixed timeline** — a tab with 3-4 events (one
-   failed network, one click, one console.error, one navigation),
-   bulk-bar showing "X events · 1 error · 2 network".
-2. **Detail view with Privacy panel** — failed network event with
-   the redactions list expanded, showing "1 × Authorization
-   masked".
-3. **Settings → Privacy** — default rule chips visible, one
-   custom pattern in the editor, two origins in the blocklist.
-4. **Settings → Capture** — Tier 2 toggle, buffer cap dropdown.
-5. **HAR export in DevTools** — a downloaded `.har` opened in
-   Chrome DevTools Network panel, masked Authorization header
-   visible.
-
-All screenshots: light theme (broader appeal), Chrome on macOS
-(canonical CWS aesthetic), no real-user data in any frame.
-
----
-
-## Submission checklist
-
-Before clicking "Submit for review":
-
-- [ ] Bumped `manifest.json` `version`.
-- [ ] CI green on the commit being submitted; downloaded the matching
-      `hindsight-cws-zip-${SHA}` artifact.
-- [ ] Privacy policy text published at a public URL.
-- [ ] Five screenshots saved at 1280×800.
-- [ ] Permissions justifications pasted in.
-- [ ] Visibility set to **Unlisted** (not Public).
-- [ ] Distribution: This item is not designed primarily for children.
-- [ ] Single-purpose statement filled in
-      ("Capture browser activity so users can share complete bug
-      reports without DevTools").
-
-After submission:
-
-- Review SLA is "1–3 business days" but in practice ranges from
-  hours to a couple of weeks. Don't promise a launch date until
-  approval lands.
-- Repo public-push timing per OQ-3: separate user-driven step,
-  not bundled with this submission.
-
----
-
-## When this graduates
-
-The next iteration of this doc — for the v1.0 public launch (M5) —
-flips visibility to **Public** and adds:
-
-- A promotional video (60-second self-recorded; PRD §17.2).
-- A 440×280 promotional tile (CWS featured-launch attempt).
-- Updated screenshots covering the side panel + replay bundle UI
-  introduced in M3/M4.
-- Localized listings for English + Turkish.
+- Tag `v1.0.0`, publish the GitHub release with the CHANGELOG entry and
+  the three zips.
+- Update the store links on the website and in the README.
