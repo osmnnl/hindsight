@@ -9,13 +9,18 @@ share a complete, faithful bug report.
 
 No backend, no signup, no telemetry. Open source under MIT.
 
-**Status:** M4 milestone shipped at `v0.4.0` (May 2026). The
-killer-differentiator standalone HTML replay bundle, recording mode
-with Tier 4 captures, multi-destination sharing hub (Slack / Discord /
-Teams webhooks + GitHub Issue / mailto web intents), ZIP-everything
-export, "Replay this request" and a privacy preview modal are all
-live. M5 is pre-launch polish (perf + a11y + security audits, CWS
-public submission).
+**Status:** `v1.0.0` (November 2026), the first stable release. All
+five milestones are done in code: passive capture with capture-time
+masking, a side panel timeline with cascade detection, the standalone
+HTML replay bundle (escaped payload, strict CSP), recording mode, the
+sharing hub, a keyboard-operable WCAG AA UI, a first-run welcome page
+and per-site Replay access. Install-time permissions are only
+`storage`, `unlimitedStorage`, `activeTab` and `sidePanel`.
+
+**Shortcuts:** ⌘⇧H / Ctrl+Shift+H opens the side panel; ⌘⇧B /
+Ctrl+Shift+B downloads the replay file for the current tab ("Capture
+last moment"). "Toggle recording" can be bound in
+`chrome://extensions/shortcuts`.
 
 ---
 
@@ -151,7 +156,7 @@ commit so reviewers can load-unpack a PR build without checking out.
 ## Roadmap
 
 The full plan lives in [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md)
-§18. M1 has just closed.
+§18. All five milestones shipped with 1.0.0.
 
 | Milestone                             | Theme                                                                                                                               | Status    |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------- |
@@ -159,7 +164,7 @@ The full plan lives in [`Hindsight-PRD-v0.1.md`](./Hindsight-PRD-v0.1.md)
 | **M2 — Context capture**              | Tier 2 events (clicks, inputs, console, nav, WebSocket, SPA routes), narrative engine v1, batched writes, archive, Capture settings | ✅ v0.2.0 |
 | **M3 — Side panel + visual timeline** | `chrome.sidePanel` migration, scrubber, screenshot capture, detection rule engine, cluster grouping, recent-archive viewer          | ✅ v0.3.0 |
 | **M4 — Replay bundle + sharing hub**  | Standalone HTML viewer, recording mode, multi-destination sharing (Slack / Discord / Teams / GitHub / Linear / email / Notion)      | ✅ v0.4.0 |
-| **M5 — Pre-launch polish**            | Performance optimization (capture-pipeline + storage hardening), WCAG AA audit, security audit, CWS submission                      | 🚧 v0.7.x |
+| **M5 — Pre-launch polish**            | Performance optimization (capture-pipeline + storage hardening), WCAG AA audit, security audit, CWS submission                      | ✅ v1.0.0 |
 
 AI / LLM integration is **explicitly deferred to v2+** (PRD §22.1).
 

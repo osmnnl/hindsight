@@ -9,16 +9,16 @@ All notable changes to Hindsight. Format roughly follows
 Hindsight 1.0 (M5, PRD §18.6): fewer permissions, first-run onboarding,
 per-site Replay access, and store listings for Chrome, Firefox and Edge.
 
-<!--
-INTEGRATOR: merge ws/a-*, ws/c-*, ws/d-* first, then replace every
-"(integrator)" line below with that workstream's items (one bullet per
-user-visible change, PRD § in parentheses) and delete this comment.
--->
-
 ### Security
 
-- (integrator) Workstream A — replay bundle payload escaping (stored XSS,
-  A1) and the other A items.
+- **Replay bundle stored XSS fixed.** Captured bodies were inlined as a
+  JS literal, so a response containing `</script>` ran in the viewer.
+  Data now sits in an inert `application/json` block (`< > &` U+2028
+  U+2029 escaped) under a per-bundle nonce CSP (`default-src 'none'`)
+  (PRD §11, §19.1).
+- **Forged window captures dropped.** Once the private bridge port is
+  live, `window.postMessage` captures are accepted only for a 2 s
+  switch-over grace, so page scripts cannot inject events (PRD §11.1).
 - **Smaller permission set.** `scripting` removed from install-time
   permissions; `downloads`, `tabs` and `webNavigation` removed from
   optional permissions. Nothing called them. Install-time: `storage`,
@@ -31,9 +31,19 @@ user-visible change, PRD § in parentheses) and delete this comment.
 
 ### Fixed
 
-- (integrator) Workstream A — data correctness (event timestamps,
-  detection) and `npm ci` lockfile.
-- (integrator) Workstream D — replay viewer fixes.
+- **Events are stamped at capture time.** The 250 ms bridge batch gave
+  every event in a flush the same receipt time, so clicks sorted after
+  the requests they caused. The page world stamps the time; the SW
+  trusts it within [now−60 s, now+1 s]. The side panel list orders by
+  that timestamp (PRD §6.1.2, §13.2).
+- **Cascades are keyed by origin + failure class** (auth 401/403, other
+  4xx, 5xx, network), and every member is linked, so 3× 401 shows as one
+  cascade of three instead of a loose row plus "cascade — 2" (PRD §6.2.3).
+- **`npm ci` works on npm 10 and 11.** Lockfile regenerated and in sync
+  with 1.0.0; `engines` is `>=20.10 <25`; CI tests Node 20 and 22.
+- **Replay viewer** narrative renders headings, lists, **bold** and
+  `code` instead of raw Markdown (built with `textContent`, never
+  `innerHTML`).
 - **Page loads are recorded.** The `webNavigation` listener could never
   run (the permission was never granted), so full page loads were
   missing from every timeline. The page-world interceptor now emits one
@@ -50,10 +60,31 @@ user-visible change, PRD § in parentheses) and delete this comment.
 
 ### Added
 
-- (integrator) Workstream C — redesigned side panel and popup, theme
-  toggle, keyboard navigation, accessibility (axe in CI).
-- (integrator) Workstream D — replay viewer accessibility, rendered
-  narrative, header metadata.
+- **Keyboard shortcuts.** ⌘⇧B / Ctrl+Shift+B "Capture last moment"
+  opens the side panel and downloads the replay file for the current
+  tab, same as the popup button; "Toggle recording" is bindable in
+  `chrome://extensions/shortcuts`. The popup shows the live shortcuts
+  (PRD §9.2).
+- **New popup.** Host chip and recording pill, primary "Capture last
+  moment", "Open side panel" with your shortcut, recent failures with
+  status chips (cascades collapsed), and a "N fields masked — data stays
+  on this device" footer. EN + TR (PRD §7).
+- **Redesigned side panel.** Shared design tokens (dark default, light
+  via system or the header toggle), SVG icons instead of emoji, GraphQL
+  operation labels, copy as runnable `fetch()`, pin to the current tab,
+  a guard against copying a masked token, and an in-popup confirm in
+  place of `window.confirm`.
+- **Accessibility (WCAG 2.1 AA).** The event list is a keyboard listbox
+  (↑/↓/Home/End, Enter, Esc, `/` to search), visible focus everywhere,
+  labels match visible text, every colour pair ≥ 4.5:1 in both themes
+  (unit-tested), and `npm run test:a11y` runs axe-core on the built
+  extension in CI.
+- **Replay viewer accessibility and header.** Keyboard-operable rows and
+  cascade banners, `aria-pressed` filter chips, reduced-motion support,
+  heading order, and a header with capture date and span, masked-field
+  count, version and "Created locally · nothing was uploaded". The
+  popup's bundle now carries the "N earlier events omitted" note too
+  (PRD §4.1).
 - **First-run welcome page** (PRD §7.1), opened once on install: what is
   recorded, three steps, your live keyboard shortcuts, four privacy
   facts. Local only, EN/TR, light/dark. Never reopens on update or
