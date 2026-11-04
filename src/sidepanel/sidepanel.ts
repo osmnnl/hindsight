@@ -2305,12 +2305,58 @@ function enhanceDetailView(detail: HTMLElement): void {
     });
   });
 
+  // 2b — user-resizable boxes; the chosen height sticks per section title.
+  sections.forEach((section) => {
+    const box = section.querySelector<HTMLElement>(':scope > pre, :scope > .json-tree');
+    const title = section.querySelector('h3')?.textContent?.trim();
+    if (!box || !title) return;
+    wireResizableBox(box, title);
+  });
+
   // 3 — let the last section fill remaining height.
   const last = sections[sections.length - 1];
   if (last) last.classList.add('section-grow');
 
   // 4 — in-detail find (highlight + jump).
   wireDetailSearch(detail);
+}
+
+const BOX_HEIGHT_KEY = 'hs.detailBoxHeight.';
+
+/** Restore and persist a box's dragged height. The CSS `resize` handle sets
+ *  an inline height, which also lifts the default max-height cap. */
+function wireResizableBox(box: HTMLElement, title: string): void {
+  const key = BOX_HEIGHT_KEY + title;
+  try {
+    const saved = Number(localStorage.getItem(key));
+    if (saved > 0) box.style.height = `${saved}px`;
+  } catch {
+    // storage unavailable — default height
+  }
+  // The resize grip fires no reliable pointerup, so watch the size instead.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  new ResizeObserver(() => {
+    if (!box.style.height || !box.isConnected) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      try {
+        localStorage.setItem(key, String(Math.round(box.getBoundingClientRect().height)));
+      } catch {
+        // storage unavailable — height lasts for this view only
+      }
+    }, 200);
+  }).observe(box);
+  box.addEventListener('dblclick', (e) => {
+    // Double-click the bottom-right grip to return to the default height.
+    const r = box.getBoundingClientRect();
+    if (e.clientY < r.bottom - 16 || e.clientX < r.right - 16) return;
+    box.style.height = '';
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // storage unavailable
+    }
+  });
 }
 
 /** Wrap every case-insensitive match of `query` in <mark class="search-hit">,

@@ -1473,6 +1473,17 @@ select:focus-visible {
   word-break: break-word;
 }
 
+/* User can drag a box taller; a dragged (inline) height lifts the cap. */
+.section > pre,
+.section > .json-tree {
+  resize: vertical;
+  min-height: 60px;
+}
+.section > pre[style*='height'],
+.section > .json-tree[style*='height'] {
+  max-height: none;
+}
+
 /* ---------- collapsible detail sections ---------- */
 .section.collapsible > h3,
 .section.collapsible > .section-head {
@@ -1509,6 +1520,11 @@ select:focus-visible {
   flex: 1 1 auto;
   max-height: none;
   min-height: 120px;
+}
+/* Once dragged, the last box keeps its chosen height instead of flexing. */
+.section.section-grow:has(> [style*='height']),
+.section.section-grow > [style*='height'] {
+  flex: 0 0 auto;
 }
 .section.section-grow.collapsed {
   flex: 0 0 auto;
