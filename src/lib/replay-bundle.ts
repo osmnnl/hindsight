@@ -90,8 +90,8 @@ export function generateBundle(events: CapturedEvent[], opts: GenerateBundleOpti
     <section class="toolbar" aria-label="Event filters">
       <div class="chips">
         <button type="button" class="chip" data-filter="failed" aria-pressed="false">Failed</button>
-        <button type="button" class="chip" data-filter="api" aria-pressed="false" title="Hide static assets and framework internals">API</button>
-        <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="chip active" data-filter="api" aria-pressed="true" title="Hide static assets and framework internals">API</button>
+        <button type="button" class="chip" data-filter="all" aria-pressed="false">All</button>
       </div>
       <input id="search-input" type="search" placeholder="Search URLs, methods, messages…" aria-label="Search events" />
       <label class="cursor-toggle"><input id="show-cursor" type="checkbox" /> cursor / scroll</label>

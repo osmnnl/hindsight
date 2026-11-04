@@ -119,7 +119,7 @@ export const VIEWER_JS = `
   var chipEls = document.querySelectorAll('.toolbar .chip');
   var cursorToggleEl = document.getElementById('show-cursor');
 
-  var filter = 'all';
+  var filter = 'api';
   var search = '';
   var showCursor = false;
   var visibleIds = [];
