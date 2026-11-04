@@ -253,6 +253,9 @@ export function createXhrPatch(
       ...headerArgs: Parameters<XMLHttpRequest['setRequestHeader']>
     ): void {
       const [name, value] = headerArgs;
+      // The browser drops forbidden headers (Cookie, Host…) and logs an error;
+      // forwarding them would pin that page error on Hindsight's frame.
+      if (isForbiddenRequestHeader(name)) return;
       state.requestHeaders[name] = value;
       return originalSetRequestHeader.apply(xhr, headerArgs);
     };
@@ -543,4 +546,35 @@ export function parseRawHeaders(raw: string | null): Record<string, string> {
       if (i > 0) obj[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     });
   return obj;
+}
+
+/** Fetch spec "forbidden request-header" names: the browser never sends these
+ *  from script, so they are neither forwarded nor recorded. */
+const FORBIDDEN_REQUEST_HEADERS = new Set([
+  'accept-charset',
+  'accept-encoding',
+  'access-control-request-headers',
+  'access-control-request-method',
+  'connection',
+  'content-length',
+  'cookie',
+  'cookie2',
+  'date',
+  'dnt',
+  'expect',
+  'host',
+  'keep-alive',
+  'origin',
+  'referer',
+  'set-cookie',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'via',
+]);
+
+export function isForbiddenRequestHeader(name: string): boolean {
+  const n = String(name).trim().toLowerCase();
+  return FORBIDDEN_REQUEST_HEADERS.has(n) || n.startsWith('proxy-') || n.startsWith('sec-');
 }

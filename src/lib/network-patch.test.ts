@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  isForbiddenRequestHeader,
   capJsonResponse,
   createFetchPatch,
   createWebSocketPatch,
@@ -341,5 +342,18 @@ describe('createWebSocketPatch — frame coalescing', () => {
     expect(summary.byteSize).toBe(3);
     expect(wsData(posts[2]!).phase).toBe('close');
     expect(ws.sent).toEqual(['xy', 'z']); // frames still reached the socket
+  });
+});
+
+describe('isForbiddenRequestHeader', () => {
+  it('flags headers the browser refuses to set from script', () => {
+    for (const h of ['Cookie', 'host', 'Content-Length', 'Sec-Fetch-Mode', 'Proxy-Authorization']) {
+      expect(isForbiddenRequestHeader(h)).toBe(true);
+    }
+  });
+  it('lets normal headers through', () => {
+    for (const h of ['Authorization', 'Content-Type', 'X-Request-Id', 'Accept']) {
+      expect(isForbiddenRequestHeader(h)).toBe(false);
+    }
   });
 });
