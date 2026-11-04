@@ -25,8 +25,8 @@ PRIVATE BY DESIGN
 
 • Everything is stored on your computer. Hindsight has no server and makes no network requests of its own
 • No telemetry, no analytics, no third-party code
-• Authorization, Cookie, Set-Cookie, X-API-Key, X-Auth-Token and Proxy-Authorization headers are masked when they are captured, so the original values are never written to disk
-• Card numbers (Luhn-checked), Turkish national IDs (checksum-validated) and your own regex patterns are masked in bodies
+• Authorization, cookie and API-key headers are masked when they are captured, so the original values are never written to disk
+• Card numbers, national ID numbers and your own patterns are masked in request and response bodies
 • Exclude any site entirely in Settings → Privacy
 
 FIND IT FAST
@@ -55,8 +55,3 @@ Source: https://github.com/osmnnl/hindsight
 Privacy policy: https://osmnnl.github.io/hindsight/privacy.html
 Report a problem: https://github.com/osmnnl/hindsight/issues
 Changelog: https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md
-
-MORE FROM THE SAME AUTHOR
-
-StorageNinja: copy, paste and manage Local Storage, Session Storage, cookies, IndexedDB and Cache Storage of a tab. https://osmnnl.github.io/StorageNinja/
-Data Helper: valid Turkish test data (TCKN, VKN, IBAN), consistent personas, one-click form fill. https://osmnnl.github.io/TestDataHelper/

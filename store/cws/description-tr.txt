@@ -25,8 +25,8 @@ TASARIMDAN GİZLİ
 
 • Her şey bilgisayarınızda saklanır. Hindsight'ın sunucusu yoktur ve kendi adına hiçbir ağ isteği yapmaz
 • Telemetri yok, analitik yok, üçüncü taraf kod yok
-• Authorization, Cookie, Set-Cookie, X-API-Key, X-Auth-Token ve Proxy-Authorization başlıkları yakalandığı anda maskelenir; asıl değerler diske hiç yazılmaz
-• Kart numaraları (Luhn doğrulamalı), TC kimlik numaraları (sağlama doğrulamalı) ve kendi regex desenleriniz gövdelerde maskelenir
+• Yetkilendirme, çerez ve API anahtarı başlıkları yakalandığı anda maskelenir; asıl değerler diske hiç yazılmaz
+• Kart numaraları, kimlik numaraları ve kendi tanımladığınız desenler istek ve yanıt gövdelerinde maskelenir
 • Dilediğiniz siteyi Ayarlar → Gizlilik'ten tamamen hariç tutun
 
 HIZLA BULUN
@@ -55,8 +55,3 @@ Kaynak kod: https://github.com/osmnnl/hindsight
 Gizlilik politikası: https://osmnnl.github.io/hindsight/privacy.html
 Sorun bildirin: https://github.com/osmnnl/hindsight/issues
 Değişiklik günlüğü: https://github.com/osmnnl/hindsight/blob/main/CHANGELOG.md
-
-AYNI GELİŞTİRİCİDEN
-
-StorageNinja: bir sekmenin Local Storage, Session Storage, çerez, IndexedDB ve Cache Storage verisini kopyalayın, yapıştırın, yönetin. https://osmnnl.github.io/StorageNinja/
-Data Helper: geçerli TCKN, VKN, IBAN; tutarlı persona; formu tek tıkla doldurma. https://osmnnl.github.io/TestDataHelper/
