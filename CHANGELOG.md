@@ -60,6 +60,10 @@ per-site Replay access, and store listings for Chrome, Firefox and Edge.
   `Country = Portugal` instead of `<input> = …` or a `<select>`'s glued
   option text: aria-label → aria-labelledby → `<label>` → placeholder →
   name → title.
+- **No "Refused to set unsafe header" errors.** When a page calls
+  `setRequestHeader` with a header the browser forbids (`Cookie`,
+  `Host`, `Sec-*`, …), Hindsight no longer records or forwards it; the
+  browser never sent those headers anyway.
 
 ### Added
 
@@ -93,15 +97,21 @@ per-site Replay access, and store listings for Chrome, Firefox and Edge.
   facts. Local only, EN/TR, light/dark. Never reopens on update or
   restart.
 - **Popup hint** pointing at the side panel until it is opened once.
+- **Resizable detail boxes** in the side panel: drag the bottom edge of
+  headers, bodies or stack traces; the height is remembered per section
+  (double-click the corner to reset).
 - **Store listings** for Chrome Web Store, Firefox Add-ons and Edge
   Add-ons (EN + TR) in `store/`, a three-store runbook
   (`docs/CWS-LISTING.md`), an M5 evidence checklist
   (`docs/M5-CHECKLIST.md`) and a 60-second demo script.
-- **`scripts/store-shots.mjs`** (dev-only) renders every store image from
+- **`scripts/store-shots.mjs`** (dev-only) renders every store image, on the same navy stage as the StorageNinja and Data Helper listings, from
   the real built extension: five 1280×800 screenshots, the 1400×560
   marquee, the 440×280 tile and the Edge 300×300 logo, per language.
 
 ### Changed
+
+- **Replay viewer opens on the API filter** instead of All, so the
+  requests that matter come first.
 
 - Store and privacy copy now match shipped behaviour exactly: error
   screenshots are attached on tabs where you opened Hindsight

@@ -3,7 +3,7 @@
 // Renders the CWS / AMO / Edge listing images by loading dist/ into
 // Chromium with Playwright, driving a local demo shop, and screenshotting
 // the actual popup, side panel, settings page and HTML replay bundle.
-// Every image is composed on a flat background (no gradients) and written
+// Every image is composed on a flat navy stage (no gradients) and written
 // as 24-bit PNG (no alpha).
 //
 //   npm run build
@@ -39,7 +39,9 @@ const LANGS = (args.lang || 'en').split(',');
 const INK = '#15161a';
 const PAPER = '#f1eee3';
 const RED = '#e53935';
-const MUTED = '#55575f';
+// Store frame: same navy stage as the StorageNinja and Data Helper listings.
+const NAVY = '#131a29';
+const NAVY_SUB = '#b6bfce';
 
 const COPY = {
   en: {
@@ -195,18 +197,25 @@ async function render(ctx, html, width, height, file) {
   console.info('wrote', path.relative(process.cwd(), file));
 }
 
-function frame({ title, sub, dark, body }) {
-  const bg = dark ? INK : PAPER;
-  const fg = dark ? PAPER : INK;
-  const sb = dark ? '#a6a7ad' : MUTED;
+// Left: kicker, headline, one line. Right: real screenshots as cards.
+// cards: [{ png, w, h, x, y, scale }] in stage coordinates.
+function frame({ kicker, title, sub, cards }) {
+  const imgs = cards
+    .map(
+      (c) =>
+        `<div class="card" style="left:${c.x}px;top:${c.y}px;width:${Math.round(c.w * c.scale)}px;height:${Math.round(c.h * c.scale)}px">` +
+        `<img src="${dataUrl(c.png)}" style="width:100%;height:100%"></div>`
+    )
+    .join('');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
-*{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:${bg};color:${fg};font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-.cap{height:${CAP}px;padding:0 40px;display:flex;flex-direction:column;justify-content:center;border-bottom:3px solid ${RED}}
-.cap h1{margin:0;font-size:30px;line-height:1.15;letter-spacing:-.01em}.cap p{margin:4px 0 0;font-size:16px;color:${sb}}
-.stage{position:relative;height:${H - CAP}px;display:flex}.stage img{display:block}
-.panel{border-left:1px solid ${dark ? '#2e3037' : '#cfccc4'}}
-.pop{position:absolute;top:12px;right:${PANEL_W + 16}px;border:1px solid ${dark ? '#2e3037' : '#cfccc4'};border-radius:10px;overflow:hidden}
-</style></head><body><div class="cap"><h1>${esc(title)}</h1><p>${esc(sub)}</p></div><div class="stage">${body}</div></body></html>`;
+*{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:${NAVY};color:#f3f4f7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.l{position:absolute;left:64px;top:0;bottom:0;width:410px;display:flex;flex-direction:column;justify-content:center}
+.k{font-size:15px;font-weight:700;letter-spacing:.12em;color:${RED};text-transform:uppercase}
+h1{margin:16px 0 18px;font-size:46px;line-height:1.1;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0;font-size:20px;line-height:1.5;color:${NAVY_SUB}}
+.card{position:absolute;border-radius:12px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08)}
+.card img{display:block}
+</style></head><body><div class="l"><div class="k">${esc(kicker)}</div><h1>${esc(title)}</h1><p>${esc(sub)}</p></div>${imgs}</body></html>`;
 }
 
 // ---------- main ----------
@@ -296,10 +305,6 @@ for (const lang of LANGS) {
       return panel.screenshot({ type: 'png' });
     };
 
-    const pageAndPanel = (shopPng, panelPng, extra = '') =>
-      `<img src="${dataUrl(shopPng)}" width="${W - PANEL_W}" height="${H - CAP}">` +
-      `<img class="panel" src="${dataUrl(panelPng)}" width="${PANEL_W}" height="${H - CAP}">${extra}`;
-
     // The side panel follows the active tab, and every new page (popup,
     // viewer, even render()) activates a tab, so take all panel shots first.
     const listLight = await panelShot(false);
@@ -319,7 +324,6 @@ for (const lang of LANGS) {
     const bundlePath = path.join(profile, 'hindsight-bundle.html');
     await download.saveAs(bundlePath);
     const shopLight = await shopShot(false);
-    const shopDark = await shopShot(true);
 
     const pop = await ctx.newPage();
     await pop.setViewportSize({ width: 360, height: 560 });
@@ -349,42 +353,52 @@ for (const lang of LANGS) {
     const settingsPng = await settings.screenshot({ type: 'png' });
     await settings.close();
 
-    const full = (png) => `<img src="${dataUrl(png)}" width="${W}" height="${H - CAP}">`;
+    const kicker = `Hindsight ${VERSION}`;
+    const PH = H - CAP; // panel and page screenshot height
     const shots = [
-      ['screenshot-1-timeline.png', false, pageAndPanel(shopLight, listLight)],
-      ['screenshot-2-request.png', false, pageAndPanel(shopLight, detail)],
-      ['screenshot-3-share.png', false, full(bundlePng)],
-      ['screenshot-4-privacy.png', false, full(settingsPng)],
+      [
+        'screenshot-1-timeline.png',
+        [
+          { png: shopLight, w: W - PANEL_W, h: PH, x: 500, y: 150, scale: 0.6 },
+          { png: listLight, w: PANEL_W, h: PH, x: 770, y: 56, scale: 0.97 },
+        ],
+      ],
+      [
+        'screenshot-2-request.png',
+        [
+          { png: listLight, w: PANEL_W, h: PH, x: 500, y: 90, scale: 0.88 },
+          { png: detail, w: PANEL_W, h: PH, x: 770, y: 56, scale: 0.97 },
+        ],
+      ],
+      ['screenshot-3-share.png', [{ png: bundlePng, w: W, h: PH, x: 500, y: 190, scale: 0.6 }]],
+      ['screenshot-4-privacy.png', [{ png: settingsPng, w: W, h: PH, x: 500, y: 190, scale: 0.6 }]],
       [
         'screenshot-5-dark.png',
-        true,
-        pageAndPanel(
-          shopDark,
-          listDark,
-          `<div class="pop"><img src="${dataUrl(popPng)}" width="360" height="${popH}"></div>`
-        ),
+        [
+          { png: listDark, w: PANEL_W, h: PH, x: 770, y: 56, scale: 0.97 },
+          { png: popPng, w: 360, h: popH, x: 500, y: 120, scale: 0.9 },
+        ],
       ],
     ];
-    for (const [i, [file, dark, body]] of shots.entries()) {
+    for (const [i, [file, cards]] of shots.entries()) {
       const [title, sub] = copy.shots[i];
-      await render(ctx, frame({ title, sub, dark, body }), W, H, path.join(outDir, file));
+      await render(ctx, frame({ kicker, title, sub, cards }), W, H, path.join(outDir, file));
     }
 
     // Promo tiles — brand block plus a real crop of the side panel.
     const icon = dataUrl(fs.readFileSync(path.join(EXT, 'icons/icon128.png')));
-    const bullets = copy.bullets.map((b) => `<li>${esc(b)}</li>`).join('');
     await render(
       ctx,
       `<!doctype html><html><head><meta charset="utf-8"><style>
-      html,body{margin:0;width:1400px;height:560px;overflow:hidden;background:${PAPER};color:${INK};font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-      .l{position:absolute;left:80px;top:0;bottom:0;width:700px;display:flex;flex-direction:column;justify-content:center}
-      .b{display:flex;align-items:center;gap:20px}.b img{width:88px;height:88px}.b span{font-size:64px;font-weight:700;letter-spacing:-.02em}
-      h2{margin:22px 0 10px;font-size:34px;line-height:1.2}p{margin:0;font-size:20px;color:${MUTED};max-width:600px}
-      ul{margin:26px 0 0;padding:0;list-style:none;display:flex;gap:22px;font-size:17px;font-weight:600}li{border-top:3px solid ${RED};padding-top:8px}
-      .r{position:absolute;right:80px;top:56px;width:${PANEL_W}px;height:504px;overflow:hidden;border:1px solid #cfccc4;border-bottom:0;border-radius:10px 10px 0 0}
+      html,body{margin:0;width:1400px;height:560px;overflow:hidden;background:${NAVY};color:#f3f4f7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+      .l{position:absolute;left:80px;top:0;bottom:0;width:640px;display:flex;flex-direction:column;justify-content:center}
+      .b{display:flex;align-items:center;gap:18px}.b img{width:72px;height:72px;border-radius:14px;background:${PAPER};padding:6px}.b span{font-size:54px;font-weight:700;letter-spacing:-.02em}
+      h2{margin:26px 0 12px;font-size:40px;line-height:1.15;letter-spacing:-.01em}p{margin:0;font-size:21px;line-height:1.45;color:${NAVY_SUB};max-width:600px}
+      .c{position:absolute;overflow:hidden;border-radius:12px 12px 0 0;box-shadow:0 18px 48px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);border-bottom:0}.c img{display:block}
       </style></head><body><div class="l"><div class="b"><img src="${icon}"><span>Hindsight</span></div>
-      <h2>${esc(copy.tagline)}</h2><p>${esc(copy.sub)}</p><ul>${bullets}</ul></div>
-      <div class="r"><img src="${dataUrl(listLight)}" width="${PANEL_W}" height="${H - CAP}"></div></body></html>`,
+      <h2>${esc(copy.tagline)}</h2><p>${esc(copy.sub)}</p></div>
+      <div class="c" style="left:800px;top:70px;width:430px;height:490px"><img src="${dataUrl(listLight)}" width="430"></div>
+      <div class="c" style="left:960px;top:20px;width:400px;height:540px"><img src="${dataUrl(listDark)}" width="400"></div></body></html>`,
       1400,
       560,
       path.join(outDir, 'marquee-1400x560.png')
@@ -393,10 +407,10 @@ for (const lang of LANGS) {
     await render(
       ctx,
       `<!doctype html><html><head><meta charset="utf-8"><style>
-      html,body{margin:0;width:440px;height:280px;overflow:hidden;background:${PAPER};color:${INK};font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-      .w{position:absolute;inset:0;padding:0 36px;display:flex;flex-direction:column;justify-content:center;border-bottom:6px solid ${RED}}
-      .b{display:flex;align-items:center;gap:14px}.b img{width:64px;height:64px}.b span{font-size:44px;font-weight:700;letter-spacing:-.02em}
-      p{margin:16px 0 0;font-size:21px;line-height:1.3;font-weight:600}</style></head><body><div class="w">
+      html,body{margin:0;width:440px;height:280px;overflow:hidden;background:${NAVY};color:#f3f4f7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+      .w{position:absolute;inset:0;padding:0 36px;display:flex;flex-direction:column;justify-content:center}
+      .b{display:flex;align-items:center;gap:14px}.b img{width:60px;height:60px;border-radius:12px;background:${PAPER};padding:5px}.b span{font-size:42px;font-weight:700;letter-spacing:-.02em}
+      p{margin:18px 0 0;font-size:21px;line-height:1.3;font-weight:600;color:${NAVY_SUB}}</style></head><body><div class="w">
       <div class="b"><img src="${icon}"><span>Hindsight</span></div><p>${esc(copy.tile)}</p></div></body></html>`,
       440,
       280,
